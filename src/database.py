@@ -11,8 +11,9 @@ Think of it as: "Here's the building, here's the key to enter,
 and here's the blueprint for all rooms."
 """
 
-from sqlalchemy import create_engine
+from sqlalchemy import Column, DateTime, Float, Integer, String, create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
+from sqlalchemy.sql import func
 
 # Import settings from config.py — this is WHY we built config.py first
 from src.config import settings
@@ -73,6 +74,42 @@ Base = declarative_base()
 # ============================================================================
 # PART 4: Helper Function (Used by FastAPI later)
 # ============================================================================
+# ============================================================================
+# PART 3b: The Transaction Table (The "Room Blueprint")
+# ============================================================================
+
+
+class Transaction(Base):
+    """
+    This Python class = one table in SQLite called 'transactions'.
+    Each instance of this class = one row in that table.
+
+    SQLAlchemy automatically converts this class into a SQL CREATE TABLE command.
+    """
+
+    __tablename__ = "transactions"  # The actual table name in the database
+
+    # Primary key: unique ID for each row, auto-increments (1, 2, 3...)
+    id = Column(Integer, primary_key=True, index=True)
+
+    # PaySim columns — these map exactly to the CSV
+    step = Column(Integer, nullable=False)
+    type = Column(String, nullable=False)
+    amount = Column(Float, nullable=False)
+    nameOrig = Column(String, nullable=False)
+    oldbalanceOrg = Column(Float, nullable=False)
+    newbalanceOrig = Column(Float, nullable=False)
+    nameDest = Column(String, nullable=False)
+    oldbalanceDest = Column(Float, nullable=False)
+    newbalanceDest = Column(Float, nullable=False)
+
+    # Fraud labels — nullable because during real predictions, we won't know these
+    isFraud = Column(Integer, nullable=True)
+    isFlaggedFraud = Column(Integer, nullable=True)
+
+    # Auto-generated timestamp when the row is inserted
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    # ^ func.now() = SQLite automatically sets this to the current time
 
 
 def get_db():
