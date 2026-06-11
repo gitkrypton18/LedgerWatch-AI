@@ -1,0 +1,97 @@
+# src/database.py
+"""
+database.py — SQLite Database Setup
+
+This file does THREE things:
+1. Creates the database engine (the connection to the SQLite file)
+2. Creates a session factory (opens/closes connections automatically)
+3. Defines the base class that all tables inherit from
+
+Think of it as: "Here's the building, here's the key to enter,
+and here's the blueprint for all rooms."
+"""
+
+from sqlalchemy import create_engine
+from sqlalchemy.orm import declarative_base, sessionmaker
+
+# Import settings from config.py — this is WHY we built config.py first
+from src.config import settings
+
+# ============================================================================
+# PART 1: The Engine (The Database Connection)
+# ============================================================================
+
+# SQLite needs a special setting for FastAPI later.
+# SQLite is single-threaded by default, but FastAPI uses multiple threads.
+# check_same_thread=False tells SQLite: "It's okay, we know what we're doing."
+connect_args = (
+    {"check_same_thread": False} if settings.DATABASE_URL.startswith("sqlite") else {}
+)
+
+engine = create_engine(
+    settings.DATABASE_URL,  # Comes from .env: "sqlite:///./ledgerwatch.db"
+    connect_args=connect_args,  # The special SQLite setting above
+    echo=False,  # Set to True to see raw SQL (for debugging)
+)
+
+# What happens here:
+# - SQLAlchemy creates a file called "ledgerwatch.db" in your project folder
+# - It opens a connection to that file
+# - echo=False means it won't print every SQL command (keeps output clean)
+
+
+# ============================================================================
+# PART 2: The Session Factory (Automatic Connection Management)
+# ============================================================================
+
+SessionLocal = sessionmaker(
+    autocommit=False,  # Don't save to disk automatically — we control when
+    autoflush=False,  # Don't push changes to DB until we explicitly say so
+    bind=engine,  # Use the engine we created above
+)
+
+# What this means:
+# - autocommit=False: If your code crashes mid-way, NOTHING is saved.
+#   This prevents half-written data. You must call session.commit() to save.
+# - autoflush=False: Changes stay in memory until you decide to write them.
+#   This is faster and gives you control.
+
+
+# ============================================================================
+# PART 3: The Base Class (Blueprint for All Tables)
+# ============================================================================
+
+Base = declarative_base()
+
+# What this is:
+# - Every table in your database will be a Python class that inherits from Base
+# - Base carries the metadata that maps Python classes to SQL tables
+# - When we say "create all tables," SQLAlchemy looks at everything
+#   that inherits from Base and builds the corresponding SQL tables
+
+
+# ============================================================================
+# PART 4: Helper Function (Used by FastAPI later)
+# ============================================================================
+
+
+def get_db():
+    """
+    Creates a database session, gives it to the caller, and cleans up afterward.
+
+    This is called a "generator" — it yields (gives) a session, waits for
+    the caller to finish, then closes the session automatically.
+
+    FastAPI will use this as: db = Depends(get_db)
+    """
+    db = SessionLocal()  # Open a new connection
+    try:
+        yield db  # Hand it over to whoever asked for it
+    finally:
+        db.close()  # ALWAYS close, even if an error happened
+
+
+# Why this pattern?
+# - Every API request gets its OWN database session
+# - Sessions are closed automatically, even if the route crashes
+# - No connection leaks, no "database locked" errors
