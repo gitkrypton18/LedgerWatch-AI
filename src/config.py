@@ -8,12 +8,13 @@ This means: ONE place to change paths, ONE place to change parameters.
 
 import os
 from pathlib import Path
-from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # ============================================================================
 # STEP 1: Find where the project lives on your computer
 # ============================================================================
+
 
 def _get_project_root() -> Path:
     """
@@ -31,6 +32,7 @@ def _get_project_root() -> Path:
 # STEP 2: Define what settings exist and their types
 # ============================================================================
 
+
 class Settings(BaseSettings):
     """
     Think of this as a form with fields. Each field has:
@@ -41,9 +43,9 @@ class Settings(BaseSettings):
 
     # Tell pydantic-settings: "Read these values from .env file"
     model_config = SettingsConfigDict(
-        env_file=_get_project_root() / ".env",   # Path to .env file
-        env_file_encoding="utf-8",               # Handle special characters
-        extra="ignore",                          # Ignore unknown vars in .env
+        env_file=_get_project_root() / ".env",  # Path to .env file
+        env_file_encoding="utf-8",  # Handle special characters
+        extra="ignore",  # Ignore unknown vars in .env
     )
 
     # --- Database ---
@@ -52,6 +54,7 @@ class Settings(BaseSettings):
 
     # --- Model file path ---
     MODEL_PATH: str = "saved_models/isolation_forest_v1.0.0.joblib"
+    RISK_ENGINE_PATH: str = "saved_models/risk_engine_v1.0.0.joblib"
 
     # --- Data file paths ---
     RAW_DATA_PATH: str = "data/raw/PS_20174392719_1491204439457_log.csv"

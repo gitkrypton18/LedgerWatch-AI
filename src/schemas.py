@@ -102,10 +102,7 @@ class TransactionRead(TransactionBase):
 
 
 class PredictionResult(BaseModel):
-    """
-    Output of the anomaly detection pipeline.
-    This is what POST /predict and POST /batch-predict return to the user.
-    """
+    """Output of the anomaly detection pipeline."""
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -115,6 +112,9 @@ class PredictionResult(BaseModel):
     )
     risk_score: int = Field(
         ..., ge=0, le=100, description="Calibrated 0-100 risk percentile"
+    )
+    risk_band: Optional[str] = Field(
+        None, description="Low, Medium, Elevated, High, Critical"
     )
     is_anomaly: bool = Field(..., description="True if anomaly_score indicates outlier")
     shap_values: Optional[dict] = Field(
@@ -160,3 +160,29 @@ class OCRExtraction(BaseModel):
     validation_errors: list[str] = Field(
         default_factory=list, description="Missing or invalid fields found"
     )
+
+
+# ============================================================================
+# SECTION 4: API-ONLY SCHEMAS (added for FastAPI backend — Day 10)
+# ============================================================================
+
+
+class HealthResponse(BaseModel):
+    """Service health check response."""
+
+    status: str
+    version: str
+    model_loaded: bool
+    risk_engine_loaded: bool
+    ocr_available: bool
+    timestamp: str
+
+
+class TransactionQueryParams(BaseModel):
+    """Query parameters for GET /transactions."""
+
+    limit: int = Field(default=100, ge=1, le=1000)
+    offset: int = Field(default=0, ge=0)
+    risk_min: Optional[int] = Field(default=None, ge=0, le=100)
+    risk_max: Optional[int] = Field(default=None, ge=0, le=100)
+    transaction_type: Optional[str] = None

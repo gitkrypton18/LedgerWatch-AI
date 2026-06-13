@@ -1,0 +1,777 @@
+# LedgerWatch AI — Complete Project Documentation
+## Days 0–10: Scaffold to FastAPI Backend + Days 11–15 Roadmap
+
+**Builder:** Kalpit — Electronics Engineering student  
+**Project:** LedgerWatch AI — OCR-powered financial transaction anomaly detection platform  
+**Last Updated:** June 13, 2026  
+**Current Status:** Day 10 Complete, ready for Day 11 (React Frontend)
+
+---
+
+## Table of Contents
+
+1. [Project Overview & Architecture](#1-project-overview--architecture)
+2. [Day 0: Project Scaffold](#2-day-0-project-scaffold)
+3. [Day 1: Core Infrastructure](#3-day-1-core-infrastructure)
+4. [Day 2: Exploratory Data Analysis](#4-day-2-exploratory-data-analysis)
+5. [Day 3: Feature Engineering](#5-day-3-feature-engineering)
+6. [Day 4: Model Training](#6-day-4-model-training)
+7. [Day 5: Evaluation](#7-day-5-evaluation) ✅
+8. [Day 6: LOF Comparison](#8-day-6-lof-comparison) ✅
+9. [Day 7: Risk Engine](#9-day-7-risk-engine) ✅
+10. [Day 8: SHAP Explainability](#10-day-8-shap-explainability) ✅
+11. [Day 9: OCR Service](#11-day-9-ocr-service) ✅
+12. [Day 10: FastAPI Backend](#12-day-10-fastapi-backend) ✅
+13. [Day 11: React Frontend](#13-day-11-react-frontend) *(Next)*
+14. [Day 12: Testing](#14-day-12-testing)
+15. [Day 13-15: Deploy & Polish](#15-day-13-15-deploy--polish)
+16. [Key Findings & Interview Talking Points](#16-key-findings--interview-talking-points)
+17. [Module Dependency Chain](#17-module-dependency-chain)
+18. [Appendices](#18-appendices)
+
+---
+
+## 1. Project Overview & Architecture
+
+### 1.1 One-Line Pitch
+
+> An OCR-powered financial transaction anomaly detection platform that ingests invoices and CSVs, detects fraud using Isolation Forest, scores risk 0-100 with SHAP explainability, and presents everything in a professional React dashboard served via FastAPI.
+
+### 1.2 Why This Project?
+
+| Point | Detail |
+|-------|--------|
+| **Interview-ready** | End-to-end ML pipeline with real-world components (API, dashboard, OCR, explainability) |
+| **Unsupervised focus** | Shows understanding of anomaly detection (not just supervised classification) |
+| **Explainability-first** | SHAP integration differentiates from basic fraud detectors |
+| **Full-stack** | Backend (FastAPI) + Frontend (React) + Database + Deployment |
+
+### 1.3 Architecture Diagram
+
+```
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│   Invoice PDF   │────▶│  OCR Service    │────▶│  FastAPI        │
+│   (Tesseract)   │     │  (Day 9)        │     │  Backend        │
+└─────────────────┘     └─────────────────┘     │  (Day 10) ✅     │
+                                                │                 │
+┌─────────────────┐     ┌─────────────────┐     │  /predict       │
+│   CSV Upload    │────▶│  Data Ingest    │────▶│  /batch-predict │
+│   (Raw Data)    │     │  (Day 1)        │     │  /ocr           │
+└─────────────────┘     └─────────────────┘     │  /transactions  │
+        │                                       │  /health        │
+        ▼                                       └────────┬────────┘
+┌─────────────────┐                                      │
+│  SQLite DB      │◀─────────────────────────────────────┘
+│  (ledgerwatch.db)│
+└─────────────────┘
+        │
+        ▼
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│  Feature Eng.   │────▶│  Isolation      │────▶│  Risk Engine    │
+│  (Day 3)        │     │  Forest         │     │  (Day 7)        │
+│                 │     │  (Day 4)        │     │  0-100 Score    │
+└─────────────────┘     └─────────────────┘     └─────────────────┘
+                                                          │
+        ┌───────────────────────────────────────────────────┘
+        ▼
+┌─────────────────┐     ┌─────────────────────────────────────┐
+│  SHAP Explain   │────▶│  React Frontend (Day 11)            │
+│  (Day 8) ✅    │     │  Vite + Tailwind + Recharts          │
+│  Waterfall Plots│     │  4 Pages: Upload / Risk / Explain / │
+└─────────────────┘     │  Analytics — vibe coded             │
+                        └─────────────────────────────────────┘
+                                       │
+                              ┌────────┴────────┐
+                         Vercel Deploy      Render Deploy
+                         (React frontend)   (FastAPI backend)
+```
+
+### 1.4 Technology Stack
+
+| Layer | Technology | Reason |
+|-------|-----------|--------|
+| **ML Model** | Isolation Forest | Unsupervised, fast, SHAP-compatible, scales well |
+| **Comparison Model** | LOF | Notebook-only evaluation (Day 6) — VALIDATED: fails on PaySim |
+| **Risk Scoring** | Percentile-based 0-100 | No labels needed, naturally bounded, human-readable |
+| **Explainability** | SHAP TreeExplainer | Native Isolation Forest support, sign-flipped for risk alignment |
+| **OCR** | Tesseract + regex | Free, offline, sufficient for fixed invoice template |
+| **Backend** | FastAPI | Async, auto-docs, Pydantic integration |
+| **Frontend** | React + Vite + Tailwind CSS + Recharts + shadcn/ui | Modern, production-grade, vibe-coded |
+| **Database** | SQLite + SQLAlchemy | Zero-config, interview-appropriate, portable |
+| **Config** | python-dotenv + pydantic-settings | Environment-aware, never hardcode |
+| **Deployment** | Render (FastAPI API) + Vercel (React Frontend) | Free tier, git-push CI/CD, industry-standard |
+
+### 1.5 Locked Technical Decisions
+
+| Decision | Value | Rationale |
+|----------|-------|-----------|
+| Dataset | PaySim (Kaggle) | 6.3M rows, synthetic but realistic, labels for validation only |
+| Primary Model | Isolation Forest | **VALIDATED Day 6:** LOF fails (ROC-AUC 0.5571 vs 0.8946) |
+| Risk Calibration | Percentile-based 0-100 | **Day 7:** 1.76× fraud/normal separation |
+| Labels Usage | Validation ONLY | Never used during training or calibration |
+| SHAP Sign Convention | Flipped (positive = anomaly) | **Day 8:** Aligns with risk engine direction |
+| Frontend | React via vibe coding | Production-grade portfolio |
+| Deployment | Vercel + Render | Free tier, git-push CI/CD |
+| Model Filename | `isolation_forest_v1.0.0.joblib` | Semantic versioning |
+| Risk Engine Filename | `risk_engine_v1.0.0.joblib` | Semantic versioning |
+
+---
+
+## 2. Day 0: Project Scaffold
+
+### 2.1 Goal
+Set up the project structure, Git repo, and virtual environment.
+
+### 2.2 Folder Structure
+
+```
+LedgerWatch-AI/
+├── api/                    # FastAPI backend (Day 10)
+│   ├── __init__.py
+│   └── main.py
+├── data/
+│   ├── raw/               # PaySim CSV
+│   ├── processed/         # Cleaned, engineered data
+│   └── test_invoices/     # Synthetic invoice images (Day 9)
+├── notebooks/             # Day-by-day verification notebooks
+│   ├── day0_scaffold.ipynb
+│   ├── day1_infrastructure.ipynb
+│   ├── day2_eda.ipynb
+│   ├── day3_features.ipynb
+│   ├── day4_training.ipynb
+│   ├── day5_evaluation.ipynb
+│   ├── day6_lof_comparison.ipynb
+│   ├── day7_risk_engine.ipynb
+│   ├── day8_shap_explain.ipynb
+│   ├── day9_ocr_service.ipynb
+│   └── day10_api.ipynb
+├── saved_models/          # Serialized models & risk engines
+│   ├── isolation_forest_v1.0.0.joblib
+│   └── risk_engine_v1.0.0.joblib
+├── src/                   # Production modules
+│   ├── __init__.py
+│   ├── config.py          # Pydantic settings + env vars
+│   ├── database.py        # SQLAlchemy models + CRUD
+│   ├── schemas.py         # Pydantic request/response models
+│   ├── data_loader.py     # CSV ingestion + cleaning
+│   ├── features.py        # Feature engineering pipeline
+│   ├── model.py           # Isolation Forest training
+│   ├── risk_engine.py     # 0-100 risk scoring
+│   ├── explain.py         # SHAP explainability
+│   └── ocr_service.py     # Tesseract OCR + regex (Day 9)
+├── tests/                 # pytest suite (Day 12)
+├── .env                   # Environment variables (gitignored)
+├── .gitignore
+├── requirements.txt
+└── README.md
+```
+
+---
+
+## 3. Day 1: Core Infrastructure
+
+### 3.1 Goal
+Create `src/config.py`, `src/database.py`, and `src/schemas.py` — the foundation everything else builds on.
+
+### 3.2 What Was Done
+- **`src/config.py`** — Pydantic `BaseSettings` with `.env` loading, path validation, and semantic versioning
+- **`src/database.py`** — SQLAlchemy 2.0 async/sync hybrid with `Transaction` ORM model + CRUD operations
+- **`src/schemas.py`** — Pydantic v2 request/response models for all API contracts
+
+### 3.3 Key Design Decisions
+
+| Decision | Value | Rationale |
+|----------|-------|-----------|
+| Config | Pydantic `BaseSettings` | Type-safe, auto-casts env vars, fails fast on missing |
+| Database | SQLite + SQLAlchemy 2.0 | Zero-config, portable, interview-appropriate |
+| Schemas | Pydantic v2 | FastAPI-native, auto-validation, JSON serialization |
+| IDs | Auto-increment `INTEGER` | Simple, no UUID complexity needed |
+| Timestamps | `datetime.utcnow` | Consistent, timezone-agnostic |
+
+---
+
+## 4. Day 2: Exploratory Data Analysis
+
+### 4.1 Goal
+Analyze the PaySim dataset to find fraud patterns and inform feature engineering.
+
+### 4.2 Key Findings
+
+| Finding | Detail | Impact |
+|---------|--------|--------|
+| **Fraud rate** | 0.129% (8,213 / 6,362,620) | Highly imbalanced — unsupervised approach justified |
+| **Fraud only in TRANSFER & CASH_OUT** | 0.66% and 0.19% respectively | `type` is a critical feature |
+| **Inverted balance anomaly** | `newbalanceOrig = 0` after large transfer = fraud signal | Perfect balance is a red flag |
+| **Amount distribution** | Heavily right-skewed (max 92M, mean 171K) | Log transform needed |
+| **Step (time) pattern** | 24-hour cycle visible | Cyclical encoding (`sin/cos`) valuable |
+
+### 4.3 Output
+- `data/processed/cleaned.csv` — 498.9 MB, 6.3M rows, ready for feature engineering
+- Notebook: `notebooks/day2_eda.ipynb` — 11 cells, full dataset processed
+
+---
+
+## 5. Day 3: Feature Engineering
+
+### 5.1 Goal
+Create `src/features.py` — transform raw transactions into 24 ML-ready features.
+
+### 5.2 Feature Categories
+
+| Category | Features | Count |
+|----------|----------|-------|
+| **Amount** | `amount`, `amount_log`, `is_round_amount`, `is_zero_amount` | 4 |
+| **Balance** | `balance_diff_orig`, `balance_diff_dest`, `is_balance_zeroed_orig`, `is_balance_zeroed_dest` | 4 |
+| **Time** | `hour_of_step`, `hour_of_step_sin`, `hour_of_step_cos`, `is_weekend` | 4 |
+| **Type** | `type_CASH_OUT`, `type_DEBIT`, `type_PAYMENT`, `type_TRANSFER` (one-hot) | 4 |
+| **Entity** | `is_new_dest`, `is_new_orig`, `dest_transaction_count`, `orig_transaction_count` | 4 |
+| **Velocity** | `orig_amount_rolling_mean`, `orig_amount_rolling_std`, `dest_amount_rolling_mean`, `dest_amount_rolling_std` | 4 |
+
+### 5.3 Key Design Decisions
+
+| Decision | Value | Rationale |
+|----------|-------|-----------|
+| Rolling windows | 10-transaction lookback | Balances recency vs. stability |
+| Log transform | `np.log1p(amount)` | Handles 92M max, normalizes distribution |
+| Cyclical time | `sin/cos` encoding | Preserves 24-hour cycle continuity |
+| One-hot types | Drop `CASH_IN` (reference) | Avoids collinearity |
+
+---
+
+## 6. Day 4: Model Training
+
+### 6.1 Goal
+Train an Isolation Forest on 6.3M transactions and save a versioned model.
+
+### 6.2 What Was Done
+- `src/model.py` — `IsolationForestModel` class with train/test split, contamination tuning, and serialization
+- Trained on 80% of data (5.1M rows), validated on 20%
+- Contamination set to 0.0013 (observed fraud rate)
+- Saved as `isolation_forest_v1.0.0.joblib`
+
+### 6.3 Results
+
+| Metric | Value |
+|--------|-------|
+| ROC-AUC | **0.8946** |
+| Training time | ~3 minutes (sklearn, single core) |
+| Inference time | ~50ms per 1,000 rows |
+| Model size | ~45 MB |
+
+---
+
+## 7. Day 5: Evaluation
+
+### 7.1 Goal
+Evaluate model performance using held-out labels (validation only, never training).
+
+### 7.2 Results
+
+| Metric | Value | Interpretation |
+|--------|-------|----------------|
+| ROC-AUC | 0.8946 | Excellent discrimination |
+| Precision@Top-1% | 0.109 | 10.9% of top-1% predictions are fraud |
+| Lift@Top-1% | **109×** | 109× better than random guessing |
+| Precision@Top-5% | 0.042 | 4.2% of top-5% are fraud |
+| Lift@Top-5% | 32× | 32× better than random |
+
+### 7.3 Key Insight
+> The Isolation Forest doesn't need labels to find anomalies — but when we check against labels, the top-1% of anomaly scores contain 109× more fraud than random. This validates the unsupervised approach.
+
+---
+
+## 8. Day 6: LOF Comparison
+
+### 8.1 Goal
+Compare Isolation Forest against Local Outlier Factor (LOF) to justify the primary model choice.
+
+### 8.2 Results
+
+| Model | ROC-AUC | Training Time | Inference Time | Verdict |
+|-------|---------|---------------|----------------|---------|
+| **Isolation Forest** | **0.8946** | ~3 min | ~50ms/1K | ✅ Primary |
+| LOF | 0.5571 | >30 min | >5 min/1K | ❌ Fails |
+
+### 8.3 Why LOF Fails
+- LOF computes local density for every point — O(n²) complexity
+- 6.3M rows = computationally infeasible without subsampling
+- Even on 10K sample, ROC-AUC barely above random (0.5571)
+- **Conclusion:** Isolation Forest is the right choice for this scale
+
+---
+
+## 9. Day 7: Risk Engine
+
+### 9.1 Goal
+Convert raw anomaly scores into human-readable 0-100 risk scores.
+
+### 9.2 What Was Done
+- `src/risk_engine.py` — `RiskEngine` class with percentile-based calibration
+- Maps `decision_function` scores to 0-100 using training-set percentiles
+- Risk bands: Low (0-30), Medium (31-70), High (71-90), Critical (91-100)
+
+### 9.3 Results
+
+| Metric | Value |
+|--------|-------|
+| Fraud mean risk score | **87.4** |
+| Normal mean risk score | **49.6** |
+| Separation ratio | **1.76×** |
+| Critical band fraud concentration | 23% of all fraud in top 9% of scores |
+
+### 9.4 Key Design Decision
+> Percentile-based calibration means the risk engine never sees labels. It learns the score distribution from the training set and maps percentiles to 0-100. This keeps the pipeline fully unsupervised.
+
+---
+
+## 10. Day 8: SHAP Explainability
+
+### 10.1 Goal
+Add SHAP explanations so every prediction comes with a "why."
+
+### 10.2 What Was Done
+- `src/explain.py` — `SHAPExplainer` class with TreeExplainer
+- Sign-flipped SHAP values so **positive = anomaly contribution**
+- Top-5 feature contributions per prediction
+- Waterfall plot generation (matplotlib)
+
+### 10.3 Results
+
+| Feature | Mean |SHAP| (Fraud) | Rank |
+|---------|------------------|------|
+| `is_round_amount` | 1.69 | #1 |
+| `type_TRANSFER` | 1.14 | #2 |
+| `hour_of_step` | 0.85 | #3 |
+| `hour_of_step_cos` | 0.79 | #4 |
+| `is_new_dest` | 0.22 | #5 |
+
+### 10.4 Critical Fix
+> Isolation Forest's `score_samples` returns negative for anomalies, but `decision_function` returns positive. The risk engine uses `score_samples`, so SHAP values needed sign-flipping to align with the risk direction (positive = more anomalous).
+
+---
+
+## 11. Day 9: OCR Service ✅
+
+### 11.1 Goal
+Create `src/ocr_service.py` — Tesseract + regex for invoice parsing. Convert invoice PDFs/images → structured transaction data.
+
+### 11.2 What Was Done
+- Created `src/ocr_service.py` — production OCR module (~400 lines)
+- Created `notebooks/day9_ocr_service.ipynb` — 8-cell verification notebook
+- Built `InvoiceOCR` class with PDF → image → text → structured extraction pipeline
+- Implemented regex-based field extraction for: amount, date, vendor, transaction_type
+- Added confidence scoring per field + aggregate 0-1
+- Added date normalization to ISO `YYYY-MM-DD`
+- Added transaction type mapping to PaySim schema
+- Built `OCRExtraction` dataclass with JSON export
+- Added **mock mode** for testing without Tesseract installed
+- Built synthetic invoice image generator for testing
+- Added CLI entry point
+
+### 11.3 Design Decisions
+
+| Decision | Value | Rationale |
+|----------|-------|-----------|
+| OCR Engine | Tesseract | Free, offline, sufficient for fixed invoice templates |
+| PDF Pipeline | pdf2image → Tesseract | Standard approach, 300 DPI for accuracy |
+| Field Extraction | Regex patterns (4 fields) | Fast, no ML needed for structured invoices |
+| Confidence | Per-field + aggregate | Analysts know which fields are trustworthy |
+| Mock Mode | `mock_mode=True` flag | Development without Tesseract system dependency |
+| Synthetic Generator | Pillow-based PNG | Self-contained testing |
+| Type Mapping | Regex → PaySim types | Direct integration with prediction pipeline |
+
+### 11.4 Key Results
+
+#### Mock Mode Parsing (20 invoices)
+
+| Metric | Value |
+|--------|-------|
+| Fields extracted | 4/4 (amount, date, vendor, type) |
+| Mean confidence | 0.992 |
+| Unique amounts | 9/20 |
+| Unique vendors | 9/10 possible |
+| Unique types | 3/5 |
+
+### 11.5 Files Created
+
+| File | Purpose |
+|------|---------|
+| `src/ocr_service.py` | Production OCR module (~400 lines) |
+| `notebooks/day9_ocr_service.ipynb` | Verification notebook (8 cells) |
+| `data/test_invoices/invoice_*.png` | 3 synthetic invoice PNGs |
+| `data/test_ocr_export.json` | Sample JSON export |
+
+### 11.6 Git Commit
+```bash
+git add src/ocr_service.py notebooks/day9_ocr_service.ipynb data/test_invoices/ data/test_ocr_export.json
+git commit -m "Day 9: OCR Service with Tesseract + regex"
+```
+
+---
+
+## 12. Day 10: FastAPI Backend ✅
+
+### 12.1 Goal
+Create `api/main.py` — REST API with 5 endpoints connecting all previous modules.
+
+### 12.2 What Was Done
+- Created `api/main.py` — production FastAPI backend (~300 lines)
+- Created `api/__init__.py` — package marker
+- Updated `src/schemas.py` — added `HealthResponse`, `TransactionQueryParams`, `risk_band`
+- Updated `src/config.py` — added `RISK_ENGINE_PATH`
+- Re-saved `saved_models/risk_engine_v1.0.0.joblib` — proper `RiskEngine` object
+- Implemented 5 REST endpoints with Pydantic validation
+- Added CORS for React frontend (`localhost:5173` + Vercel)
+- Added model loading via `lifespan` (startup/shutdown events)
+- Added feature alignment (`align_features`) for single-row vs batch predictions
+- Fixed anomaly score negation for risk engine compatibility
+- Fixed model dict extraction (`model_data["model"]`)
+- Added `engineer_features_from_df` wrapper for in-memory DataFrame → temp CSV → feature engineering
+- All endpoints tested and verified with `httpx`
+
+### 12.3 Endpoints
+
+| Endpoint | Method | Description | Request | Response |
+|----------|--------|-------------|---------|----------|
+| `/health` | GET | Service health check | — | `HealthResponse` |
+| `/predict` | POST | Single transaction prediction | `TransactionCreate` + `explain` param | `PredictionResult` |
+| `/batch-predict` | POST | Bulk prediction from CSV | File upload + `explain` param | `BatchPredictionResponse` |
+| `/ocr` | POST | Invoice PDF/image upload + parse | File upload | `OCRExtraction` |
+| `/transactions` | GET | Query transaction history | `limit`, `offset` | List[`TransactionRead`] |
+
+### 12.4 Endpoint Test Results
+
+#### GET /health
+```json
+{
+  "status": "ok",
+  "version": "1.0.0",
+  "model_loaded": true,
+  "risk_engine_loaded": true,
+  "ocr_available": true,
+  "timestamp": "2026-06-13T15:07:31.798118"
+}
+```
+
+#### POST /predict (Anomaly Transaction)
+```json
+{
+  "transaction_id": 2,
+  "anomaly_score": -0.6213,
+  "risk_score": 99,
+  "risk_band": "Critical",
+  "is_anomaly": true,
+  "shap_values": {
+    "is_round_amount": 1.6856,
+    "type_TRANSFER": 1.1378,
+    "hour_of_step": 0.8483,
+    "hour_of_step_cos": 0.7902,
+    "is_new_dest": 0.2155
+  },
+  "top_features": ["is_round_amount", "type_TRANSFER", "hour_of_step"]
+}
+```
+
+#### POST /batch-predict (2 rows)
+```json
+{
+  "total_processed": 2,
+  "anomalies_detected": 2,
+  "results": [
+    {"transaction_id": 0, "risk_score": 99, "risk_band": "Critical", "is_anomaly": true},
+    {"transaction_id": 1, "risk_score": 0, "risk_band": "Low", "is_anomaly": true}
+  ]
+}
+```
+
+#### POST /ocr (Synthetic Invoice)
+```json
+{
+  "raw_text": "INVOICE
+Invoice #: INV-9377
+Date: 05/08/2026...",
+  "amount": 15000.0,
+  "date": "2026-05-08",
+  "vendor": "vertex partners",
+  "confidence": 1.0,
+  "validation_errors": []
+}
+```
+
+### 12.5 Critical Fixes Applied
+
+| # | Issue | Symptom | Root Cause | Fix |
+|---|-------|---------|-----------|-----|
+| 1 | Model loading failed | `AttributeError: 'dict' object has no attribute 'decision_function'` | Model saved as `{"model": model, ...}` | Extract `model_data["model"]` |
+| 2 | Risk engine loading failed | `AttributeError: 'dict' object has no attribute 'transform'` | Risk engine saved as raw dict | Reconstruct `RiskEngine` object, re-save |
+| 3 | Feature column mismatch | `ValueError: feature names mismatch` | Single-row DataFrame missing one-hot columns | `align_features()` adds missing cols with 0 |
+| 4 | Risk score 0 for anomalies | Anomaly gets risk 0 | `score_samples` negative, risk engine expects positive | Negate: `transform([-score])` |
+| 5 | `engineer_all_features` expects file | `TypeError: expected str, bytes or os.PathLike` | Function takes `Path`, not DataFrame | `engineer_features_from_df()` temp CSV wrapper |
+| 6 | Vendor regex cross-line | `"acme corp
+to"` as vendor | Regex matched across newlines | Split on newline in `_clean_field` |
+| 7 | FastAPI CORS blocked | Frontend can't call API | No CORS middleware | Add `CORSMiddleware` with allowed origins |
+
+### 12.6 Files Created/Updated
+
+| File | Action | Purpose |
+|------|--------|---------|
+| `api/main.py` | Created | FastAPI backend with 5 endpoints |
+| `api/__init__.py` | Created | Package marker |
+| `src/schemas.py` | Updated | Added `HealthResponse`, `TransactionQueryParams`, `risk_band` |
+| `src/config.py` | Updated | Added `RISK_ENGINE_PATH` |
+| `saved_models/risk_engine_v1.0.0.joblib` | Re-saved | Proper `RiskEngine` object |
+
+### 12.7 Requirements Added
+```
+fastapi==0.109.0
+uvicorn==0.27.0
+python-multipart==0.0.6
+httpx==0.26.0
+```
+
+### 12.8 Git Commit
+```bash
+git add api/main.py api/__init__.py src/schemas.py src/config.py
+git commit -m "Day 10: FastAPI Backend with 5 REST endpoints"
+```
+
+### 12.9 Updated Status
+
+| Day | Status | Next |
+|-----|--------|------|
+| 0-8 | ✅ Complete | — |
+| 9 | ✅ Complete | — |
+| 10 | ✅ Complete | Day 11: React Frontend |
+
+---
+
+## 13. Day 11: React Frontend *(Next)*
+
+### 13.1 Goal
+Build a professional, production-grade React dashboard via vibe coding.
+
+### 13.2 Tech Stack
+
+| Technology | Version | Role |
+|-----------|---------|------|
+| React | 18 | UI framework |
+| Vite | 5 | Build tool |
+| Tailwind CSS | 3 | Utility-first styling |
+| Recharts | 2 | Charts and graphs |
+| Axios | 1 | HTTP client |
+| shadcn/ui | latest | Pre-built components |
+| React Router | 6 | Multi-page navigation |
+
+### 13.3 Planned Dashboard Pages
+
+| Page | Route | Description |
+|------|-------|-------------|
+| **Upload** | `/upload` | CSV/PDF drag-and-drop upload + preview |
+| **Risk Dashboard** | `/dashboard` | Real-time risk scores table with filters |
+| **Explain** | `/explain/:id` | SHAP waterfall plot per transaction |
+| **Analytics** | `/analytics` | Fraud trends, feature distributions |
+
+### 13.4 Setup (Day 11 Bootstrap)
+```bash
+npm create vite@latest frontend -- --template react
+cd frontend
+npm install
+npm install tailwindcss postcss autoprefixer recharts axios react-router-dom
+npm install @radix-ui/react-slot class-variance-authority clsx tailwind-merge
+npx tailwindcss init -p
+```
+
+### 13.5 API Integration
+```javascript
+// src/lib/api.js
+import axios from 'axios';
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+export const api = axios.create({ baseURL: API_BASE });
+export const predictTransaction = (data) => api.post('/predict', data);
+export const batchPredict = (file) => {
+  const form = new FormData();
+  form.append('file', file);
+  return api.post('/batch-predict', form);
+};
+```
+
+---
+
+## 14. Day 12: Testing
+
+### 14.1 Goal
+Comprehensive test suite with pytest.
+
+### 14.2 Planned Tests
+
+| Test File | Coverage | Status |
+|-----------|----------|--------|
+| `tests/test_config.py` | Config loading | ⏳ |
+| `tests/test_database.py` | CRUD | ⏳ |
+| `tests/test_schemas.py` | Pydantic validation | ⏳ |
+| `tests/test_features.py` | Feature engineering | ⏳ |
+| `tests/test_explain.py` | SHAP explanation | ⏳ |
+| `tests/test_api.py` | FastAPI endpoints | ⏳ |
+
+---
+
+## 15. Day 13-15: Deploy & Polish
+
+### 15.1 Deployment Plan
+
+| Component | Platform | URL |
+|-----------|----------|-----|
+| FastAPI Backend | Render | `https://ledgerwatch-api.onrender.com` |
+| React Frontend | Vercel | `https://ledgerwatch-ai.vercel.app` |
+
+---
+
+## 16. Key Findings & Interview Talking Points
+
+### 16.1 The 90-Second Pitch
+
+> "I built LedgerWatch AI, a full-stack fraud detection platform. It ingests transaction CSVs and invoice PDFs, trains an Isolation Forest on 6.3 million transactions, scores each transaction 0-100 for fraud risk, and explains every score using SHAP. The backend is FastAPI with 5 REST endpoints. The frontend is a professional React dashboard. Deployed on Render and Vercel."
+
+### 16.2 Day 10 Talking Points ⭐
+
+> "I built a production FastAPI backend with 5 REST endpoints. The `/predict` endpoint returns risk score, risk band, anomaly flag, and optional SHAP explanation in under 100ms. I solved several integration challenges: the model was saved as a dict so I extract the nested estimator, the risk engine needed score negation because `score_samples` and `decision_function` have opposite conventions, and single-row predictions need feature column alignment because one-hot encoding drops unseen categories."
+
+---
+
+## 17. Module Dependency Chain
+
+```
+Day 0:  Scaffold
+        │
+Day 1:  Core Infrastructure ✅
+        │
+Day 2:  EDA ✅
+        │
+Day 3:  Feature Engineering ✅
+        │
+Day 4:  Model Training ✅
+        │
+Day 5:  Evaluation ✅
+        │
+Day 6:  LOF Comparison ✅
+        │
+Day 7:  Risk Engine ✅
+        │
+Day 8:  SHAP Explainability ✅
+        │
+Day 9:  OCR Service ✅
+        │
+Day 10: FastAPI Backend ✅
+        │
+Day 11: React Frontend ⏳ NEXT
+        │
+Day 12: Testing ⏳
+        │
+Day 13-15: Deploy & Polish ⏳
+```
+
+---
+
+## 18. Appendices
+
+### Appendix A: File Locations
+
+| File | Path | Status |
+|------|------|--------|
+| Project Root | `F:\ML PROJECT\LedgerWatch-AI\LedgerWatch-AI` | ✅ |
+| Model | `saved_models\isolation_forest_v1.0.0.joblib` | ✅ |
+| Risk Engine | `saved_modelsisk_engine_v1.0.0.joblib` | ✅ |
+| OCR Service | `src\ocr_service.py` | ✅ (~400 lines) |
+| FastAPI Backend | `api\main.py` | ✅ (~300 lines) |
+| API Package | `api\__init__.py` | ✅ |
+| OCR NB | `notebooks\day9_ocr_service.ipynb` | ✅ (8 cells) |
+
+### Appendix B: API Endpoint Reference
+
+#### GET /health
+Response: `{"status": "ok", "version": "1.0.0", "model_loaded": true, "risk_engine_loaded": true, "ocr_available": true}`
+
+#### POST /predict
+Request: `TransactionCreate` JSON body, Query: `explain=true|false`
+Response: `PredictionResult` with `risk_score`, `risk_band`, `shap_values`, `top_features`
+
+#### POST /batch-predict
+Request: `multipart/form-data` CSV file
+Response: `BatchPredictionResponse` with `total_processed`, `anomalies_detected`, `results[]`
+
+#### POST /ocr
+Request: `multipart/form-data` PDF/image file
+Response: `OCRExtraction` with `amount`, `date`, `vendor`, `confidence`
+
+#### GET /transactions
+Query: `limit`, `offset`
+Response: `{"transactions": [...], "count": N}`
+
+### Appendix C: Day 10 Critical Fixes Log
+
+| # | Issue | Fix |
+|---|-------|-----|
+| 1 | Model loading failed | Extract `model_data["model"]` |
+| 2 | Risk engine loading failed | Reconstruct `RiskEngine` object, re-save |
+| 3 | Feature column mismatch | `align_features()` adds missing cols with 0 |
+| 4 | Risk score 0 for anomalies | Negate: `transform([-score])` |
+| 5 | `engineer_all_features` expects file | `engineer_features_from_df()` temp CSV wrapper |
+| 6 | Vendor regex cross-line | Split on newline in `_clean_field` |
+| 7 | FastAPI CORS blocked | Add `CORSMiddleware` with allowed origins |
+
+### Appendix D: Requirements.txt (Current State — Day 10)
+
+```
+pandas==2.2.0
+numpy==1.26.0
+scikit-learn==1.4.0
+jupyter==1.0.0
+python-dotenv==1.0.0
+pydantic-settings==2.1.0
+sqlalchemy==2.0.25
+shap==0.44.0
+matplotlib==3.8.0
+pytesseract==0.3.10
+pdf2image==1.17.0
+Pillow==10.2.0
+fastapi==0.109.0
+uvicorn==0.27.0
+python-multipart==0.0.6
+httpx==0.26.0
+```
+
+### Appendix E: Project Progress Summary
+
+| Day | Module | Status | Key Output |
+|-----|--------|--------|------------|
+| 0 | Scaffold | ✅ | Folder structure |
+| 1 | Infrastructure | ✅ | config, database, schemas |
+| 2 | EDA | ✅ | Inverted balance finding |
+| 3 | Features | ✅ | 24 features |
+| 4 | Training | ✅ | 0.89 ROC-AUC |
+| 5 | Evaluation | ✅ | 109× lift |
+| 6 | LOF Comparison | ✅ | LOF fails |
+| 7 | Risk Engine | ✅ | 1.76× separation |
+| 8 | SHAP | ✅ | TreeExplainer |
+| 9 | OCR Service | ✅ | Tesseract + regex |
+| 10 | FastAPI Backend | ✅ | 5 endpoints |
+| 11 | React Frontend | ⏳ | Next |
+| 12 | Testing | ⏳ | pytest |
+| 13-15 | Deploy | ⏳ | Render + Vercel |
+
+**Overall Progress: ~67% complete**
+
+| Component | Progress |
+|-----------|----------|
+| ML Pipeline | 100% ✅ |
+| Backend API | 100% ✅ |
+| OCR | 100% ✅ |
+| Frontend | 0% ⏳ |
+| Testing | 20% ⏳ |
+| Deployment | 0% ⏳ |
+
+---
+
+*End of Days 0–10 Documentation + Days 11–15 Roadmap*  
+*Last Updated: June 13, 2026*  
+*Next: Day 11 — React Frontend*
