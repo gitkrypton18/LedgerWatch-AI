@@ -21,9 +21,8 @@ import joblib
 import numpy as np
 import pandas as pd
 import shap
-from fastapi import Depends, FastAPI, File, HTTPException, Query, Security, UploadFile
+from fastapi import Depends, FastAPI, File, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.security import APIKeyHeader
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -48,18 +47,6 @@ logging.basicConfig(
     level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s"
 )
 logger = logging.getLogger(__name__)
-
-
-# ─── API Key Auth ────────────────────────────────────────────────────────────
-
-api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
-
-
-async def verify_api_key(api_key: str = Security(api_key_header)):
-    """Simple API key validation."""
-    if api_key != settings.API_KEY:
-        raise HTTPException(status_code=403, detail="Invalid API key")
-    return api_key
 
 
 # ─── Lifespan: Load models on startup ────────────────────────────────────────
@@ -267,9 +254,7 @@ async def health_check():
     )
 
 
-@app.post(
-    "/predict", response_model=PredictionResult, dependencies=[Depends(verify_api_key)]
-)
+@app.post("/predict", response_model=PredictionResult)
 async def predict(
     data: TransactionCreate,
     explain: bool = Query(default=True),
@@ -303,11 +288,7 @@ async def predict(
     return PredictionResult(**result)
 
 
-@app.post(
-    "/batch-predict",
-    response_model=BatchPredictionResponse,
-    dependencies=[Depends(verify_api_key)],
-)
+@app.post("/batch-predict", response_model=BatchPredictionResponse)
 async def batch_predict(
     file: UploadFile = File(...),
     explain: bool = Query(default=False),
@@ -384,7 +365,7 @@ async def batch_predict(
     )
 
 
-@app.post("/ocr", dependencies=[Depends(verify_api_key)])
+@app.post("/ocr")
 async def ocr_parse(file: UploadFile = File(...)):
     """Parse invoice PDF or image into structured data."""
     ocr = app.state.ocr
@@ -421,7 +402,7 @@ async def ocr_parse(file: UploadFile = File(...)):
         os.unlink(tmp_path)
 
 
-@app.get("/transactions", dependencies=[Depends(verify_api_key)])
+@app.get("/transactions")
 async def get_transactions(
     limit: int = Query(default=100, ge=1, le=1000),
     offset: int = Query(default=0, ge=0),
@@ -435,7 +416,7 @@ async def get_transactions(
     }
 
 
-@app.get("/transactions/{transaction_id}", dependencies=[Depends(verify_api_key)])
+@app.get("/transactions/{transaction_id}")
 async def get_transaction(
     transaction_id: int,
     db: Session = Depends(get_db),
@@ -447,7 +428,7 @@ async def get_transaction(
     return TransactionRead.model_validate(tx)
 
 
-@app.get("/stats", dependencies=[Depends(verify_api_key)])
+@app.get("/stats")
 async def get_stats(db: Session = Depends(get_db)):
     """Dashboard statistics."""
     total = db.query(func.count(DBTransaction.id)).scalar()
