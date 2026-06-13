@@ -1,4 +1,4 @@
-# Python
+# === PYTHON ===
 __pycache__/
 *.py[cod]
 *$py.class
@@ -20,49 +20,68 @@ wheels/
 .installed.cfg
 *.egg
 
-# Virtual environments
+# === VIRTUAL ENVIRONMENTS ===
 venv/
 env/
 ENV/
 .venv
 
-# IDEs
+# === IDEs ===
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
 
-# Environment variables
+# === ENVIRONMENT / SECRETS ===
 .env
+.env.local
+.env.production
 
-# Database
-data/*.db
-data/*.sqlite
-data/*.sqlite3
+# === DATABASE (anywhere) ===
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
 
-# Models (large files)
+# === MODELS (large files) ===
 *.joblib
+*.pkl
+*.h5
+*.onnx
 
-# Data files (large)
-data/raw/*.csv
-data/processed/*.csv
+# === DATA FILES (large) ===
+data/
+!data/.gitkeep
+*.csv
+*.parquet
+*.xlsx
 
-# Jupyter
+# === FRONTEND ===
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+*.tsbuildinfo
+
+# === JUPYTER ===
 .ipynb_checkpoints/
+*.ipynb_checkpoints
 
-# OS
+# === OS ===
 .DS_Store
 Thumbs.db
 
-# Logs
+# === LOGS ===
 *.log
 logs/
 
-# Testing
+# === TESTING ===
 .coverage
 htmlcov/
 .pytest_cache/
 
-# Streamlit
+# === MISC ===
 .streamlit/
+tmp/
+temp/
+.cache/
