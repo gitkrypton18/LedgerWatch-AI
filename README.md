@@ -7,7 +7,7 @@ Financial Document Intelligence & Anomaly Detection Platform
 1. Create conda env: `conda create -n ledgerwatch python=3.10`
 2. Activate: `conda activate ledgerwatch`
 3. Install: `pip install -r requirements.txt`
-4. Run: `uvicorn api.main:app --reload`
+4. Run: `uvicorn backend.main:app --reload`
 
 ## Features
 

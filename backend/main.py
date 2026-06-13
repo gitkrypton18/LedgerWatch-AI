@@ -1,5 +1,5 @@
 """
-api/main.py — FastAPI backend for LedgerWatch AI
+backend/main.py — FastAPI backend for LedgerWatch AI
 
 Endpoints:
   GET  /health          → Service health check
@@ -472,4 +472,4 @@ async def get_stats(db: Session = Depends(get_db)):
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run("api.main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("backend.main:app", host="0.0.0.0", port=8000, reload=True)

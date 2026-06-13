@@ -1,9 +1,9 @@
 # LedgerWatch AI — Complete Project Documentation
 ## Days 0–13: Scaffold to Full React Frontend (6 Pages) + API Integration + Testing Roadmap
 
-**Builder:** Kalpit — Electronics Engineering student  
-**Project:** LedgerWatch AI — OCR-powered financial transaction anomaly detection platform  
-**Last Updated:** June 13, 2026  
+**Builder:** Kalpit — Electronics Engineering student
+**Project:** LedgerWatch AI — OCR-powered financial transaction anomaly detection platform
+**Last Updated:** June 13, 2026
 **Current Status:** All 6 Frontend Pages Complete + API Integration Ready, Testing Phase Next
 
 ---
@@ -132,7 +132,7 @@ Set up the project structure, Git repo, and virtual environment.
 
 ```
 LedgerWatch-AI/
-├── api/                    # FastAPI backend (Day 10)
+├── backend/                    # FastAPI backend (Day 10)
 │   ├── __init__.py
 │   └── main.py
 ├── data/
@@ -443,11 +443,11 @@ Create `src/ocr_service.py` — Tesseract + regex for invoice parsing. Convert i
 ## 12. Day 10: FastAPI Backend
 
 ### 12.1 Goal
-Create `api/main.py` — REST API with 5 endpoints connecting all previous modules.
+Create `backend/main.py` — REST API with 5 endpoints connecting all previous modules.
 
 ### 12.2 What Was Done
-- Created `api/main.py` — production FastAPI backend (~300 lines)
-- Created `api/__init__.py` — package marker
+- Created `backend/main.py` — production FastAPI backend (~300 lines)
+- Created `backend/__init__.py` — package marker
 - Updated `src/schemas.py` — added `HealthResponse`, `TransactionQueryParams`, `risk_band`
 - Updated `src/config.py` — added `RISK_ENGINE_PATH`
 - Re-saved `saved_models/risk_engine_v1.0.0.joblib` — proper `RiskEngine` object
@@ -546,8 +546,8 @@ to"` as vendor | Regex matched across newlines | Split on newline in `_clean_fie
 
 | File | Action | Purpose |
 |------|--------|---------|
-| `api/main.py` | Created | FastAPI backend with 5 endpoints |
-| `api/__init__.py` | Created | Package marker |
+| `backend/main.py` | Created | FastAPI backend with 5 endpoints |
+| `backend/__init__.py` | Created | Package marker |
 | `src/schemas.py` | Updated | Added `HealthResponse`, `TransactionQueryParams`, `risk_band` |
 | `src/config.py` | Updated | Added `RISK_ENGINE_PATH` |
 | `saved_models/risk_engine_v1.0.0.joblib` | Re-saved | Proper `RiskEngine` object |
@@ -1116,7 +1116,7 @@ Day 15: Testing & Deploy (next)
 | Explain | `src/explain.py` | Done | ~120 lines |
 | Evaluate | `src/evaluate.py` | Done | ~80 lines |
 | OCR Service | `src/ocr_service.py` | Done | ~400 lines |
-| FastAPI Main | `api/main.py` | Done | ~300 lines |
+| FastAPI Main | `backend/main.py` | Done | ~300 lines |
 | Model | `saved_models/isolation_forest_v1.0.0.joblib` | Done | ~45 MB |
 | Risk Engine Model | `saved_models/risk_engine_v1.0.0.joblib` | Done | ~2 MB |
 
@@ -1329,7 +1329,7 @@ httpx==0.26.0
 
 ---
 
-*End of Days 0-13 Documentation + Days 14-15 Roadmap*  
-*Last Updated: June 13, 2026*  
-*Next: Day 14 — API Integration (Axios -> FastAPI)*  
+*End of Days 0-13 Documentation + Days 14-15 Roadmap*
+*Last Updated: June 13, 2026*
+*Next: Day 14 — API Integration (Axios -> FastAPI)*
 *All 6 frontend pages complete and functional with mock data*
