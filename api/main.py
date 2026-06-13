@@ -7,6 +7,8 @@ Endpoints:
   POST /batch-predict   → Bulk CSV prediction
   POST /ocr             → Invoice PDF/image upload + parse
   GET  /transactions    → Query transaction history
+  GET  /transactions/{id} → Get single transaction
+  GET  /stats           → Dashboard statistics
 """
 
 import logging
@@ -18,14 +20,17 @@ from io import StringIO
 import joblib
 import numpy as np
 import pandas as pd
-from fastapi import Depends, FastAPI, File, HTTPException, Query, UploadFile
+import shap
+from fastapi import Depends, FastAPI, File, HTTPException, Query, Security, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import APIKeyHeader
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from src.config import settings
-from src.database import SessionLocal
+from src.database import Base, SessionLocal
 from src.database import Transaction as DBTransaction
-from src.database import get_db
+from src.database import engine, get_db
 from src.explain import explain_transaction
 from src.features import engineer_all_features
 from src.ocr_service import InvoiceOCR
@@ -45,6 +50,18 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+# ─── API Key Auth ────────────────────────────────────────────────────────────
+
+api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
+
+
+async def verify_api_key(api_key: str = Security(api_key_header)):
+    """Simple API key validation."""
+    if api_key != settings.API_KEY:
+        raise HTTPException(status_code=403, detail="Invalid API key")
+    return api_key
+
+
 # ─── Lifespan: Load models on startup ────────────────────────────────────────
 
 
@@ -52,6 +69,10 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     """Load ML models on startup, clean up on shutdown."""
     logger.info("Starting LedgerWatch API...")
+
+    # Create database tables if they don't exist (critical for fresh deploys)
+    Base.metadata.create_all(bind=engine)
+
     # Load Isolation Forest model
     model_path = settings.MODEL_PATH
     if os.path.exists(model_path):
@@ -77,11 +98,20 @@ async def lifespan(app: FastAPI):
     # Load Risk Engine
     risk_path = settings.RISK_ENGINE_PATH
     if os.path.exists(risk_path):
-        app.state.risk_engine = joblib.load(risk_path)
+        app.state.risk_engine = RiskEngine.load(risk_path)
         logger.info(f"Risk engine loaded: {risk_path}")
     else:
         logger.warning(f"Risk engine not found: {risk_path}")
         app.state.risk_engine = None
+
+    # Cache SHAP TreeExplainer (expensive to recreate per request)
+    if app.state.model is not None:
+        app.state.explainer = shap.TreeExplainer(
+            app.state.model, feature_perturbation="interventional"
+        )
+        logger.info("SHAP TreeExplainer cached")
+    else:
+        app.state.explainer = None
 
     # Initialize OCR
     try:
@@ -104,7 +134,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "https://ledgerwatch-ai.vercel.app"],
+    allow_origins=settings.CORS_ORIGINS.split(","),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -161,9 +191,19 @@ def align_features(X: pd.DataFrame, expected_features: list) -> pd.DataFrame:
 
 
 def predict_single(
-    df: pd.DataFrame, model, risk_engine, expected_features: list, explain: bool = False
+    df: pd.DataFrame,
+    model,
+    risk_engine,
+    expected_features: list,
+    explainer=None,
+    explain: bool = False,
 ):
-    """Run prediction pipeline on a single-row DataFrame."""
+    """Run prediction pipeline on a single-row DataFrame.
+
+    NOTE: freq_orig/freq_dest will be 0 for single-row predictions because
+    cumcount() counts within the same DataFrame. For accurate frequency
+    features, use /batch-predict with historical context or query the DB.
+    """
     start = time.time()
 
     features = engineer_features_from_df(df)
@@ -184,10 +224,10 @@ def predict_single(
     # SHAP (optional)
     shap_vals = None
     top_feats = None
-    if explain:
+    if explain and explainer is not None:
         try:
             shap_result = explain_transaction(
-                model, X_aligned.iloc[0], expected_features
+                model, X_aligned.iloc[0], expected_features, explainer=explainer
             )
             if shap_result and "contributions" in shap_result:
                 shap_vals = {
@@ -227,7 +267,9 @@ async def health_check():
     )
 
 
-@app.post("/predict", response_model=PredictionResult)
+@app.post(
+    "/predict", response_model=PredictionResult, dependencies=[Depends(verify_api_key)]
+)
 async def predict(
     data: TransactionCreate,
     explain: bool = Query(default=True),
@@ -243,6 +285,7 @@ async def predict(
         app.state.model,
         app.state.risk_engine,
         app.state.expected_features,
+        explainer=app.state.explainer,
         explain=explain,
     )
 
@@ -260,7 +303,11 @@ async def predict(
     return PredictionResult(**result)
 
 
-@app.post("/batch-predict", response_model=BatchPredictionResponse)
+@app.post(
+    "/batch-predict",
+    response_model=BatchPredictionResponse,
+    dependencies=[Depends(verify_api_key)],
+)
 async def batch_predict(
     file: UploadFile = File(...),
     explain: bool = Query(default=False),
@@ -273,10 +320,15 @@ async def batch_predict(
     if not file.filename.endswith(".csv"):
         raise HTTPException(status_code=400, detail="Only CSV files accepted")
 
+    # File size guard: max 10MB
+    MAX_BATCH_SIZE = 10 * 1024 * 1024
+    contents = await file.read(MAX_BATCH_SIZE + 1)
+    if len(contents) > MAX_BATCH_SIZE:
+        raise HTTPException(status_code=413, detail="File too large. Max 10MB.")
+
     start = time.time()
 
     try:
-        contents = await file.read()
         df = pd.read_csv(StringIO(contents.decode("utf-8")))
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Invalid CSV: {e}")
@@ -332,7 +384,7 @@ async def batch_predict(
     )
 
 
-@app.post("/ocr")
+@app.post("/ocr", dependencies=[Depends(verify_api_key)])
 async def ocr_parse(file: UploadFile = File(...)):
     """Parse invoice PDF or image into structured data."""
     ocr = app.state.ocr
@@ -369,7 +421,7 @@ async def ocr_parse(file: UploadFile = File(...)):
         os.unlink(tmp_path)
 
 
-@app.get("/transactions")
+@app.get("/transactions", dependencies=[Depends(verify_api_key)])
 async def get_transactions(
     limit: int = Query(default=100, ge=1, le=1000),
     offset: int = Query(default=0, ge=0),
@@ -377,7 +429,44 @@ async def get_transactions(
 ):
     """Query transaction history."""
     txs = db.query(DBTransaction).offset(offset).limit(limit).all()
-    return {"transactions": txs, "count": len(txs)}
+    return {
+        "transactions": [TransactionRead.model_validate(tx) for tx in txs],
+        "count": len(txs),
+    }
+
+
+@app.get("/transactions/{transaction_id}", dependencies=[Depends(verify_api_key)])
+async def get_transaction(
+    transaction_id: int,
+    db: Session = Depends(get_db),
+):
+    """Get a single transaction by ID."""
+    tx = db.query(DBTransaction).filter(DBTransaction.id == transaction_id).first()
+    if not tx:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+    return TransactionRead.model_validate(tx)
+
+
+@app.get("/stats", dependencies=[Depends(verify_api_key)])
+async def get_stats(db: Session = Depends(get_db)):
+    """Dashboard statistics."""
+    total = db.query(func.count(DBTransaction.id)).scalar()
+
+    # NOTE: For full stats, add is_anomaly/risk_band columns to DBTransaction model
+    try:
+        anomalies = (
+            db.query(func.count(DBTransaction.id))
+            .filter(DBTransaction.is_anomaly == True)
+            .scalar()
+        )
+    except Exception:
+        anomalies = 0
+
+    return {
+        "total_transactions": total or 0,
+        "anomalies_detected": anomalies or 0,
+        "anomaly_rate": round(anomalies / total, 4) if total else 0.0,
+    }
 
 
 if __name__ == "__main__":

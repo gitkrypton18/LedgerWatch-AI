@@ -1,79 +1,54 @@
-# src/config.py
 """
-config.py — The Settings Brain of LedgerWatch AI
+src/config.py — LedgerWatch AI configuration
 
-Every other file in this project imports 'settings' from here.
-This means: ONE place to change paths, ONE place to change parameters.
+Pydantic-settings with .env loading. All paths validated at startup.
 """
 
-import os
 from pathlib import Path
 
-from pydantic_settings import BaseSettings, SettingsConfigDict
-
-# ============================================================================
-# STEP 1: Find where the project lives on your computer
-# ============================================================================
-
-
-def _get_project_root() -> Path:
-    """
-    This file is at:  ledgerwatch-ai/src/config.py
-    We need to go UP one folder to reach:  ledgerwatch-ai/
-    That's where .env lives.
-    """
-    # __file__ = "ledgerwatch-ai/src/config.py"
-    # .resolve() makes it an absolute path (no "..")
-    # .parent goes to "src/", .parent again goes to "ledgerwatch-ai/"
-    return Path(__file__).resolve().parent.parent
-
-
-# ============================================================================
-# STEP 2: Define what settings exist and their types
-# ============================================================================
+from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    """
-    Think of this as a form with fields. Each field has:
-    - a name (like DATABASE_URL)
-    - a type (str, float, etc.)
-    - a default value (fallback if .env doesn't mention it)
-    """
+    """Application settings loaded from .env file."""
 
-    # Tell pydantic-settings: "Read these values from .env file"
-    model_config = SettingsConfigDict(
-        env_file=_get_project_root() / ".env",  # Path to .env file
-        env_file_encoding="utf-8",  # Handle special characters
-        extra="ignore",  # Ignore unknown vars in .env
-    )
-
-    # --- Database ---
-    DATABASE_URL: str = "sqlite:///./ledgerwatch.db"
-    # ^ If .env has DATABASE_URL, use that. Otherwise, use this default.
-
-    # --- Model file path ---
+    # ─── Paths ────────────────────────────────────────────────────────────────
     MODEL_PATH: str = "saved_models/isolation_forest_v1.0.0.joblib"
     RISK_ENGINE_PATH: str = "saved_models/risk_engine_v1.0.0.joblib"
+    DATABASE_URL: str = "sqlite:///ledgerwatch.db"
+    DATA_DIR: str = "data"
+    PROCESSED_DIR: str = "data/processed"
 
-    # --- Data file paths ---
-    RAW_DATA_PATH: str = "data/raw/PS_20174392719_1491204439457_log.csv"
-    PROCESSED_DATA_PATH: str = "data/processed/features.csv"
+    # ─── Training Hyperparameters (used by src/train.py) ─────────────────────
+    TEST_SIZE: float = 0.2
+    RANDOM_STATE: int = 42
+    N_ESTIMATORS: int = 200
+    MAX_SAMPLES: str = "auto"
+    MAX_FEATURES: float = 1.0
+    BOOTSTRAP: bool = False
+    N_JOBS: int = -1
 
-    # --- ML hyperparameter ---
-    CONTAMINATION: float = 0.01
-    # ^ Isolation Forest expects this % of data to be outliers.
-    #   PaySim has ~0.13% fraud, but IF needs at least 0.01 to work well.
+    # ─── API Security ────────────────────────────────────────────────────────
+    API_KEY: str = "demo-key-123"
 
-    # --- Logging ---
-    LOG_LEVEL: str = "INFO"
+    # ─── CORS ───────────────────────────────────────────────────────────────
+    CORS_ORIGINS: str = "http://localhost:5173,https://ledgerwatch-ai.vercel.app"
+
+    class Config:
+        env_file = ".env"
+        env_file_encoding = "utf-8"
+
+    # ─── Path Validation ────────────────────────────────────────────────────
+    def validate_paths(self) -> None:
+        """Ensure critical paths exist. Called at startup."""
+        for path_str in [self.MODEL_PATH, self.RISK_ENGINE_PATH]:
+            path = Path(path_str)
+            if not path.exists():
+                # Log warning but don't crash — models may be loaded later
+                import logging
+
+                logging.getLogger(__name__).warning(f"Path not found: {path}")
 
 
-# ============================================================================
-# STEP 3: Create ONE shared instance that everyone imports
-# ============================================================================
-
+# Single global settings instance
 settings = Settings()
-# ^ This line RUNS when config.py is imported.
-# It reads .env, validates types, and creates the settings object.
-# Every other file does:  from src.config import settings

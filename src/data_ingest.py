@@ -192,7 +192,7 @@ def clean_data(df: pd.DataFrame) -> pd.DataFrame:
 # ============================================================================
 
 
-def write_to_database(df: pd.DataFrame) -> int:
+def write_to_database(df: pd.DataFrame, db: Session) -> int:
     """
     Writes the cleaned DataFrame to the SQLite 'transactions' table.
 
@@ -235,7 +235,7 @@ def write_to_database(df: pd.DataFrame) -> int:
     insert_df = pd.DataFrame(valid_records)
     insert_df.to_sql(
         "transactions",  # Table name
-        con=engine,  # Database connection
+        con=db.bind,  # Use the Session's connection (not the raw engine)
         if_exists="append",  # Add to existing data (don't delete old rows)
         index=False,  # Don't write the DataFrame index as a column
     )
@@ -286,7 +286,7 @@ def ingest_pipeline(
     # We wrap the database write in a session so we can rollback on error
     db = SessionLocal()
     try:
-        count = write_to_database(df)
+        count = write_to_database(df, db)
         db.commit()  # Permanently save to disk
         logger.info("Ingestion committed successfully.")
 

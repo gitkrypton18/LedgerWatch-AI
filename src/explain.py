@@ -3,16 +3,16 @@ LedgerWatch AI — SHAP Explainability Module (Day 8)
 Provides model-agnostic explanations for Isolation Forest predictions.
 """
 
-import os
 import json
+import os
 import warnings
-from typing import Optional, Union, List, Dict
+from typing import Dict, List, Optional, Union
 
+import joblib
+import matplotlib
 import numpy as np
 import pandas as pd
-import joblib
 import shap
-import matplotlib
 
 matplotlib.use("Agg")  # Non-interactive backend for headless/server use
 import matplotlib.pyplot as plt
@@ -45,7 +45,8 @@ def compute_shap_values(
 
     X_arr = X[feature_names].values if isinstance(X, pd.DataFrame) else X
 
-    explainer = shap.TreeExplainer(model, feature_perturbation="interventional")
+    if explainer is None:
+        explainer = shap.TreeExplainer(model, feature_perturbation="interventional")
 
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
@@ -67,6 +68,7 @@ def explain_transaction(
     X_row: Union[pd.DataFrame, pd.Series, np.ndarray],
     feature_names: List[str],
     check_additivity: bool = False,
+    explainer=None,
 ) -> Dict:
     """Explain a single transaction. Returns dict with contributions, base_value, prediction."""
     if isinstance(X_row, pd.Series):
@@ -79,7 +81,8 @@ def explain_transaction(
     X_sub = X_row[feature_names]
     X_arr = X_sub.values
 
-    explainer = shap.TreeExplainer(model, feature_perturbation="interventional")
+    if explainer is None:
+        explainer = shap.TreeExplainer(model, feature_perturbation="interventional")
 
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
@@ -94,12 +97,14 @@ def explain_transaction(
 
     contributions = []
     for feat, val, shap_val in zip(feature_names, values, shap_row):
-        contributions.append({
-            "feature": feat,
-            "value": float(val),
-            "shap_value": float(shap_val),
-            "abs_shap": float(abs(shap_val)),
-        })
+        contributions.append(
+            {
+                "feature": feat,
+                "value": float(val),
+                "shap_value": float(shap_val),
+                "abs_shap": float(abs(shap_val)),
+            }
+        )
 
     contributions.sort(key=lambda x: x["abs_shap"], reverse=True)
 
@@ -116,14 +121,18 @@ def explain_transaction(
     }
 
 
-def get_global_feature_importance(shap_values: np.ndarray, feature_names: List[str]) -> pd.DataFrame:
+def get_global_feature_importance(
+    shap_values: np.ndarray, feature_names: List[str]
+) -> pd.DataFrame:
     """Mean absolute SHAP value per feature. Returns sorted DataFrame."""
     mean_abs = np.abs(shap_values).mean(axis=0)
-    df = pd.DataFrame({
-        "feature": feature_names,
-        "mean_abs_shap": mean_abs,
-        "mean_abs_shap_pct": mean_abs / (mean_abs.sum() + 1e-9) * 100,
-    })
+    df = pd.DataFrame(
+        {
+            "feature": feature_names,
+            "mean_abs_shap": mean_abs,
+            "mean_abs_shap_pct": mean_abs / (mean_abs.sum() + 1e-9) * 100,
+        }
+    )
     return df.sort_values("mean_abs_shap", ascending=False).reset_index(drop=True)
 
 
@@ -159,9 +168,15 @@ def plot_waterfall(
     ax.set_title(title, fontsize=12, weight="bold")
 
     base = explanation.get("base_value", 0.0)
-    ax.text(0.02, 0.98, f"Base value: {base:.4f}", transform=ax.transAxes,
-            fontsize=9, verticalalignment="top",
-            bbox=dict(boxstyle="round", facecolor="wheat", alpha=0.5))
+    ax.text(
+        0.02,
+        0.98,
+        f"Base value: {base:.4f}",
+        transform=ax.transAxes,
+        fontsize=9,
+        verticalalignment="top",
+        bbox=dict(boxstyle="round", facecolor="wheat", alpha=0.5),
+    )
 
     plt.tight_layout()
     plt.savefig(output_path, dpi=150, bbox_inches="tight")
@@ -214,9 +229,17 @@ def plot_feature_importance_bar(
 
     fig, ax = plt.subplots(figsize=(10, max_display * 0.4 + 1.5))
     colors = plt.cm.RdYlGn_r(np.linspace(0.15, 0.85, len(df)))
-    ax.barh(df["feature"], df["mean_abs_shap"], color=colors, edgecolor="black", linewidth=0.5)
+    ax.barh(
+        df["feature"],
+        df["mean_abs_shap"],
+        color=colors,
+        edgecolor="black",
+        linewidth=0.5,
+    )
     ax.set_xlabel("Mean |SHAP value|")
-    ax.set_title("Global Feature Importance (Mean Absolute SHAP)", fontsize=12, weight="bold")
+    ax.set_title(
+        "Global Feature Importance (Mean Absolute SHAP)", fontsize=12, weight="bold"
+    )
 
     plt.tight_layout()
     plt.savefig(output_path, dpi=150, bbox_inches="tight")
@@ -237,7 +260,9 @@ def export_shap_summary(
             "day": 8,
             "module": "explain",
             "feature_count": len(importance_df),
-            "top_feature": importance_df.iloc[0]["feature"] if len(importance_df) > 0 else None,
+            "top_feature": (
+                importance_df.iloc[0]["feature"] if len(importance_df) > 0 else None
+            ),
         },
         "global_importance": importance_df.to_dict(orient="records"),
         "sample_explanations": [
@@ -281,12 +306,18 @@ def explain_pipeline(
 
         fraud_sample = fraud_df.sample(n=n_fraud, random_state=42)
         normal_sample = normal_df.sample(n=n_normal, random_state=42)
-        df_sample = pd.concat([fraud_sample, normal_sample]).sample(frac=1, random_state=42)
+        df_sample = pd.concat([fraud_sample, normal_sample]).sample(
+            frac=1, random_state=42
+        )
     else:
         df_sample = df
 
     X = df_sample[feature_names].reset_index(drop=True)
-    y = df_sample["isFraud"].reset_index(drop=True) if "isFraud" in df_sample.columns else None
+    y = (
+        df_sample["isFraud"].reset_index(drop=True)
+        if "isFraud" in df_sample.columns
+        else None
+    )
 
     # Compute SHAP values
     shap_values = compute_shap_values(model, X, feature_names)
@@ -320,17 +351,23 @@ def explain_pipeline(
     )
 
     paths["waterfall_fraud"] = plot_waterfall(
-        samples[0], feature_names, output_path=f"{output_dir}/day8_shap_waterfall_fraud.png",
+        samples[0],
+        feature_names,
+        output_path=f"{output_dir}/day8_shap_waterfall_fraud.png",
         title="SHAP Waterfall — High-Risk (Fraud-like) Transaction",
     )
 
     paths["waterfall_normal"] = plot_waterfall(
-        samples[1], feature_names, output_path=f"{output_dir}/day8_shap_waterfall_normal.png",
+        samples[1],
+        feature_names,
+        output_path=f"{output_dir}/day8_shap_waterfall_normal.png",
         title="SHAP Waterfall — Low-Risk (Normal) Transaction",
     )
 
     paths["waterfall_mid"] = plot_waterfall(
-        samples[2], feature_names, output_path=f"{output_dir}/day8_shap_waterfall_mid.png",
+        samples[2],
+        feature_names,
+        output_path=f"{output_dir}/day8_shap_waterfall_mid.png",
         title="SHAP Waterfall — Medium-Risk Transaction",
     )
 
@@ -350,6 +387,7 @@ def explain_pipeline(
 
 if __name__ == "__main__":
     import argparse
+
     parser = argparse.ArgumentParser(description="LedgerWatch SHAP Explainability")
     parser.add_argument("--sample", type=int, default=5000, help="Sample size")
     parser.add_argument("--output-dir", type=str, default="docs")

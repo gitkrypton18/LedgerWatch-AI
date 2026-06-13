@@ -162,23 +162,24 @@ class RiskEngine:
         return str(Path(path).resolve())
 
     @classmethod
-    def load(cls, path: str) -> "RiskEngine":
-        """
-        Load a fitted RiskEngine from disk.
+    def load(cls, path: str):
+        """Load a RiskEngine from disk. Handles both dict and object formats."""
+        import joblib
 
-        Args:
-            path: File path to load from.
-
-        Returns:
-            Fitted RiskEngine instance.
-        """
         data = joblib.load(path)
 
-        engine = cls(percentile_bins=data["percentile_bins"])
-        engine._percentiles = data["percentiles"]
-        engine._is_fitted = data["is_fitted"]
+        # If already a RiskEngine object, return it directly
+        if isinstance(data, cls):
+            return data
 
-        return engine
+        # If it's a dict (older format), reconstruct
+        if isinstance(data, dict):
+            engine = cls(percentile_bins=data["percentile_bins"])
+            engine.percentiles = data["percentiles"]
+            engine.is_fitted = data.get("is_fitted", True)
+            return engine
+
+        raise TypeError(f"Unexpected type in risk engine file: {type(data)}")
 
     def __repr__(self) -> str:
         status = "fitted" if self._is_fitted else "unfitted"

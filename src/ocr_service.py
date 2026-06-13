@@ -236,9 +236,9 @@ class InvoiceOCR:
         vendor = rng.choice(vendors)
         amount = rng.choice(amounts)
         tx_type = rng.choice(types)
-        date = (
-            datetime.now() - __import__("datetime").timedelta(days=rng.randint(1, 90))
-        ).strftime("%m/%d/%Y")
+        date = (datetime.now() - timedelta(days=rng.randint(1, 90))).strftime(
+            "%m/%d/%Y"
+        )
         inv_num = rng.randint(1000, 9999)
 
         templates = [

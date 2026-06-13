@@ -708,10 +708,14 @@ if __name__ == "__main__":
         df = df.sample(n=args.sample, random_state=42)
         print(f"Using sample of {args.sample:,} rows")
 
-    feature_cols = [
-        c for c in df.columns if c not in ["isFraud", "nameOrig", "nameDest"]
-    ]
-    X = df[feature_cols]
+        # Use model's expected features, fallback to all non-metadata columns
+    if feature_names:
+        X = df[[c for c in feature_names if c in df.columns]]
+    else:
+        feature_cols = [
+            c for c in df.columns if c not in ["isFraud", "nameOrig", "nameDest"]
+        ]
+        X = df[feature_cols]
     y = df["isFraud"]
 
     from sklearn.model_selection import train_test_split
