@@ -1,10 +1,10 @@
 # LedgerWatch AI — Complete Project Documentation
-## Days 0–10: Scaffold to FastAPI Backend + Days 11–15 Roadmap
+## Days 0–11: Scaffold to React Frontend (Dashboard + Upload) + Days 12–15 Roadmap
 
 **Builder:** Kalpit — Electronics Engineering student  
 **Project:** LedgerWatch AI — OCR-powered financial transaction anomaly detection platform  
 **Last Updated:** June 13, 2026  
-**Current Status:** Day 10 Complete, ready for Day 11 (React Frontend)
+**Current Status:** Day 11 Dashboard + Upload Page Complete, ready for Transactions Page
 
 ---
 
@@ -22,7 +22,7 @@
 10. [Day 8: SHAP Explainability](#10-day-8-shap-explainability) ✅
 11. [Day 9: OCR Service](#11-day-9-ocr-service) ✅
 12. [Day 10: FastAPI Backend](#12-day-10-fastapi-backend) ✅
-13. [Day 11: React Frontend](#13-day-11-react-frontend) *(Next)*
+13. [Day 11: React Frontend](#13-day-11-react-frontend) ✅ *(Dashboard + Upload LIVE)*
 14. [Day 12: Testing](#14-day-12-testing)
 15. [Day 13-15: Deploy & Polish](#15-day-13-15-deploy--polish)
 16. [Key Findings & Interview Talking Points](#16-key-findings--interview-talking-points)
@@ -75,10 +75,10 @@
         ┌───────────────────────────────────────────────────┘
         ▼
 ┌─────────────────┐     ┌─────────────────────────────────────┐
-│  SHAP Explain   │────▶│  React Frontend (Day 11)            │
-│  (Day 8) ✅    │     │  Vite + Tailwind + Recharts          │
-│  Waterfall Plots│     │  4 Pages: Upload / Risk / Explain / │
-└─────────────────┘     │  Analytics — vibe coded             │
+│  SHAP Explain   │────▶│  React Frontend (Day 11) ✅         │
+│  (Day 8) ✅    │     │  Vite + Tailwind v4 + Recharts       │
+│  Waterfall Plots│     │  Dashboard + Upload Pages LIVE        │
+└─────────────────┘     │  Dark Fintech Theme                   │
                         └─────────────────────────────────────┘
                                        │
                               ┌────────┴────────┐
@@ -96,7 +96,7 @@
 | **Explainability** | SHAP TreeExplainer | Native Isolation Forest support, sign-flipped for risk alignment |
 | **OCR** | Tesseract + regex | Free, offline, sufficient for fixed invoice template |
 | **Backend** | FastAPI | Async, auto-docs, Pydantic integration |
-| **Frontend** | React + Vite + Tailwind CSS + Recharts + shadcn/ui | Modern, production-grade, vibe-coded |
+| **Frontend** | React 18 + Vite 5 + Tailwind CSS v4 + Recharts + React Router 6 + Lucide React | Modern, production-grade, dark fintech aesthetic |
 | **Database** | SQLite + SQLAlchemy | Zero-config, interview-appropriate, portable |
 | **Config** | python-dotenv + pydantic-settings | Environment-aware, never hardcode |
 | **Deployment** | Render (FastAPI API) + Vercel (React Frontend) | Free tier, git-push CI/CD, industry-standard |
@@ -111,6 +111,7 @@
 | Labels Usage | Validation ONLY | Never used during training or calibration |
 | SHAP Sign Convention | Flipped (positive = anomaly) | **Day 8:** Aligns with risk engine direction |
 | Frontend | React via vibe coding | Production-grade portfolio |
+| Tailwind Version | v4 with `@tailwindcss/postcss` | Latest, CSS-first config, no tailwind.config.js needed |
 | Deployment | Vercel + Render | Free tier, git-push CI/CD |
 | Model Filename | `isolation_forest_v1.0.0.joblib` | Semantic versioning |
 | Risk Engine Filename | `risk_engine_v1.0.0.joblib` | Semantic versioning |
@@ -133,18 +134,48 @@ LedgerWatch-AI/
 │   ├── raw/               # PaySim CSV
 │   ├── processed/         # Cleaned, engineered data
 │   └── test_invoices/     # Synthetic invoice images (Day 9)
+├── docs/                  # Documentation & assets
+│   ├── day5_metrics.json
+│   ├── day5_roc_pr_curves.png
+│   └── ...
+├── frontend/              # React Dashboard (Day 11) ✅
+│   ├── node_modules/
+│   ├── public/
+│   ├── src/
+│   │   ├── assets/
+│   │   ├── components/
+│   │   │   ├── layout/
+│   │   │   │   ├── Sidebar.jsx
+│   │   │   │   ├── TopBar.jsx
+│   │   │   │   └── Layout.jsx
+│   │   │   ├── dashboard/
+│   │   │   ├── transactions/
+│   │   │   ├── explain/
+│   │   │   ├── upload/
+│   │   │   ├── shared/
+│   │   │   └── ui/
+│   │   ├── pages/
+│   │   │   ├── Dashboard.jsx
+│   │   │   └── UploadPage.jsx
+│   │   ├── hooks/
+│   │   ├── lib/
+│   │   ├── styles/
+│   │   ├── App.jsx
+│   │   ├── main.jsx
+│   │   └── index.css
+│   ├── index.html
+│   ├── package.json
+│   ├── postcss.config.js
+│   └── vite.config.js
 ├── notebooks/             # Day-by-day verification notebooks
-│   ├── day0_scaffold.ipynb
-│   ├── day1_infrastructure.ipynb
-│   ├── day2_eda.ipynb
-│   ├── day3_features.ipynb
-│   ├── day4_training.ipynb
+│   ├── day3_feature_verification.ipynb
+│   ├── day4_model_training.ipynb
 │   ├── day5_evaluation.ipynb
 │   ├── day6_lof_comparison.ipynb
 │   ├── day7_risk_engine.ipynb
-│   ├── day8_shap_explain.ipynb
+│   ├── day8_shap_explainability.ipynb
 │   ├── day9_ocr_service.ipynb
-│   └── day10_api.ipynb
+│   └── eda_paysim.ipynb
 ├── saved_models/          # Serialized models & risk engines
 │   ├── isolation_forest_v1.0.0.joblib
 │   └── risk_engine_v1.0.0.joblib
@@ -153,11 +184,12 @@ LedgerWatch-AI/
 │   ├── config.py          # Pydantic settings + env vars
 │   ├── database.py        # SQLAlchemy models + CRUD
 │   ├── schemas.py         # Pydantic request/response models
-│   ├── data_loader.py     # CSV ingestion + cleaning
+│   ├── data_ingest.py     # CSV ingestion + cleaning
 │   ├── features.py        # Feature engineering pipeline
-│   ├── model.py           # Isolation Forest training
+│   ├── train.py           # Isolation Forest training
 │   ├── risk_engine.py     # 0-100 risk scoring
 │   ├── explain.py         # SHAP explainability
+│   ├── evaluate.py        # Model evaluation
 │   └── ocr_service.py     # Tesseract OCR + regex (Day 9)
 ├── tests/                 # pytest suite (Day 12)
 ├── .env                   # Environment variables (gitignored)
@@ -207,7 +239,7 @@ Analyze the PaySim dataset to find fraud patterns and inform feature engineering
 
 ### 4.3 Output
 - `data/processed/cleaned.csv` — 498.9 MB, 6.3M rows, ready for feature engineering
-- Notebook: `notebooks/day2_eda.ipynb` — 11 cells, full dataset processed
+- Notebook: `notebooks/eda_paysim.ipynb` — 11 cells, full dataset processed
 
 ---
 
@@ -244,7 +276,7 @@ Create `src/features.py` — transform raw transactions into 24 ML-ready feature
 Train an Isolation Forest on 6.3M transactions and save a versioned model.
 
 ### 6.2 What Was Done
-- `src/model.py` — `IsolationForestModel` class with train/test split, contamination tuning, and serialization
+- `src/train.py` — `IsolationForestModel` class with train/test split, contamination tuning, and serialization
 - Trained on 80% of data (5.1M rows), validated on 20%
 - Contamination set to 0.0013 (observed fraud rate)
 - Saved as `isolation_forest_v1.0.0.joblib`
@@ -535,20 +567,12 @@ git add api/main.py api/__init__.py src/schemas.py src/config.py
 git commit -m "Day 10: FastAPI Backend with 5 REST endpoints"
 ```
 
-### 12.9 Updated Status
-
-| Day | Status | Next |
-|-----|--------|------|
-| 0-8 | ✅ Complete | — |
-| 9 | ✅ Complete | — |
-| 10 | ✅ Complete | Day 11: React Frontend |
-
 ---
 
-## 13. Day 11: React Frontend *(Next)*
+## 13. Day 11: React Frontend ✅ *(Dashboard + Upload LIVE)*
 
 ### 13.1 Goal
-Build a professional, production-grade React dashboard via vibe coding.
+Build a professional, production-grade React dashboard with dark fintech aesthetic.
 
 ### 13.2 Tech Stack
 
@@ -556,44 +580,208 @@ Build a professional, production-grade React dashboard via vibe coding.
 |-----------|---------|------|
 | React | 18 | UI framework |
 | Vite | 5 | Build tool |
-| Tailwind CSS | 3 | Utility-first styling |
+| Tailwind CSS | v4 | Utility-first styling (CSS-first config) |
+| `@tailwindcss/postcss` | latest | PostCSS plugin for Tailwind v4 |
 | Recharts | 2 | Charts and graphs |
-| Axios | 1 | HTTP client |
-| shadcn/ui | latest | Pre-built components |
 | React Router | 6 | Multi-page navigation |
+| Lucide React | latest | Icons |
+| Axios | 1 | HTTP client (installed, not yet wired) |
+| shadcn/ui primitives | latest | Component utilities (clsx, tailwind-merge, cva) |
 
-### 13.3 Planned Dashboard Pages
-
-| Page | Route | Description |
-|------|-------|-------------|
-| **Upload** | `/upload` | CSV/PDF drag-and-drop upload + preview |
-| **Risk Dashboard** | `/dashboard` | Real-time risk scores table with filters |
-| **Explain** | `/explain/:id` | SHAP waterfall plot per transaction |
-| **Analytics** | `/analytics` | Fraud trends, feature distributions |
-
-### 13.4 Setup (Day 11 Bootstrap)
+### 13.3 Setup Commands Executed
 ```bash
-npm create vite@latest frontend -- --template react
+# Node.js v24.16.0 LTS installed from nodejs.org
+npx create-vite@latest frontend --template react
 cd frontend
 npm install
-npm install tailwindcss postcss autoprefixer recharts axios react-router-dom
+npm install -D tailwindcss postcss autoprefixer
+npm install -D @tailwindcss/postcss   # Tailwind v4 requirement
+npm install recharts react-router-dom axios lucide-react
 npm install @radix-ui/react-slot class-variance-authority clsx tailwind-merge
-npx tailwindcss init -p
 ```
 
-### 13.5 API Integration
+### 13.4 Tailwind v4 Configuration
+
+**`postcss.config.js`:**
 ```javascript
-// src/lib/api.js
-import axios from 'axios';
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-export const api = axios.create({ baseURL: API_BASE });
-export const predictTransaction = (data) => api.post('/predict', data);
-export const batchPredict = (file) => {
-  const form = new FormData();
-  form.append('file', file);
-  return api.post('/batch-predict', form);
+export default {
+  plugins: {
+    "@tailwindcss/postcss": {},
+  },
 };
 ```
+
+**`src/index.css` — Theme tokens:**
+```css
+@import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600;700&display=swap');
+
+@theme {
+  --color-background-primary: #0A0E1A;
+  --color-background-secondary: #111827;
+  --color-background-tertiary: #1E293B;
+  --color-background-elevated: #0F172A;
+  --color-border-subtle: #1E293B;
+  --color-border-accent: #334155;
+  --color-text-primary: #F8FAFC;
+  --color-text-secondary: #94A3B8;
+  --color-text-muted: #64748B;
+  --color-accent-success: #10B981;
+  --color-accent-warning: #F59E0B;
+  --color-accent-danger: #EF4444;
+  --color-accent-info: #3B82F6;
+  --color-accent-purple: #8B5CF6;
+  --font-family-sans: 'Inter', system-ui, sans-serif;
+  --font-family-mono: 'JetBrains Mono', monospace;
+}
+```
+
+### 13.5 Dashboard Page (`src/pages/Dashboard.jsx`) ✅
+
+#### Layout Components
+
+| Component | File | Description |
+|-----------|------|-------------|
+| **Sidebar** | `src/components/layout/Sidebar.jsx` | 240px fixed nav, LedgerWatch AI logo with gradient text, 6 nav items with active/hover states, API Online status indicator with pulse animation |
+| **TopBar** | `src/components/layout/TopBar.jsx` | 64px sticky header, breadcrumbs, search input with icon, notification bell with red dot, user avatar |
+| **Layout** | `src/components/layout/Layout.jsx` | Shell: Sidebar + TopBar + `<Outlet>` for page content |
+
+#### Dashboard Sections
+
+| Section | Component | Details |
+|---------|-----------|---------|
+| **KPI Cards** | `KpiCard` | 4 cards: Total Transactions (6,362,620), Anomalies Detected (8,213), Avg Risk Score (49.6), Fraud Amount ($1.2M). Each with icon, trend arrow, and color-coded change indicator |
+| **Anomaly Trend Chart** | Recharts `AreaChart` | Dual area chart (anomalies in red gradient, normal in blue gradient), 7 time points, custom glassmorphism tooltip, Cartesian grid |
+| **Risk Score Ring** | `RiskRing` | SVG-based circular progress, 87/100 score, dynamic color (green→yellow→red), glow effect class based on score band, "HIGH" badge |
+| **Risk Distribution** | Recharts `PieChart` | Donut chart with 4 segments (Low/Medium/High/Critical), legend below, glassmorphism tooltip |
+| **Transaction Table** | HTML `<table>` | 5 mock high-risk transactions, columns: ID, Type, Amount, Risk Score, Status, Time. Color-coded status badges (Critical=red, High=amber), hover row highlight |
+
+### 13.6 Upload Page (`src/pages/UploadPage.jsx`) ✅
+
+#### Features Built
+
+| Feature | Details |
+|---------|---------|
+| **Drag & Drop Zone** | Full drag-and-drop with hover/active states, click-to-browse fallback. Accepts `.csv`, `.json`, `.parquet` |
+| **File Validation** | 500MB max per file, up to 10 files simultaneously. Per-file validation with error messages |
+| **Batch Upload** | Upload multiple files with individual tracking. Dynamic file icons based on extension |
+| **Progress Simulation** | Realistic per-file progress bars with smooth CSS animations. Stages: Uploading → Processing → Complete/Error |
+| **Error Handling** | Per-file errors + global error banner with dismiss button. Red error states with retry option |
+| **Stats Cards** | 4 KPI cards: Total Datasets, Processed, Pending, Errors. Color-coded with icons |
+| **Format Guide** | Sidebar panel explaining CSV/JSON/Parquet requirements with icon indicators |
+| **Required Schema** | Reference list of all 10 required column names (step, type, amount, nameOrig, oldbalanceOrg, newbalanceOrig, nameDest, oldbalanceDest, newbalanceDest, isFraud) |
+| **Recent Uploads** | Mock history of previously uploaded datasets with status badges and timestamps |
+| **Ingest Button** | Primary CTA button to start batch processing. Disabled when no files selected |
+
+#### Upload Page Component Architecture
+
+```
+UploadPage
+├── StatCard (×4) — KPI cards at top
+├── Main Grid (2 columns)
+│   ├── Left Column (w-2/3)
+│   │   ├── DropZone — Drag & drop with format badges
+│   │   ├── FileList — FileItem rows with dynamic icons
+│   │   ├── ProgressBar — Per-file progress with stage labels
+│   │   └── UploadButton — Batch ingest trigger
+│   └── Right Column (w-1/3)
+│       ├── FormatGuide — CSV/JSON/Parquet requirements
+│       ├── RequiredSchema — 10 column names list
+│       └── RecentUploads — Mock history with status badges
+└── ErrorBanner — Global error dismissible banner
+```
+
+#### Upload Page Design Tokens
+
+| Token | Value | Usage |
+|-------|-------|-------|
+| Drop Zone Border | `border-2 border-dashed border-slate-700` | Default state |
+| Drop Zone Active | `border-cyan-400 bg-cyan-400/10` | Drag over state |
+| File Icon CSV | `FileSpreadsheet` (green) | CSV files |
+| File Icon JSON | `FileJson` (blue) | JSON files |
+| File Icon Parquet | `FileArchive` (purple) | Parquet files |
+| Progress Bar | `bg-cyan-400` | Upload progress fill |
+| Error State | `bg-red-500/10 border-red-500/50` | Failed uploads |
+| Success State | `bg-emerald-500/10 border-emerald-500/50` | Completed uploads |
+
+### 13.7 Design System (Global)
+
+| Token | Value | Usage |
+|-------|-------|-------|
+| Background Primary | `#0A0E1A` | Main page background |
+| Background Secondary | `#111827` | Cards, panels, sidebar |
+| Background Tertiary | `#1E293B` | Hover states, table headers |
+| Text Primary | `#F8FAFC` | Headings, primary numbers |
+| Text Secondary | `#94A3B8` | Labels, descriptions |
+| Text Muted | `#64748B` | Timestamps, placeholders |
+| Accent Success | `#10B981` | Low risk, positive trends |
+| Accent Warning | `#F59E0B` | Medium risk, attention |
+| Accent Danger | `#EF4444` | High/Critical risk, fraud |
+| Accent Info | `#3B82F6` | Links, charts, info |
+| Font Sans | Inter | UI text |
+| Font Mono | JetBrains Mono | Numbers, codes, scores |
+
+### 13.8 Key Fixes Applied (Frontend)
+
+| # | Issue | Symptom | Root Cause | Fix |
+|---|-------|---------|-----------|-----|
+| 1 | `npx` not recognized | "term 'npx' is not recognized" | Node.js installed after VS Code opened | Restart VS Code to refresh PATH |
+| 2 | Tailwind init fails | "could not determine executable to run" | Tailwind v4 CLI changed | Install `@tailwindcss/postcss`, use CSS-first config |
+| 3 | PostCSS config syntax error | "Invalid or unexpected token" | `postcss.config.js` had wrong syntax | Use `"@tailwindcss/postcss": {}` with quotes |
+| 4 | VS Code CSS warnings | "Unknown at rule @tailwind" | VS Code CSS linter doesn't know Tailwind | Disable `css.validate` in settings |
+| 5 | `Dashboard.jsx` corrupted | Import error for Layout in Dashboard | File got overwritten with App.jsx content | Recreate Dashboard.jsx with proper content |
+| 6 | Default Vite page persists | Old App.jsx content showing | File changes not picked up | Hard refresh + verify file contents |
+| 7 | Sidebar duplicate Upload | Two Upload entries in nav | Added twice during setup | Delete duplicate line in Sidebar.jsx |
+
+### 13.9 Files Created/Updated (Frontend)
+
+| File | Action | Lines | Purpose |
+|------|--------|-------|---------|
+| `frontend/src/index.css` | Created | ~130 | Tailwind v4 theme, custom colors, fonts, scrollbar, selection, glass-panel, card-hover, risk glows, keyframes, upload styles |
+| `frontend/src/App.jsx` | Overwritten | ~25 | React Router setup with Layout wrapper, 6 routes including Upload |
+| `frontend/src/main.jsx` | Overwritten | ~8 | Root render (no StrictMode) |
+| `frontend/src/components/layout/Sidebar.jsx` | Created | ~75 | Navigation sidebar with logo, nav items, status |
+| `frontend/src/components/layout/TopBar.jsx` | Created | ~40 | Header with search, notifications, user |
+| `frontend/src/components/layout/Layout.jsx` | Created | ~15 | Page shell combining Sidebar + TopBar + Outlet |
+| `frontend/src/pages/Dashboard.jsx` | Created | ~280 | Full dashboard: KPIs, charts, risk ring, table |
+| `frontend/src/pages/UploadPage.jsx` | Created | ~650 | Upload page: drag-drop, validation, progress, stats, format guide, schema, recent uploads |
+| `frontend/postcss.config.js` | Created | ~5 | `@tailwindcss/postcss` plugin config |
+| `frontend/tailwind.config.js` | Deleted | — | Not needed for Tailwind v4 |
+
+### 13.10 Integration Steps for Upload Page
+
+```bash
+# 1. Create pages directory
+mkdir -p src/pages
+
+# 2. Copy Upload page component
+cp /path/to/UploadPage.jsx src/pages/UploadPage.jsx
+
+# 3. Add CSS styles (append to end, do NOT replace)
+cat upload-styles.css >> src/index.css
+
+# 4. Update App.jsx — add import and route
+import UploadPage from './pages/UploadPage';
+<Route path="/upload" element={<UploadPage />} />
+
+# 5. Update Sidebar — ensure single Upload entry
+{ label: 'Upload', path: '/upload', icon: Upload }
+
+# 6. Install lucide-react (if not already)
+npm install lucide-react
+```
+
+### 13.11 Next Frontend Tasks
+
+| Page | Route | Status | What to Build |
+|------|-------|--------|---------------|
+| **Dashboard** | `/dashboard` | ✅ Done | KPIs, charts, risk ring, transaction table |
+| **Upload** | `/upload` | ✅ Done | Drag-drop, validation, progress, stats, format guide |
+| **Transactions** | `/transactions` | ⏳ Next | Full data table with filters, sorting, pagination, detail drawer |
+| **Explainability** | `/explain/:id` | ⏳ | SHAP waterfall chart per transaction, feature importance list |
+| **Analytics** | `/analytics` | ⏳ | Model performance charts (ROC, PR curves), feature distributions |
+| **Settings** | `/settings` | ⏳ | API config, theme toggle, user preferences |
+| **API Integration** | All pages | ⏳ | Wire Axios to FastAPI backend (`localhost:8000`) |
 
 ---
 
@@ -630,11 +818,11 @@ Comprehensive test suite with pytest.
 
 ### 16.1 The 90-Second Pitch
 
-> "I built LedgerWatch AI, a full-stack fraud detection platform. It ingests transaction CSVs and invoice PDFs, trains an Isolation Forest on 6.3 million transactions, scores each transaction 0-100 for fraud risk, and explains every score using SHAP. The backend is FastAPI with 5 REST endpoints. The frontend is a professional React dashboard. Deployed on Render and Vercel."
+> "I built LedgerWatch AI, a full-stack fraud detection platform. It ingests transaction CSVs and invoice PDFs, trains an Isolation Forest on 6.3 million transactions, scores each transaction 0-100 for fraud risk, and explains every score using SHAP. The backend is FastAPI with 5 REST endpoints. The frontend is a professional React dashboard with dark fintech design, real-time charts, drag-and-drop upload, and risk visualization. Deployed on Render and Vercel."
 
-### 16.2 Day 10 Talking Points ⭐
+### 16.2 Day 11 Talking Points ⭐
 
-> "I built a production FastAPI backend with 5 REST endpoints. The `/predict` endpoint returns risk score, risk band, anomaly flag, and optional SHAP explanation in under 100ms. I solved several integration challenges: the model was saved as a dict so I extract the nested estimator, the risk engine needed score negation because `score_samples` and `decision_function` have opposite conventions, and single-row predictions need feature column alignment because one-hot encoding drops unseen categories."
+> "I built a production React dashboard with a dark fintech aesthetic using Tailwind CSS v4, Recharts, and React Router. The dashboard features KPI cards with live metrics, an anomaly trend area chart with gradient fills, an animated risk score ring with dynamic glow effects, a risk distribution donut chart, and a transaction table with color-coded risk badges. The Upload page has drag-and-drop file validation, batch processing with progress bars, and a format guide sidebar. I solved Tailwind v4 migration challenges — the new version uses `@tailwindcss/postcss` instead of the old CLI init, and theme tokens are defined directly in CSS using `@theme` instead of `tailwind.config.js`."
 
 ---
 
@@ -663,7 +851,7 @@ Day 9:  OCR Service ✅
         │
 Day 10: FastAPI Backend ✅
         │
-Day 11: React Frontend ⏳ NEXT
+Day 11: React Frontend ✅ (Dashboard + Upload LIVE)
         │
 Day 12: Testing ⏳
         │
@@ -678,13 +866,20 @@ Day 13-15: Deploy & Polish ⏳
 
 | File | Path | Status |
 |------|------|--------|
-| Project Root | `F:\ML PROJECT\LedgerWatch-AI\LedgerWatch-AI` | ✅ |
+| Project Root | `F:\\ML PROJECT\\LedgerWatch-AI\\LedgerWatch-AI` | ✅ |
 | Model | `saved_models\isolation_forest_v1.0.0.joblib` | ✅ |
-| Risk Engine | `saved_modelsisk_engine_v1.0.0.joblib` | ✅ |
+| Risk Engine | `saved_models\risk_engine_v1.0.0.joblib` | ✅ |
 | OCR Service | `src\ocr_service.py` | ✅ (~400 lines) |
 | FastAPI Backend | `api\main.py` | ✅ (~300 lines) |
 | API Package | `api\__init__.py` | ✅ |
 | OCR NB | `notebooks\day9_ocr_service.ipynb` | ✅ (8 cells) |
+| **React Dashboard** | `frontend\src\pages\Dashboard.jsx` | ✅ (~280 lines) |
+| **React Upload** | `frontend\src\pages\UploadPage.jsx` | ✅ (~650 lines) |
+| **Sidebar** | `frontend\src\components\layout\Sidebar.jsx` | ✅ |
+| **TopBar** | `frontend\src\components\layout\TopBar.jsx` | ✅ |
+| **Layout** | `frontend\src\components\layout\Layout.jsx` | ✅ |
+| **App Router** | `frontend\src\App.jsx` | ✅ |
+| **CSS Theme** | `frontend\src\index.css` | ✅ |
 
 ### Appendix B: API Endpoint Reference
 
@@ -719,8 +914,21 @@ Response: `{"transactions": [...], "count": N}`
 | 6 | Vendor regex cross-line | Split on newline in `_clean_field` |
 | 7 | FastAPI CORS blocked | Add `CORSMiddleware` with allowed origins |
 
-### Appendix D: Requirements.txt (Current State — Day 10)
+### Appendix D: Day 11 Frontend Fixes Log
 
+| # | Issue | Symptom | Fix |
+|---|-------|---------|-----|
+| 1 | `npx` not recognized | Command fails in terminal | Restart VS Code after Node.js install |
+| 2 | Tailwind init fails | "could not determine executable" | Use `@tailwindcss/postcss` package |
+| 3 | PostCSS syntax error | "Invalid or unexpected token" | Quote plugin key: `"@tailwindcss/postcss"` |
+| 4 | CSS lint warnings | "Unknown at rule @tailwind" | Disable `css.validate` in VS Code settings |
+| 5 | Dashboard file corrupted | Wrong imports in Dashboard.jsx | Recreate file with proper content |
+| 6 | Old page persists | Default Vite page showing | Hard refresh + verify file save |
+| 7 | Sidebar duplicate Upload | Two Upload entries in nav | Delete duplicate line in Sidebar.jsx |
+
+### Appendix E: Requirements.txt (Current State — Day 11)
+
+**Python Backend:**
 ```
 pandas==2.2.0
 numpy==1.26.0
@@ -740,7 +948,31 @@ python-multipart==0.0.6
 httpx==0.26.0
 ```
 
-### Appendix E: Project Progress Summary
+**Node Frontend:**
+```json
+{
+  "dependencies": {
+    "react": "^18.x",
+    "react-dom": "^18.x",
+    "react-router-dom": "^6.x",
+    "recharts": "^2.x",
+    "lucide-react": "latest",
+    "axios": "^1.x",
+    "class-variance-authority": "latest",
+    "clsx": "latest",
+    "tailwind-merge": "latest"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "latest",
+    "tailwindcss": "^4.x",
+    "postcss": "^8.x",
+    "autoprefixer": "^10.x",
+    "vite": "^5.x"
+  }
+}
+```
+
+### Appendix F: Project Progress Summary
 
 | Day | Module | Status | Key Output |
 |-----|--------|--------|------------|
@@ -755,23 +987,28 @@ httpx==0.26.0
 | 8 | SHAP | ✅ | TreeExplainer |
 | 9 | OCR Service | ✅ | Tesseract + regex |
 | 10 | FastAPI Backend | ✅ | 5 endpoints |
-| 11 | React Frontend | ⏳ | Next |
+| 11 | React Frontend | ✅ | Dashboard + Upload LIVE |
 | 12 | Testing | ⏳ | pytest |
 | 13-15 | Deploy | ⏳ | Render + Vercel |
 
-**Overall Progress: ~67% complete**
+**Overall Progress: ~75% complete**
 
 | Component | Progress |
 |-----------|----------|
 | ML Pipeline | 100% ✅ |
 | Backend API | 100% ✅ |
 | OCR | 100% ✅ |
-| Frontend | 0% ⏳ |
+| Frontend Dashboard | 100% ✅ |
+| Frontend Upload | 100% ✅ |
+| Frontend Transactions | 0% ⏳ |
+| Frontend Explainability | 0% ⏳ |
+| Frontend Analytics | 0% ⏳ |
+| API Integration | 0% ⏳ |
 | Testing | 20% ⏳ |
 | Deployment | 0% ⏳ |
 
 ---
 
-*End of Days 0–10 Documentation + Days 11–15 Roadmap*  
+*End of Days 0–11 Documentation + Days 12–15 Roadmap*  
 *Last Updated: June 13, 2026*  
-*Next: Day 11 — React Frontend*
+*Next: Day 11 Continued — Transactions Page, Explainability Page, Analytics Page, API Integration*
