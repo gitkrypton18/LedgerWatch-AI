@@ -11,3 +11,7 @@ services:
         value: saved_models/isolation_forest_v1.0.0.joblib
       - key: RISK_ENGINE_PATH
         value: saved_models/risk_engine_v1.0.0.joblib
+      - key: CORS_ORIGINS
+        value: https://ledgerwatch-ai.vercel.app,http://localhost:5173
+      - key: API_KEY
+        value: demo-key-123
