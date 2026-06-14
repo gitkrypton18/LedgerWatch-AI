@@ -38,18 +38,20 @@ ENV/
 .env.local
 .env.production
 
-# === DATABASE (anywhere) ===
+# === DATABASE ===
 *.db
 *.sqlite
 *.sqlite3
 *.db-journal
 
-# === MODELS (large files) ===
-# *.joblib  ← Commented out — models needed for Render deploy*.pkl
+# === MODELS (ALL ignored for free deploy) ===
+*.joblib
+*.pkl
 *.h5
 *.onnx
+saved_models/
 
-# === DATA FILES (large) ===
+# === DATA FILES ===
 data/
 !data/.gitkeep
 *.csv
@@ -64,7 +66,6 @@ frontend/.vite/
 
 # === JUPYTER ===
 .ipynb_checkpoints/
-*.ipynb_checkpoints
 
 # === OS ===
 .DS_Store
