@@ -21,8 +21,9 @@ import joblib
 import numpy as np
 import pandas as pd
 import shap
-from fastapi import Depends, FastAPI, File, HTTPException, Query, UploadFile
+from fastapi import Depends, FastAPI, File, HTTPException, Query, Security, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import APIKeyHeader
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -118,6 +119,14 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan,
 )
+api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
+
+
+async def verify_api_key(api_key: str = Security(api_key_header)):
+    if api_key != settings.API_KEY:
+        raise HTTPException(status_code=403, detail="Invalid API key")
+    return api_key
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -254,7 +263,9 @@ async def health_check():
     )
 
 
-@app.post("/predict", response_model=PredictionResult)
+@app.post(
+    "/predict", response_model=PredictionResult, dependencies=[Depends(verify_api_key)]
+)
 async def predict(
     data: TransactionCreate,
     explain: bool = Query(default=True),
@@ -288,7 +299,11 @@ async def predict(
     return PredictionResult(**result)
 
 
-@app.post("/batch-predict", response_model=BatchPredictionResponse)
+@app.post(
+    "/batch-predict",
+    response_model=BatchPredictionResponse,
+    dependencies=[Depends(verify_api_key)],
+)
 async def batch_predict(
     file: UploadFile = File(...),
     explain: bool = Query(default=False),
@@ -365,7 +380,7 @@ async def batch_predict(
     )
 
 
-@app.post("/ocr")
+@app.post("/ocr", dependencies=[Depends(verify_api_key)])
 async def ocr_parse(file: UploadFile = File(...)):
     """Parse invoice PDF or image into structured data."""
     ocr = app.state.ocr
@@ -402,7 +417,7 @@ async def ocr_parse(file: UploadFile = File(...)):
         os.unlink(tmp_path)
 
 
-@app.get("/transactions")
+@app.get("/transactions", dependencies=[Depends(verify_api_key)])
 async def get_transactions(
     limit: int = Query(default=100, ge=1, le=1000),
     offset: int = Query(default=0, ge=0),
@@ -416,7 +431,7 @@ async def get_transactions(
     }
 
 
-@app.get("/transactions/{transaction_id}")
+@app.get("/transactions/{transaction_id}", dependencies=[Depends(verify_api_key)])
 async def get_transaction(
     transaction_id: int,
     db: Session = Depends(get_db),
@@ -428,7 +443,7 @@ async def get_transaction(
     return TransactionRead.model_validate(tx)
 
 
-@app.get("/stats")
+@app.get("/stats", dependencies=[Depends(verify_api_key)])
 async def get_stats(db: Session = Depends(get_db)):
     """Dashboard statistics."""
     total = db.query(func.count(DBTransaction.id)).scalar()

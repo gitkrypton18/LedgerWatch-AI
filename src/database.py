@@ -102,6 +102,11 @@ class Transaction(Base):
     nameDest = Column(String, nullable=False)
     oldbalanceDest = Column(Float, nullable=False)
     newbalanceDest = Column(Float, nullable=False)
+    # Prediction results (added when transaction is processed)
+    is_anomaly = Column(
+        Integer, nullable=True
+    )  # 1 = anomaly, 0 = normal, None = not processed
+    risk_band = Column(String, nullable=True)  # Low, Medium, Elevated, High, Critical
 
     # Fraud labels — nullable because during real predictions, we won't know these
     isFraud = Column(Integer, nullable=True)

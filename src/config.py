@@ -33,6 +33,15 @@ class Settings(BaseSettings):
 
     # ─── CORS ───────────────────────────────────────────────────────────────
     CORS_ORIGINS: str = "http://localhost:5173,https://ledgerwatch-ai.vercel.app"
+    # ─── Logging ─────────────────────────────────────────────────────────────
+    LOG_LEVEL: str = "INFO"
+
+    # ─── Data File Paths ─────────────────────────────────────────────────────
+    RAW_DATA_PATH: str = "data/raw/PS_20174392719_1491204439457_log.csv"
+    PROCESSED_DATA_PATH: str = "data/processed/features.csv"
+
+    # ─── Model Hyperparameters ───────────────────────────────────────────────
+    CONTAMINATION: float = 0.0013
 
     class Config:
         env_file = ".env"

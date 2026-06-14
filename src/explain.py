@@ -32,13 +32,11 @@ def compute_shap_values(
     X: pd.DataFrame,
     feature_names: Optional[List[str]] = None,
     check_additivity: bool = False,
+    explainer=None,  # ← ADD THIS PARAMETER
 ) -> np.ndarray:
     """
     Compute SHAP values for Isolation Forest.
-
-    We flip the sign so that:
-        POSITIVE SHAP  = pushes toward ANOMALY (higher risk)
-        NEGATIVE SHAP  = pushes toward NORMAL  (lower risk)
+    ...
     """
     if feature_names is None:
         feature_names = list(X.columns)
@@ -292,7 +290,7 @@ def explain_pipeline(
     Returns dict with importance_df, sample_explanations, paths, shap_values, X_sample.
     """
     model, feature_names = load_model_and_features(model_path)
-    data_path = data_path or settings.PROCESSED_DATA_PATH
+    data_path = data_path or settings.PROCESSED_DIR
 
     df = pd.read_csv(data_path)
 
