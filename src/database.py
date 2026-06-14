@@ -115,6 +115,13 @@ class Transaction(Base):
     # Auto-generated timestamp when the row is inserted
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     # ^ func.now() = SQLite automatically sets this to the current time
+    # Feedback loop for retraining (NEW)
+    feedback_correct = Column(
+        Boolean, nullable=True
+    )  # NULL = not reviewed, True = correct, False = false positive
+    feedback_notes = Column(String, nullable=True)
+    reviewed_at = Column(DateTime, nullable=True)
+    reviewed_by = Column(String, nullable=True)
 
 
 def get_db():

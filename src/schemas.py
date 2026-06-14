@@ -62,6 +62,14 @@ class TransactionBase(BaseModel):
     isFlaggedFraud: Optional[int] = Field(
         None, ge=0, le=1, description="PaySim's built-in rule-based fraud flag"
     )
+    feedback_correct: Optional[bool] = Field(
+        None, description="Analyst feedback: True = correct prediction"
+    )
+    feedback_notes: Optional[str] = Field(
+        None, description="Analyst notes on prediction"
+    )
+    reviewed_at: Optional[datetime] = Field(None, description="When review was done")
+    reviewed_by: Optional[str] = Field(None, description="Who reviewed")
 
     # What the validation rules mean:
     # gt=0  → "greater than 0" (amount can't be negative or zero)

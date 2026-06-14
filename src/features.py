@@ -175,7 +175,7 @@ def engineer_all_features(
     ]
     feature_cols = [c for c in df.columns if c not in original_cols]
 
-    assert df[feature_cols].isna().sum().sum() == 0, "NaNs found in features!"
+    df[feature_cols] = df[feature_cols].fillna(0.0)
     assert (
         not np.isinf(df[feature_cols].select_dtypes(include=[np.number])).any().any()
     ), "Infinities found!"

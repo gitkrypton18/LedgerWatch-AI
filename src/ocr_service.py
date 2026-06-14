@@ -93,9 +93,8 @@ class InvoiceOCR:
             r"((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{1,2},?\s+\d{4})",
         ],
         "vendor": [
-            r"(?:from|vendor|seller|billed by|invoice from)[:;\s]+([A-Z][A-Za-z0-9\s&.,]+)",
-            r"(?:company|vendor)[:;\s]+([A-Z][A-Za-z0-9\s&.,]{3,50})",
-            r"\n([A-Z][A-Za-z0-9\s&.,]{3,50})\n(?:invoice|bill|receipt)",
+            r"(?:from|vendor|seller|billed by|invoice from|merchant)[:;\s]+([A-Z][A-Za-z0-9\s&.,]+)",
+            r"(?:company|vendor|merchant)[:;\s]+([A-Z][A-Za-z0-9\s&.,]{3,50})",
         ],
         "transaction_type": [
             r"(?:type|payment type|method)[:;\s]+(transfer|cash|payment|deposit|withdrawal)",

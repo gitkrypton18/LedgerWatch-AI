@@ -6,6 +6,7 @@ import logging
 import os
 import time
 from contextlib import asynccontextmanager
+from datetime import datetime
 from io import StringIO
 
 import joblib
@@ -34,6 +35,15 @@ from src.schemas import (
     TransactionCreate,
     TransactionRead,
 )
+
+# NOTE: src/retrain.py must exist before starting server
+try:
+    from src.retrain import retrain_model
+
+    RETRAIN_AVAILABLE = True
+except ImportError as e:
+    RETRAIN_AVAILABLE = False
+    logging.warning(f"Retraining module not available: {e}")
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s"
@@ -162,6 +172,8 @@ def engineer_features_from_df(df: pd.DataFrame) -> pd.DataFrame:
 
     try:
         features = engineer_all_features(input_path=Path(tmp_path), save=False)
+        # Fill NaNs (rolling window features create NaN for first/few rows)
+        features = features.fillna(0.0)
         return features
     finally:
         os.unlink(tmp_path)
@@ -201,6 +213,12 @@ def predict_single(
     start = time.time()
 
     features = engineer_features_from_df(df)
+
+    # ─── FIX: Fill NaNs for single-row predictions ─────────────────
+    # Rolling window features create NaN for first rows
+    features = features.fillna(0.0)
+    # ──────────────────────────────────────────────────────────────
+
     feature_cols = get_feature_columns(features)
     X = features[feature_cols]
 
@@ -253,6 +271,7 @@ async def health_check():
         model_loaded=app.state.model is not None,
         risk_engine_loaded=app.state.risk_engine is not None,
         ocr_available=not getattr(app.state.ocr, "mock_mode", True),
+        retrain_available=RETRAIN_AVAILABLE,
         timestamp=pd.Timestamp.now().isoformat(),
     )
 
@@ -475,6 +494,127 @@ async def get_transaction(
     if not tx:
         raise HTTPException(status_code=404, detail="Transaction not found")
     return TransactionRead.model_validate(tx)
+
+
+@app.patch(
+    "/transactions/{transaction_id}/feedback", dependencies=[Depends(verify_api_key)]
+)
+async def add_feedback(
+    transaction_id: int,
+    feedback_correct: bool,
+    feedback_notes: str = None,
+    reviewed_by: str = "analyst",
+    db: Session = Depends(get_db),
+):
+    """Add analyst feedback on a prediction for future retraining."""
+    tx = db.query(DBTransaction).filter(DBTransaction.id == transaction_id).first()
+    if not tx:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+
+    tx.feedback_correct = feedback_correct
+    tx.feedback_notes = feedback_notes
+    tx.reviewed_at = datetime.utcnow()
+    tx.reviewed_by = reviewed_by
+
+    db.commit()
+    db.refresh(tx)
+
+    return {
+        "transaction_id": transaction_id,
+        "feedback_correct": feedback_correct,
+        "feedback_notes": feedback_notes,
+        "reviewed_at": tx.reviewed_at.isoformat(),
+        "message": "Feedback recorded for future retraining",
+    }
+
+
+@app.get("/feedback-stats", dependencies=[Depends(verify_api_key)])
+async def get_feedback_stats(db: Session = Depends(get_db)):
+    """Get feedback statistics for model improvement tracking."""
+    total = db.query(func.count(DBTransaction.id)).scalar()
+    reviewed = (
+        db.query(func.count(DBTransaction.id))
+        .filter(DBTransaction.feedback_correct != None)
+        .scalar()
+    )
+    correct = (
+        db.query(func.count(DBTransaction.id))
+        .filter(DBTransaction.feedback_correct == True)
+        .scalar()
+    )
+    incorrect = (
+        db.query(func.count(DBTransaction.id))
+        .filter(DBTransaction.feedback_correct == False)
+        .scalar()
+    )
+
+    return {
+        "total_transactions": total,
+        "reviewed": reviewed,
+        "correct_predictions": correct,
+        "false_positives": incorrect,
+        "review_rate": round(reviewed / total, 4) if total else 0.0,
+        "accuracy": round(correct / reviewed, 4) if reviewed else None,
+        "needs_retraining": (
+            reviewed > 100 and (incorrect / reviewed) > 0.2 if reviewed else False
+        ),
+    }
+
+
+@app.post("/retrain", dependencies=[Depends(verify_api_key)])
+async def retrain(
+    contamination: float = Query(default=None),
+    n_estimators: int = Query(default=None),
+    dry_run: bool = Query(default=False),
+    db: Session = Depends(get_db),
+):
+    """
+    Retrain model on all accumulated DB data.
+    Returns new version info and validation metrics.
+    """
+    if not RETRAIN_AVAILABLE:
+        raise HTTPException(
+            status_code=503,
+            detail="Retraining module not available. Check src/retrain.py exists.",
+        )
+
+    logger.info("Starting model retraining...")
+
+    try:
+        # 1. Retrain
+        model, risk_engine, version = retrain_model(
+            contamination=contamination,
+            n_estimators=n_estimators,
+            dry_run=dry_run,
+        )
+
+        # 2. If not dry_run, hot-swap in memory
+        if not dry_run:
+            app.state.model = model
+            app.state.risk_engine = risk_engine
+
+            # Update explainer with new model
+            if app.state.model is not None:
+                app.state.explainer = shap.TreeExplainer(
+                    app.state.model, feature_perturbation="interventional"
+                )
+
+            logger.info(f"Hot-swapped to new model version: {version}")
+
+        return {
+            "status": "success",
+            "version": version,
+            "dry_run": dry_run,
+            "message": f"Model retrained successfully. New version: {version}",
+            "model_path": f"saved_models/isolation_forest_{version}.joblib",
+            "risk_engine_path": f"saved_models/risk_engine_{version}.joblib",
+            "retrain_available": RETRAIN_AVAILABLE,
+            "timestamp": datetime.utcnow().isoformat(),
+        }
+
+    except Exception as e:
+        logger.error(f"Retraining failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Retraining failed: {str(e)}")
 
 
 @app.get("/stats", dependencies=[Depends(verify_api_key)])

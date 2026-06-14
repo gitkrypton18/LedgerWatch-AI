@@ -160,12 +160,12 @@ function RiskRing({ score = 87 }) {
                 </div>
             </div>
             <span className={`mt-3 px-3 py-1 rounded-md text-xs font-medium uppercase ${score <= 30
-                    ? "bg-accent-success/15 text-accent-success border border-accent-success/30"
-                    : score <= 70
-                        ? "bg-accent-warning/15 text-accent-warning border border-accent-warning/30"
-                        : score <= 90
-                            ? "bg-accent-danger/15 text-accent-danger border border-accent-danger/30"
-                            : "bg-accent-danger/25 text-accent-danger border border-accent-danger/50 animate-pulse"
+                ? "bg-accent-success/15 text-accent-success border border-accent-success/30"
+                : score <= 70
+                    ? "bg-accent-warning/15 text-accent-warning border border-accent-warning/30"
+                    : score <= 90
+                        ? "bg-accent-danger/15 text-accent-danger border border-accent-danger/30"
+                        : "bg-accent-danger/25 text-accent-danger border border-accent-danger/50 animate-pulse"
                 }`}>
                 {score <= 30 ? "Low" : score <= 70 ? "Medium" : score <= 90 ? "High" : "Critical"}
             </span>
@@ -261,7 +261,7 @@ export default function Dashboard() {
             },
             {
                 title: "Critical Alerts",
-                value: formatNumber(statsData?.risk_distribution?.Critical || 0),
+                value: formatNumber(statsData?.critical_count || 0),  // ✅ FIXED
                 change: "+0%",
                 trend: "up",
                 icon: Activity,
@@ -269,17 +269,15 @@ export default function Dashboard() {
                 bgColor: "bg-accent-danger/10",
             },
         ];
-
     // Build risk distribution from API or mock
     const riskDistribution = useMock
         ? MOCK_RISK_DIST
         : [
-            { name: "Low (0-30)", value: statsData?.risk_distribution?.Low || 0, color: "#10B981" },
-            { name: "Medium (31-70)", value: statsData?.risk_distribution?.Medium || 0, color: "#F59E0B" },
-            { name: "High (71-90)", value: statsData?.risk_distribution?.High || 0, color: "#EF4444" },
-            { name: "Critical (91-100)", value: statsData?.risk_distribution?.Critical || 0, color: "#DC2626" },
+            { name: "Low (0-30)", value: statsData?.low_count || 0, color: "#10B981" },
+            { name: "Medium (31-70)", value: statsData?.medium_count || 0, color: "#F59E0B" },
+            { name: "High (71-90)", value: statsData?.high_count || 0, color: "#EF4444" },
+            { name: "Critical (91-100)", value: statsData?.critical_count || 0, color: "#DC2626" },
         ];
-
     // Recent transactions from API or mock
     const recentTransactions = useMock
         ? MOCK_RECENT
@@ -305,8 +303,8 @@ export default function Dashboard() {
                 <div className="flex items-center gap-3">
                     {/* API Status */}
                     <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium ${online
-                            ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
-                            : "bg-red-500/10 text-red-400 border border-red-500/20"
+                        ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+                        : "bg-red-500/10 text-red-400 border border-red-500/20"
                         }`}>
                         {online ? <Wifi className="w-3.5 h-3.5" /> : <WifiOff className="w-3.5 h-3.5" />}
                         {online ? "API Online" : "API Offline"}
@@ -318,8 +316,8 @@ export default function Dashboard() {
                     <button
                         onClick={() => setUseMock(!useMock)}
                         className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${useMock
-                                ? "bg-amber-500/10 text-amber-400 border border-amber-500/20"
-                                : "bg-background-tertiary text-text-muted border border-border-subtle hover:text-text-primary"
+                            ? "bg-amber-500/10 text-amber-400 border border-amber-500/20"
+                            : "bg-background-tertiary text-text-muted border border-border-subtle hover:text-text-primary"
                             }`}
                     >
                         {useMock ? "Using Mock Data" : "Using Live API"}
@@ -449,10 +447,10 @@ export default function Dashboard() {
                                     </td>
                                     <td className="px-5 py-3.5">
                                         <span className={`text-xs font-medium px-2 py-0.5 rounded ${tx.type === "TRANSFER" ? "bg-purple-500/20 text-purple-400" :
-                                                tx.type === "CASH_OUT" ? "bg-amber-500/20 text-amber-400" :
-                                                    tx.type === "CASH_IN" ? "bg-emerald-500/20 text-emerald-400" :
-                                                        tx.type === "PAYMENT" ? "bg-blue-500/20 text-blue-400" :
-                                                            "bg-indigo-500/20 text-indigo-400"
+                                            tx.type === "CASH_OUT" ? "bg-amber-500/20 text-amber-400" :
+                                                tx.type === "CASH_IN" ? "bg-emerald-500/20 text-emerald-400" :
+                                                    tx.type === "PAYMENT" ? "bg-blue-500/20 text-blue-400" :
+                                                        "bg-indigo-500/20 text-indigo-400"
                                             }`}>
                                             {tx.type}
                                         </span>
@@ -475,8 +473,8 @@ export default function Dashboard() {
                                                 />
                                             </div>
                                             <span className={`text-sm font-mono font-semibold ${tx.score >= 90 ? "text-accent-danger" :
-                                                    tx.score >= 70 ? "text-accent-warning" :
-                                                        "text-accent-success"
+                                                tx.score >= 70 ? "text-accent-warning" :
+                                                    "text-accent-success"
                                                 }`}>
                                                 {tx.score}
                                             </span>
