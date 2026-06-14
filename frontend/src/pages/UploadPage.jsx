@@ -2,7 +2,9 @@ import {
     AlertCircle,
     ArrowRight,
     CheckCircle2,
+    Clock,
     Database,
+    FileImage,
     FileJson,
     FileSpreadsheet,
     FileText,
@@ -13,12 +15,14 @@ import {
     X
 } from 'lucide-react';
 import { useCallback, useRef, useState } from 'react';
+import { useBatchPredict, useOCR } from '../hooks/useApi';
 
 /* ─────────────────────────────────────────────
-   Upload Page — Day 11 React Frontend
+   Upload Page — Final Merged Version
    Dark fintech theme: #0A0E1A bg, Inter/JetBrains Mono
-   Features: Drag & Drop, CSV/JSON/Parquet support,
-   Progress simulation, Validation, Batch upload
+   Features: Drag & Drop, CSV/JSON/Parquet/Image/PDF support,
+   Real API integration (batch-predict + OCR), Progress simulation,
+   Validation, Batch upload, Retry, Result display
    ───────────────────────────────────────────── */
 
 const ACCEPTED_TYPES = {
@@ -26,6 +30,10 @@ const ACCEPTED_TYPES = {
     'application/json': { icon: FileJson, label: 'JSON', color: 'text-amber-400' },
     'application/vnd.apache.parquet': { icon: Database, label: 'Parquet', color: 'text-violet-400' },
     'application/octet-stream': { icon: Database, label: 'Parquet', color: 'text-violet-400' },
+    'image/png': { icon: FileImage, label: 'PNG', color: 'text-pink-400' },
+    'image/jpeg': { icon: FileImage, label: 'JPG', color: 'text-pink-400' },
+    'image/jpg': { icon: FileImage, label: 'JPG', color: 'text-pink-400' },
+    'application/pdf': { icon: FileText, label: 'PDF', color: 'text-orange-400' },
 };
 
 const MAX_FILE_SIZE = 500 * 1024 * 1024; // 500MB
@@ -41,11 +49,21 @@ function formatBytes(bytes, decimals = 2) {
 }
 
 function getFileMeta(file) {
+    const type = file.type;
+    if (ACCEPTED_TYPES[type]) return ACCEPTED_TYPES[type];
     const ext = file.name.split('.').pop().toLowerCase();
     if (ext === 'csv') return ACCEPTED_TYPES['text/csv'];
     if (ext === 'json') return ACCEPTED_TYPES['application/json'];
     if (ext === 'parquet') return ACCEPTED_TYPES['application/vnd.apache.parquet'];
+    if (ext === 'png') return ACCEPTED_TYPES['image/png'];
+    if (ext === 'jpg' || ext === 'jpeg') return ACCEPTED_TYPES['image/jpeg'];
+    if (ext === 'pdf') return ACCEPTED_TYPES['application/pdf'];
     return { icon: FileText, label: ext.toUpperCase(), color: 'text-slate-400' };
+}
+
+function isImageOrPDF(file) {
+    const ext = file.name.split('.').pop().toLowerCase();
+    return file.type.startsWith('image/') || file.type === 'application/pdf' || ext === 'pdf';
 }
 
 /* ─── Stat Card ─── */
@@ -68,7 +86,7 @@ function StatCard({ icon: Icon, label, value, trend }) {
     );
 }
 
-/* ─── Upload Progress Bar ─── */
+/* ─── Progress Bar ─── */
 function ProgressBar({ progress, status }) {
     const getColor = () => {
         if (status === 'error') return 'bg-red-500';
@@ -80,7 +98,9 @@ function ProgressBar({ progress, status }) {
     return (
         <div className="w-full">
             <div className="flex justify-between text-xs mb-1.5">
-                <span className="text-slate-400 font-mono">{status === 'uploading' ? 'Processing...' : status === 'success' ? 'Complete' : 'Failed'}</span>
+                <span className="text-slate-400 font-mono">
+                    {status === 'uploading' ? 'Processing...' : status === 'success' ? 'Complete' : 'Failed'}
+                </span>
                 <span className="text-slate-300 font-mono">{progress}%</span>
             </div>
             <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden">
@@ -94,36 +114,77 @@ function ProgressBar({ progress, status }) {
 }
 
 /* ─── File Item ─── */
-function FileItem({ file, onRemove }) {
-    const meta = getFileMeta(file);
+function FileItem({ file, onRemove, onRetry }) {
+    const meta = getFileMeta(file.file);
     const Icon = meta.icon;
+    const isError = file.status === 'error';
+    const isComplete = file.status === 'success';
+    const isUploading = file.status === 'uploading';
 
     return (
-        <div className="group flex items-center gap-4 p-4 bg-[#111827]/60 border border-slate-800/50 rounded-xl hover:border-slate-700/60 transition-all duration-200">
+        <div className={`group flex items-center gap-4 p-4 rounded-xl transition-all duration-200 ${isError
+                ? 'bg-red-500/5 border border-red-500/20'
+                : isComplete
+                    ? 'bg-emerald-500/5 border border-emerald-500/20'
+                    : 'bg-[#111827]/60 border border-slate-800/50 hover:border-slate-700/60'
+            }`}>
             <div className={`p-3 bg-[#1a2332] rounded-lg ${meta.color}`}>
                 <Icon className="w-6 h-6" />
             </div>
             <div className="flex-1 min-w-0">
                 <p className="text-slate-200 font-medium text-sm truncate">{file.name}</p>
                 <p className="text-slate-500 text-xs font-mono mt-0.5">{meta.label} · {formatBytes(file.size)}</p>
+
+                {isUploading && (
+                    <div className="mt-2">
+                        <ProgressBar progress={file.progress} status={file.status} />
+                        <p className="text-slate-500 text-xs mt-1 font-mono">
+                            {file.progress < 50 ? 'Uploading...' : file.progress < 90 ? 'Predicting...' : 'Finalizing...'}
+                        </p>
+                    </div>
+                )}
+
+                {file.result && (
+                    <div className="mt-2 text-xs">
+                        {file.result.total_processed !== undefined && (
+                            <span className="text-emerald-400 font-mono">
+                                {file.result.anomalies_detected} anomalies in {file.result.total_processed} rows
+                            </span>
+                        )}
+                        {file.result.amount !== undefined && (
+                            <span className="text-emerald-400 font-mono">
+                                Extracted: ${file.result.amount?.toLocaleString()} from {file.result.vendor || 'unknown vendor'}
+                            </span>
+                        )}
+                    </div>
+                )}
+
+                {isError && file.error && (
+                    <p className="text-red-400 text-xs mt-1">{file.error}</p>
+                )}
             </div>
-            {file.status === 'uploading' && (
-                <Loader2 className="w-5 h-5 text-cyan-400 animate-spin" />
-            )}
-            {file.status === 'success' && (
-                <CheckCircle2 className="w-5 h-5 text-emerald-400" />
-            )}
-            {file.status === 'error' && (
-                <AlertCircle className="w-5 h-5 text-red-400" />
-            )}
-            {file.status === 'pending' && (
-                <button
-                    onClick={() => onRemove(file.id)}
-                    className="p-1.5 text-slate-500 hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
-                >
-                    <X className="w-4 h-4" />
-                </button>
-            )}
+
+            <div className="flex items-center gap-1">
+                {isComplete && <CheckCircle2 className="w-5 h-5 text-emerald-400" />}
+                {isError && (
+                    <button
+                        onClick={onRetry}
+                        className="p-1.5 text-red-400 hover:bg-red-400/10 rounded-lg transition-colors"
+                        title="Retry"
+                    >
+                        <AlertCircle className="w-4 h-4" />
+                    </button>
+                )}
+                {isUploading && <Loader2 className="w-5 h-5 text-cyan-400 animate-spin" />}
+                {!isUploading && (
+                    <button
+                        onClick={onRemove}
+                        className="p-1.5 text-slate-500 hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+                    >
+                        <X className="w-4 h-4" />
+                    </button>
+                )}
+            </div>
         </div>
     );
 }
@@ -133,12 +194,16 @@ export default function UploadPage() {
     const [files, setFiles] = useState([]);
     const [isDragOver, setIsDragOver] = useState(false);
     const [globalError, setGlobalError] = useState(null);
-    const [isUploading, setIsUploading] = useState(false);
     const fileInputRef = useRef(null);
+
+    const { upload: batchUpload, loading: batchLoading } = useBatchPredict();
+    const { upload: ocrUpload, loading: ocrLoading } = useOCR();
+
+    const isLoading = batchLoading || ocrLoading;
 
     const validateFile = (file) => {
         const ext = file.name.split('.').pop().toLowerCase();
-        const validExts = ['csv', 'json', 'parquet'];
+        const validExts = ['csv', 'json', 'parquet', 'png', 'jpg', 'jpeg', 'pdf'];
         if (!validExts.includes(ext)) {
             return `Invalid format. Accepted: ${validExts.join(', ')}`;
         }
@@ -157,6 +222,7 @@ export default function UploadPage() {
             size: file.size,
             status: 'pending',
             progress: 0,
+            result: null,
             error: null,
         }));
 
@@ -165,18 +231,15 @@ export default function UploadPage() {
             return;
         }
 
-        const validFiles = [];
-        for (const f of newFiles) {
+        const validatedFiles = newFiles.map((f) => {
             const err = validateFile(f.file);
             if (err) {
-                f.status = 'error';
-                f.error = err;
-            } else {
-                validFiles.push(f);
+                return { ...f, status: 'error', error: err };
             }
-        }
+            return f;
+        });
 
-        setFiles((prev) => [...prev, ...newFiles]);
+        setFiles((prev) => [...prev, ...validatedFiles]);
     }, [files.length]);
 
     const handleDragOver = (e) => {
@@ -197,7 +260,7 @@ export default function UploadPage() {
 
     const handleFileSelect = (e) => {
         processFiles(e.target.files);
-        e.target.value = null; // Reset input
+        e.target.value = null;
     };
 
     const removeFile = (id) => {
@@ -210,46 +273,69 @@ export default function UploadPage() {
         setGlobalError(null);
     };
 
-    // Simulate upload with progress
-    const simulateUpload = async () => {
-        const pendingFiles = files.filter((f) => f.status === 'pending');
-        if (pendingFiles.length === 0) return;
+    /* ─── Process Single File (Real API) ─── */
+    const processFile = async (fileObj) => {
+        const { file, id } = fileObj;
+        const useOCR = isImageOrPDF(file);
 
-        setIsUploading(true);
+        setFiles((prev) =>
+            prev.map((f) => (f.id === id ? { ...f, status: 'uploading', progress: 10 } : f))
+        );
 
-        for (const fileObj of pendingFiles) {
-            setFiles((prev) =>
-                prev.map((f) => (f.id === fileObj.id ? { ...f, status: 'uploading' } : f))
-            );
-
-            // Simulate progress in chunks
-            const steps = 10;
-            for (let i = 1; i <= steps; i++) {
-                await new Promise((r) => setTimeout(r, 150 + Math.random() * 200));
+        try {
+            // Simulate progress while API runs
+            const progressInterval = setInterval(() => {
                 setFiles((prev) =>
-                    prev.map((f) => (f.id === fileObj.id ? { ...f, progress: i * 10 } : f))
+                    prev.map((f) =>
+                        f.id === id && f.progress < 85 ? { ...f, progress: f.progress + 12 } : f
+                    )
                 );
+            }, 300);
+
+            let result;
+            if (useOCR) {
+                result = await ocrUpload(file);
+            } else {
+                result = await batchUpload(file);
             }
 
-            // Simulate occasional error (5% chance for demo)
-            const hasError = Math.random() < 0.05;
+            clearInterval(progressInterval);
+
             setFiles((prev) =>
                 prev.map((f) =>
-                    f.id === fileObj.id
-                        ? {
-                            ...f,
-                            status: hasError ? 'error' : 'success',
-                            error: hasError ? 'Network timeout during ingestion' : null,
-                            progress: hasError ? f.progress : 100,
-                        }
+                    f.id === id
+                        ? { ...f, status: 'success', progress: 100, result }
                         : f
                 )
             );
 
-            await new Promise((r) => setTimeout(r, 300));
+            return result;
+        } catch (err) {
+            setFiles((prev) =>
+                prev.map((f) =>
+                    f.id === id
+                        ? { ...f, status: 'error', progress: 0, error: err.message || 'Upload failed' }
+                        : f
+                )
+            );
+            throw err;
         }
+    };
 
-        setIsUploading(false);
+    /* ─── Process All Pending ─── */
+    const processAll = async () => {
+        const pending = files.filter((f) => f.status === 'pending');
+        if (pending.length === 0) return;
+
+        setGlobalError(null);
+
+        for (const fileObj of pending) {
+            try {
+                await processFile(fileObj);
+            } catch (err) {
+                // Individual errors handled in processFile
+            }
+        }
     };
 
     const pendingCount = files.filter((f) => f.status === 'pending').length;
@@ -268,7 +354,8 @@ export default function UploadPage() {
                 <div>
                     <h1 className="text-3xl font-bold text-slate-100 tracking-tight">Data Ingestion</h1>
                     <p className="text-slate-400 mt-1.5 text-sm">
-                        Upload transaction datasets for fraud detection analysis. Supports CSV, JSON, and Parquet formats.
+                        Upload transaction datasets or invoice images for fraud detection analysis.
+                        Supports CSV, JSON, Parquet, PNG, JPG, and PDF.
                     </p>
                 </div>
                 <div className="flex items-center gap-2 px-4 py-2 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
@@ -279,7 +366,7 @@ export default function UploadPage() {
 
             {/* Stats Row */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <StatCard icon={Database} label="Total Datasets" value={files.length.toString()} trend="+12%" />
+                <StatCard icon={Database} label="Total Files" value={files.length.toString()} trend="+12%" />
                 <StatCard icon={CheckCircle2} label="Processed" value={successCount.toString()} />
                 <StatCard icon={Upload} label="Pending" value={pendingCount.toString()} />
                 <StatCard icon={AlertCircle} label="Errors" value={errorCount.toString()} />
@@ -287,40 +374,41 @@ export default function UploadPage() {
 
             {/* Main Upload Area */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Left: Drop Zone */}
+                {/* Left: Drop Zone + File List */}
                 <div className="lg:col-span-2 space-y-6">
+                    {/* Drop Zone */}
                     <div
                         onDragOver={handleDragOver}
                         onDragLeave={handleDragLeave}
                         onDrop={handleDrop}
                         onClick={() => fileInputRef.current?.click()}
                         className={`
-              relative group cursor-pointer border-2 border-dashed rounded-2xl p-10
-              flex flex-col items-center justify-center text-center
-              transition-all duration-300 ease-out min-h-[320px]
-              ${isDragOver
+                            relative group cursor-pointer border-2 border-dashed rounded-2xl p-10
+                            flex flex-col items-center justify-center text-center
+                            transition-all duration-300 ease-out min-h-[320px]
+                            ${isDragOver
                                 ? 'border-cyan-400 bg-cyan-400/5 scale-[1.01]'
                                 : 'border-slate-700 bg-[#111827]/40 hover:border-slate-500 hover:bg-[#111827]/60'
                             }
-            `}
+                        `}
                     >
                         <input
                             ref={fileInputRef}
                             type="file"
                             multiple
-                            accept=".csv,.json,.parquet"
+                            accept=".csv,.json,.parquet,.png,.jpg,.jpeg,.pdf"
                             className="hidden"
                             onChange={handleFileSelect}
                         />
 
                         <div className={`
-              p-5 rounded-2xl mb-5 transition-all duration-300
-              ${isDragOver ? 'bg-cyan-400/15' : 'bg-[#1a2332] group-hover:bg-[#1e293b]'}
-            `}>
+                            p-5 rounded-2xl mb-5 transition-all duration-300
+                            ${isDragOver ? 'bg-cyan-400/15' : 'bg-[#1a2332] group-hover:bg-[#1e293b]'}
+                        `}>
                             <Upload className={`
-                w-10 h-10 transition-colors duration-300
-                ${isDragOver ? 'text-cyan-400' : 'text-slate-400 group-hover:text-cyan-400'}
-              `} />
+                                w-10 h-10 transition-colors duration-300
+                                ${isDragOver ? 'text-cyan-400' : 'text-slate-400 group-hover:text-cyan-400'}
+                            `} />
                         </div>
 
                         <h3 className="text-lg font-semibold text-slate-200 mb-2">
@@ -330,7 +418,7 @@ export default function UploadPage() {
                             or <span className="text-cyan-400 font-medium">click to browse</span> from your computer
                         </p>
 
-                        <div className="flex items-center gap-4 mt-6">
+                        <div className="flex items-center gap-3 mt-6 flex-wrap justify-center">
                             {Object.entries(ACCEPTED_TYPES).map(([type, meta]) => {
                                 const Icon = meta.icon;
                                 return (
@@ -380,30 +468,23 @@ export default function UploadPage() {
 
                             <div className="space-y-2 max-h-[400px] overflow-y-auto pr-1 custom-scrollbar">
                                 {files.map((file) => (
-                                    <div key={file.id}>
-                                        <FileItem file={file} onRemove={removeFile} />
-                                        {file.status === 'uploading' && (
-                                            <div className="px-4 pb-3 -mt-2">
-                                                <ProgressBar progress={file.progress} status={file.status} />
-                                            </div>
-                                        )}
-                                        {file.status === 'error' && file.error && (
-                                            <div className="px-4 pb-2 -mt-1">
-                                                <p className="text-xs text-red-400">{file.error}</p>
-                                            </div>
-                                        )}
-                                    </div>
+                                    <FileItem
+                                        key={file.id}
+                                        file={file}
+                                        onRemove={() => removeFile(file.id)}
+                                        onRetry={() => processFile(file)}
+                                    />
                                 ))}
                             </div>
 
-                            {/* Upload Button */}
+                            {/* Process Button */}
                             {pendingCount > 0 && (
                                 <button
-                                    onClick={simulateUpload}
-                                    disabled={isUploading}
+                                    onClick={processAll}
+                                    disabled={isLoading || pendingCount === 0}
                                     className="w-full flex items-center justify-center gap-2 py-3.5 bg-cyan-500 hover:bg-cyan-400 disabled:bg-slate-700 text-slate-950 font-semibold rounded-xl transition-all duration-200 disabled:cursor-not-allowed"
                                 >
-                                    {isUploading ? (
+                                    {isLoading ? (
                                         <>
                                             <Loader2 className="w-5 h-5 animate-spin" />
                                             Processing {uploadingCount} file{uploadingCount !== 1 ? 's' : ''}...
@@ -457,6 +538,15 @@ export default function UploadPage() {
                                     <p className="text-xs text-slate-500 mt-0.5">Columnar format for large datasets. Max 500MB.</p>
                                 </div>
                             </div>
+                            <div className="flex items-start gap-3">
+                                <div className="p-1.5 bg-pink-500/10 rounded-lg mt-0.5">
+                                    <FileImage className="w-4 h-4 text-pink-400" />
+                                </div>
+                                <div>
+                                    <p className="text-sm font-medium text-slate-300">Images / PDF</p>
+                                    <p className="text-xs text-slate-500 mt-0.5">OCR extraction for amount, date, vendor. Max 500MB.</p>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -478,10 +568,14 @@ export default function UploadPage() {
 
                     {/* Recent Uploads */}
                     <div className="bg-[#111827]/60 border border-slate-800/50 rounded-xl p-6">
-                        <h3 className="text-sm font-semibold text-slate-200 mb-4">Recent Uploads</h3>
+                        <h3 className="text-sm font-semibold text-slate-200 mb-4 flex items-center gap-2">
+                            <Clock className="w-4 h-4 text-cyan-400" />
+                            Recent Uploads
+                        </h3>
                         <div className="space-y-3">
                             {[
                                 { name: 'paysim_sample_1M.csv', size: '45.2 MB', time: '2h ago', status: 'success' },
+                                { name: 'invoice_q2_001.pdf', size: '1.2 MB', time: '3h ago', status: 'success' },
                                 { name: 'transactions_q2.json', size: '12.8 MB', time: '5h ago', status: 'success' },
                                 { name: 'fraud_labels.parquet', size: '3.1 MB', time: '1d ago', status: 'success' },
                             ].map((item) => (
