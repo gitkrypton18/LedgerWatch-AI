@@ -45,8 +45,7 @@ ENV/
 *.db-journal
 
 # === MODELS (large files) ===
-*.joblib
-*.pkl
+# *.joblib  ← Commented out — models needed for Render deploy*.pkl
 *.h5
 *.onnx
 
