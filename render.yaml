@@ -1,17 +1,18 @@
 services:
   - type: web
     name: ledgerwatch-api
-    env: python
-    buildCommand: "apt-get update && apt-get install -y tesseract-ocr && pip install -r requirements.txt"
-    startCommand: "uvicorn backend.main:app --host 0.0.0.0 --port $PORT"
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn backend.main:app --host 0.0.0.0 --port $PORT
     envVars:
-      - key: DATABASE_URL
-        value: sqlite:///ledgerwatch.db
-      - key: MODEL_PATH
-        value: saved_models/isolation_forest_v1.0.0.joblib
-      - key: RISK_ENGINE_PATH
-        value: saved_models/risk_engine_v1.0.0.joblib
-      - key: CORS_ORIGINS
-        value: https://ledgerwatch-ai.vercel.app,http://localhost:5173
+      - key: PYTHON_VERSION
+        value: 3.11.0
       - key: API_KEY
-        value: demo-key-123
+        generateValue: true
+      - key: DATABASE_URL
+        value: sqlite:///./ledgerwatch.db
+      - key: MODEL_PATH
+        value: models/isolation_forest_v1.0.0.pkl
+    healthCheckPath: /health
+    autoDeploy: true

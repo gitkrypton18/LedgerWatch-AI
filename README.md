@@ -184,7 +184,7 @@ pip install -r requirements.txt
 uvicorn backend.main:app --reload
 ```
 
-API runs at `http://localhost:8000`  
+API runs at `http://localhost:8000`
 Swagger UI: `http://localhost:8000/docs`
 
 ### 3. Frontend Setup
@@ -412,7 +412,7 @@ MIT License — see [LICENSE](LICENSE) for details.
 
 <div align="center">
 
-**Built with ❤️ by Kalpit**  
+**Built with ❤️ by Kalpit**
 *Electronics Engineering Student*
 
 [⬆ Back to Top](#-ledgerwatch-ai)
