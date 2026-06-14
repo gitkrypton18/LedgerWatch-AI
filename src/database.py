@@ -11,7 +11,7 @@ Think of it as: "Here's the building, here's the key to enter,
 and here's the blueprint for all rooms."
 """
 
-from sqlalchemy import Column, DateTime, Float, Integer, String, create_engine
+from sqlalchemy import Boolean, Column, DateTime, Float, Integer, String, create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 from sqlalchemy.sql import func
 
@@ -104,10 +104,10 @@ class Transaction(Base):
     newbalanceDest = Column(Float, nullable=False)
     # Prediction results (added when transaction is processed)
     is_anomaly = Column(
-        Integer, nullable=True
+        Boolean, default=False
     )  # 1 = anomaly, 0 = normal, None = not processed
-    risk_band = Column(String, nullable=True)  # Low, Medium, Elevated, High, Critical
-
+    risk_band = Column(String, default="Low")  # Low, Medium, Elevated, High, Critical
+    risk_score = Column(Integer, default=0)
     # Fraud labels — nullable because during real predictions, we won't know these
     isFraud = Column(Integer, nullable=True)
     isFlaggedFraud = Column(Integer, nullable=True)

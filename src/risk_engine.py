@@ -129,13 +129,13 @@ class RiskEngine:
         Returns:
             Risk band string.
         """
-        if risk_score >= 90:
+        if risk_score >= 95:
             return "Critical"
-        elif risk_score >= 75:
+        elif risk_score >= 85:
             return "High"
-        elif risk_score >= 50:
+        elif risk_score >= 60:
             return "Elevated"
-        elif risk_score >= 25:
+        elif risk_score >= 30:
             return "Medium"
         else:
             return "Low"

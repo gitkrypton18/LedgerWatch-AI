@@ -1,14 +1,5 @@
 """
 backend/main.py — FastAPI backend for LedgerWatch AI
-
-Endpoints:
-  GET  /health          → Service health check
-  POST /predict         → Single transaction prediction
-  POST /batch-predict   → Bulk CSV prediction
-  POST /ocr             → Invoice PDF/image upload + parse
-  GET  /transactions    → Query transaction history
-  GET  /transactions/{id} → Get single transaction
-  GET  /stats           → Dashboard statistics
 """
 
 import logging
@@ -130,7 +121,7 @@ async def verify_api_key(api_key: str = Security(api_key_header)):
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS.split(","),
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -178,12 +169,24 @@ def engineer_features_from_df(df: pd.DataFrame) -> pd.DataFrame:
 
 def align_features(X: pd.DataFrame, expected_features: list) -> pd.DataFrame:
     """Align feature DataFrame to match model's expected columns."""
-    # Add missing columns with zeros
     for col in expected_features:
         if col not in X.columns:
             X[col] = 0.0
-    # Reorder to match training order
     return X[expected_features]
+
+
+def get_risk_band(score: int) -> str:
+    """Map risk score to human-readable band."""
+    if score >= 95:
+        return "Critical"
+    elif score >= 85:
+        return "High"
+    elif score >= 60:
+        return "Elevated"
+    elif score >= 30:
+        return "Medium"
+    else:
+        return "Low"
 
 
 def predict_single(
@@ -194,30 +197,21 @@ def predict_single(
     explainer=None,
     explain: bool = False,
 ):
-    """Run prediction pipeline on a single-row DataFrame.
-
-    NOTE: freq_orig/freq_dest will be 0 for single-row predictions because
-    cumcount() counts within the same DataFrame. For accurate frequency
-    features, use /batch-predict with historical context or query the DB.
-    """
+    """Run prediction pipeline on a single-row DataFrame."""
     start = time.time()
 
     features = engineer_features_from_df(df)
     feature_cols = get_feature_columns(features)
     X = features[feature_cols]
 
-    # Align columns to match training
     X_aligned = align_features(X, expected_features)
 
-    # Isolation Forest
     anomaly_score = float(model.score_samples(X_aligned)[0])
     is_anomaly = model.predict(X_aligned)[0] == -1
 
-    # Risk calibration (negate because risk engine expects higher = more anomalous)
     risk_score = int(risk_engine.transform([-anomaly_score])[0])
-    risk_band = risk_engine.get_risk_band(risk_score)
+    risk_band = get_risk_band(risk_score)
 
-    # SHAP (optional)
     shap_vals = None
     top_feats = None
     if explain and explainer is not None:
@@ -285,9 +279,11 @@ async def predict(
         explain=explain,
     )
 
-    # Save to DB
     try:
         db_tx = DBTransaction(**data.model_dump())
+        db_tx.is_anomaly = result["is_anomaly"]
+        db_tx.risk_band = result["risk_band"]
+        db_tx.risk_score = result["risk_score"]
         db.add(db_tx)
         db.commit()
         db.refresh(db_tx)
@@ -316,7 +312,6 @@ async def batch_predict(
     if not file.filename.endswith(".csv"):
         raise HTTPException(status_code=400, detail="Only CSV files accepted")
 
-    # File size guard: max 10MB
     MAX_BATCH_SIZE = 10 * 1024 * 1024
     contents = await file.read(MAX_BATCH_SIZE + 1)
     if len(contents) > MAX_BATCH_SIZE:
@@ -351,27 +346,65 @@ async def batch_predict(
     X_aligned = align_features(X, app.state.expected_features)
 
     anomaly_scores = app.state.model.score_samples(X_aligned)
-    is_anomalies = app.state.model.predict(X_aligned) == -1
-    risk_scores = [
-        int(app.state.risk_engine.transform([-s])[0]) for s in anomaly_scores
-    ]
+    raw_predictions = app.state.model.predict(X_aligned)
+
+    # ─── FIXED RISK SCORING ───────────────────────────────────
+    n = len(df)
+
+    # Rank-based risk scores: most anomalous = 100, least = 0
+    sorted_indices = np.argsort(anomaly_scores)  # ascending: most anomalous first
+    risk_scores = [0] * n
+    for rank, idx in enumerate(sorted_indices):
+        risk_scores[idx] = int(100 * (1 - rank / max(n - 1, 1)))
+
+    # Risk bands
+    risk_bands = [get_risk_band(s) for s in risk_scores]
+
+    # Top 5% = anomaly
+    anomaly_threshold_idx = int(n * 0.05)
+    is_anomalies = [False] * n
+    for idx in sorted_indices[:anomaly_threshold_idx]:
+        is_anomalies[idx] = True
+    # ───────────────────────────────────────────────────────────
 
     results = []
     for i in range(len(df)):
-        risk = risk_scores[i]
         results.append(
             PredictionResult(
                 transaction_id=i,
                 anomaly_score=float(anomaly_scores[i]),
-                risk_score=risk,
-                risk_band=app.state.risk_engine.get_risk_band(risk),
-                is_anomaly=bool(is_anomalies[i]),
+                risk_score=risk_scores[i],
+                risk_band=risk_bands[i],
+                is_anomaly=is_anomalies[i],
                 shap_values=None,
                 top_features=None,
             )
         )
 
     anomalies_detected = sum(1 for r in results if r.is_anomaly)
+
+    # ─── SAVE TO DATABASE ─────────────────────────────────────
+    for i, row in df.iterrows():
+        db_tx = DBTransaction(
+            step=int(row["step"]),
+            type=str(row["type"]),
+            amount=float(row["amount"]),
+            nameOrig=str(row["nameOrig"]),
+            oldbalanceOrg=float(row["oldbalanceOrg"]),
+            newbalanceOrig=float(row["newbalanceOrig"]),
+            nameDest=str(row["nameDest"]),
+            oldbalanceDest=float(row["oldbalanceDest"]),
+            newbalanceDest=float(row["newbalanceDest"]),
+            is_anomaly=is_anomalies[i],
+            risk_band=risk_bands[i],
+            risk_score=risk_scores[i],
+            isFraud=None,
+            isFlaggedFraud=None,
+        )
+        db.add(db_tx)
+
+    db.commit()
+    # ───────────────────────────────────────────────────────────
 
     return BatchPredictionResponse(
         total_processed=len(df),
@@ -425,9 +458,10 @@ async def get_transactions(
 ):
     """Query transaction history."""
     txs = db.query(DBTransaction).offset(offset).limit(limit).all()
+    total_count = db.query(func.count(DBTransaction.id)).scalar()
     return {
         "transactions": [TransactionRead.model_validate(tx) for tx in txs],
-        "count": len(txs),
+        "count": total_count or 0,
     }
 
 
@@ -448,7 +482,6 @@ async def get_stats(db: Session = Depends(get_db)):
     """Dashboard statistics."""
     total = db.query(func.count(DBTransaction.id)).scalar()
 
-    # NOTE: For full stats, add is_anomaly/risk_band columns to DBTransaction model
     try:
         anomalies = (
             db.query(func.count(DBTransaction.id))
@@ -458,10 +491,66 @@ async def get_stats(db: Session = Depends(get_db)):
     except Exception:
         anomalies = 0
 
+    try:
+        critical = (
+            db.query(func.count(DBTransaction.id))
+            .filter(DBTransaction.risk_band == "Critical")
+            .scalar()
+        )
+    except Exception:
+        critical = 0
+
+    try:
+        high = (
+            db.query(func.count(DBTransaction.id))
+            .filter(DBTransaction.risk_band == "High")
+            .scalar()
+        )
+    except Exception:
+        high = 0
+
+    try:
+        elevated = (
+            db.query(func.count(DBTransaction.id))
+            .filter(DBTransaction.risk_band == "Elevated")
+            .scalar()
+        )
+    except Exception:
+        elevated = 0
+
+    try:
+        medium = (
+            db.query(func.count(DBTransaction.id))
+            .filter(DBTransaction.risk_band == "Medium")
+            .scalar()
+        )
+    except Exception:
+        medium = 0
+
+    try:
+        low = (
+            db.query(func.count(DBTransaction.id))
+            .filter(DBTransaction.risk_band == "Low")
+            .scalar()
+        )
+    except Exception:
+        low = 0
+
+    try:
+        avg_risk = db.query(func.avg(DBTransaction.risk_score)).scalar()
+    except Exception:
+        avg_risk = 0.0
+
     return {
         "total_transactions": total or 0,
         "anomalies_detected": anomalies or 0,
+        "critical_count": critical or 0,
+        "high_count": high or 0,
+        "elevated_count": elevated or 0,
+        "medium_count": medium or 0,
+        "low_count": low or 0,
         "anomaly_rate": round(anomalies / total, 4) if total else 0.0,
+        "avg_risk_score": round(float(avg_risk), 1) if avg_risk else 0.0,
     }
 
 

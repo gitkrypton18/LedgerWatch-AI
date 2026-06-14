@@ -1,74 +1,36 @@
-// ─────────────────────────────────────────────────────────────
-// LedgerWatch AI — React Hooks for API Integration
-// Day 14: Custom hooks wrapping axios calls with state management
-// ─────────────────────────────────────────────────────────────
-
 import { useCallback, useEffect, useState } from 'react';
 import {
     batchPredict,
     checkHealth,
-    getStats,
     getTransactionById,
     getTransactions,
     ocrUpload,
-    predict,
+    predict
 } from '../lib/axios';
 
-/**
- * Generic hook pattern: [data, loading, error, refetch]
- */
-const useApiCall = (apiFn, immediate = true) => {
-    const [data, setData] = useState(null);
-    const [loading, setLoading] = useState(immediate);
-    const [error, setError] = useState(null);
-
-    const execute = useCallback(
-        async (...args) => {
-            setLoading(true);
-            setError(null);
-            try {
-                const result = await apiFn(...args);
-                setData(result);
-                return result;
-            } catch (err) {
-                const msg = err.message || err.response?.data?.detail || 'Unknown error';
-                setError(msg);
-                throw err;
-            } finally {
-                setLoading(false);
-            }
-        },
-        [apiFn]
-    );
-
-    useEffect(() => {
-        if (immediate) {
-            execute();
-        }
-    }, [execute, immediate]);
-
-    return { data, loading, error, execute, setData };
-};
-
 // ─── useHealth ────────────────────────────────────────────────
-// Polls /health every 30 seconds. Returns { online, data, error }
 export const useHealth = (pollInterval = 30000) => {
     const [online, setOnline] = useState(false);
-    const { data, loading, error, execute } = useApiCall(checkHealth, false);
+    const [data, setData] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
 
     const check = useCallback(async () => {
         try {
-            const result = await execute();
+            const result = await checkHealth();
             setOnline(result?.status === 'ok');
-            return result;
-        } catch {
+            setData(result);
+            setError(null);
+        } catch (err) {
             setOnline(false);
-            return null;
+            setError(err.message);
+        } finally {
+            setLoading(false);
         }
-    }, [execute]);
+    }, []);
 
     useEffect(() => {
-        check(); // Initial check
+        check();
         const interval = setInterval(check, pollInterval);
         return () => clearInterval(interval);
     }, [check, pollInterval]);
@@ -78,96 +40,152 @@ export const useHealth = (pollInterval = 30000) => {
 
 // ─── useStats ─────────────────────────────────────────────────
 export const useStats = () => {
-    return useApiCall(getStats, true);
+    const [data, setData] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+
+    useEffect(() => {
+        fetch('http://localhost:8000/stats', {
+            headers: { 'X-API-Key': import.meta.env.VITE_API_KEY || 'demo-key-123' }
+        })
+            .then(r => r.json())
+            .then(setData)
+            .catch(setError)
+            .finally(() => setLoading(false));
+    }, []);
+
+    return { data, loading, error };
 };
 
 // ─── useTransactions ──────────────────────────────────────────
 export const useTransactions = (limit = 10, offset = 0) => {
-    const { data, loading, error, execute } = useApiCall(
-        () => getTransactions(limit, offset),
-        true
-    );
+    const [data, setData] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
 
-    // Refetch when limit or offset changes
     useEffect(() => {
-        execute();
-    }, [limit, offset, execute]);
+        let cancelled = false;
+
+        const fetch = async () => {
+            try {
+                setLoading(true);
+                const result = await getTransactions(limit, offset);
+                if (!cancelled) setData(result);
+            } catch (err) {
+                if (!cancelled) setError(err.message || 'Failed to fetch');
+            } finally {
+                if (!cancelled) setLoading(false);
+            }
+        };
+
+        fetch();
+        return () => { cancelled = true; };
+    }, [limit, offset]);
 
     return {
         transactions: data?.transactions || [],
         count: data?.count || 0,
         loading,
         error,
-        refetch: execute,
+        refetch: () => window.location.reload(),
     };
 };
 
 // ─── useTransaction ───────────────────────────────────────────
 export const useTransaction = (id) => {
-    const { data, loading, error, execute } = useApiCall(
-        () => getTransactionById(id),
-        !!id // Only fetch if id is provided
-    );
+    const [data, setData] = useState(null);
+    const [loading, setLoading] = useState(!!id);
+    const [error, setError] = useState(null);
 
-    return { transaction: data, loading, error, refetch: execute };
+    useEffect(() => {
+        if (!id) return;
+        let cancelled = false;
+
+        getTransactionById(id)
+            .then(result => { if (!cancelled) setData(result); })
+            .catch(err => { if (!cancelled) setError(err.message); })
+            .finally(() => { if (!cancelled) setLoading(false); });
+
+        return () => { cancelled = true; };
+    }, [id]);
+
+    return { transaction: data, loading, error };
 };
 
 // ─── usePredict ─────────────────────────────────────────────
 export const usePredict = () => {
-    const { data, loading, error, execute } = useApiCall(predict, false);
+    const [data, setData] = useState(null);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState(null);
 
-    const runPredict = useCallback(
-        async (transactionData, explain = false) => {
-            return await execute(transactionData, explain);
-        },
-        [execute]
-    );
+    const runPredict = useCallback(async (transactionData, explain = false) => {
+        setLoading(true);
+        setError(null);
+        try {
+            const result = await predict(transactionData, explain);
+            setData(result);
+            return result;
+        } catch (err) {
+            setError(err.message);
+            throw err;
+        } finally {
+            setLoading(false);
+        }
+    }, []);
 
-    return { result: data, loading, error, predict: runPredict, setResult: useApiCall(predict, false).setData };
+    return { result: data, loading, error, predict: runPredict };
 };
 
 // ─── useBatchPredict ──────────────────────────────────────────
 export const useBatchPredict = () => {
-    const { data, loading, error, execute } = useApiCall(batchPredict, false);
+    const [data, setData] = useState(null);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState(null);
 
-    const upload = useCallback(
-        async (file) => {
-            return await execute(file);
-        },
-        [execute]
-    );
+    const upload = useCallback(async (file) => {
+        setLoading(true);
+        setError(null);
+        try {
+            const result = await batchPredict(file);
+            setData(result);
+            return result;
+        } catch (err) {
+            setError(err.message);
+            throw err;
+        } finally {
+            setLoading(false);
+        }
+    }, []);
 
     return { result: data, loading, error, upload };
 };
 
 // ─── useOCR ───────────────────────────────────────────────────
 export const useOCR = () => {
-    const { data, loading, error, execute } = useApiCall(ocrUpload, false);
+    const [data, setData] = useState(null);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState(null);
 
-    const upload = useCallback(
-        async (file) => {
-            return await execute(file);
-        },
-        [execute]
-    );
+    const upload = useCallback(async (file) => {
+        setLoading(true);
+        setError(null);
+        try {
+            const result = await ocrUpload(file);
+            setData(result);
+            return result;
+        } catch (err) {
+            setError(err.message);
+            throw err;
+        } finally {
+            setLoading(false);
+        }
+    }, []);
 
     return { result: data, loading, error, upload };
 };
 
 // ─── useMockFallback ──────────────────────────────────────────
-// Returns mock data when API is offline (for demo purposes)
 export const useMockFallback = (apiData, mockData) => {
     const [useMock, setUseMock] = useState(false);
-
-    useEffect(() => {
-        if (apiData === null && !useMock) {
-            // Could auto-switch to mock, but we'll let user decide
-        }
-    }, [apiData, useMock]);
-
-    return {
-        data: useMock ? mockData : apiData,
-        useMock,
-        setUseMock,
-    };
+    return { data: useMock ? mockData : apiData, useMock, setUseMock };
 };

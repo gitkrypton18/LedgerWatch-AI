@@ -48,6 +48,11 @@ class TransactionBase(BaseModel):
     newbalanceDest: float = Field(
         ..., ge=0, description="Recipient balance AFTER transaction"
     )
+    is_anomaly: bool = Field(
+        False, description="ML prediction: True = anomaly detected"
+    )
+    risk_band: str = Field("Low", description="Risk level: Low, Medium, High, Critical")
+    risk_score: int = Field(0, ge=0, le=100, description="Risk score 0-100")
     isFraud: Optional[int] = Field(
         None,
         ge=0,

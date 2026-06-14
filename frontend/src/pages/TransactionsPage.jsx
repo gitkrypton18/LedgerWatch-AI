@@ -19,7 +19,7 @@ import {
   X,
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import { useTransactions } from '../hooks/useApi';
+import { useStats, useTransactions } from '../hooks/useApi';
 
 // ─── Type Icons & Colors ──────────────────────────────────────
 const TYPE_CONFIG = {
@@ -210,7 +210,7 @@ const DetailDrawer = ({ transaction, onClose }) => {
 
 export default function TransactionsPage() {
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(50);
   const [search, setSearch] = useState('');
   const [sortField, setSortField] = useState('risk_score');
   const [sortDir, setSortDir] = useState('desc');
@@ -220,7 +220,17 @@ export default function TransactionsPage() {
   const [useMock, setUseMock] = useState(false);
 
   const offset = (page - 1) * pageSize;
-  const { transactions: apiTransactions, count: totalCount, loading, error, refetch } = useTransactions(pageSize, offset);
+  const { transactions: apiTransactions, count: totalCount, loading, error, refetch } = useTransactions(50, offset);
+
+  // Fetch stats from API for accurate totals
+  const { data: statsData } = useStats();
+
+  // Reset to page 1 when total count changes (new data uploaded)
+  useEffect(() => {
+    if (totalCount > 0 && page > 1 && (page - 1) * pageSize >= totalCount) {
+      setPage(1);
+    }
+  }, [totalCount, page, pageSize]);
 
   // Auto-fallback to mock on API error
   useEffect(() => {
@@ -232,6 +242,8 @@ export default function TransactionsPage() {
 
   const rawTransactions = useMock ? MOCK_TRANSACTIONS : (apiTransactions || []);
   const totalItems = useMock ? MOCK_TRANSACTIONS.length : (totalCount || 0);
+
+  // Pagination logic
   const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
 
   // ─── Client-side filtering & sorting ──────────────────────
@@ -285,12 +297,13 @@ export default function TransactionsPage() {
   // ─── Pagination helpers ───────────────────────────────────
   const goToPage = (p) => { if (p >= 1 && p <= totalPages) setPage(p); };
 
-  // Stats
-  const anomalyCount = filteredTransactions.filter(tx => tx.is_anomaly).length;
-  const criticalCount = filteredTransactions.filter(tx => tx.risk_band === 'Critical').length;
-  const avgRisk = filteredTransactions.length > 0
-    ? (filteredTransactions.reduce((sum, tx) => sum + (tx.risk_score || 0), 0) / filteredTransactions.length).toFixed(1)
-    : '0.0';
+  // Stats - use API stats when available, fallback to filtered page data
+  const anomalyCount = statsData?.anomalies_detected ?? filteredTransactions.filter(tx => tx.is_anomaly).length;
+  const criticalCount = statsData?.critical_count ?? filteredTransactions.filter(tx => tx.risk_band === 'Critical').length;
+  const avgRisk = statsData?.avg_risk_score?.toFixed(1) ??
+    (filteredTransactions.length > 0
+      ? (filteredTransactions.reduce((sum, tx) => sum + (tx.risk_score || 0), 0) / filteredTransactions.length).toFixed(1)
+      : '0.0');
 
   const activeFilterCount = Object.values(filters).filter(v => v !== '').length;
 
@@ -324,9 +337,9 @@ export default function TransactionsPage() {
       {/* Stats Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: 'Total', value: filteredTransactions.length, color: 'text-accent-info', icon: Shield },
-          { label: 'Anomalies', value: anomalyCount, color: 'text-red-400', icon: AlertTriangle },
-          { label: 'Critical', value: criticalCount, color: 'text-purple-400', icon: TrendingUp },
+          { label: 'Total', value: totalItems.toLocaleString(), color: 'text-accent-info', icon: Shield },
+          { label: 'Anomalies', value: anomalyCount.toLocaleString(), color: 'text-red-400', icon: AlertTriangle },
+          { label: 'Critical', value: criticalCount.toLocaleString(), color: 'text-purple-400', icon: TrendingUp },
           { label: 'Avg Risk', value: avgRisk, color: 'text-amber-400', icon: Activity },
         ].map(stat => (
           <div key={stat.label} className="glass-panel rounded-xl p-4 border border-border-subtle flex items-center gap-4">
@@ -532,7 +545,7 @@ export default function TransactionsPage() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="text-text-muted text-sm">Page {page} of {totalPages}</span>
-          <span className="text-text-muted text-xs">({filteredTransactions.length} items)</span>
+          <span className="text-text-muted text-xs">({totalItems.toLocaleString()} total items)</span>
         </div>
         <div className="flex items-center gap-1">
           <button onClick={() => goToPage(1)} disabled={page === 1} className="p-2 rounded-lg hover:bg-background-tertiary disabled:opacity-30 disabled:cursor-not-allowed">
