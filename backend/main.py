@@ -363,7 +363,7 @@ def predict_single(
 
 @app.get("/health", response_model=HealthResponse)
 async def health_check():
-    """Service health check."""
+    """Service health check. No API key required."""
     return HealthResponse(
         status="ok",
         version="1.0.0",
