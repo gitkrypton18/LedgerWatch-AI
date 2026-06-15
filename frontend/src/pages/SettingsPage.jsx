@@ -207,7 +207,7 @@ const DangerZone = ({ onClearCache, onExport, onDelete }) => {
 export default function SettingsPage() {
   const [settings, setSettings] = useState({
     apiUrl: 'https://ledgerwatch-api.onrender.com',
-    apiKey: '',
+    apiKey: import.meta.env.VITE_API_KEY || 'demo-key-123',
     theme: 'dark',
     pageSize: '10',
     autoRefresh: false,
