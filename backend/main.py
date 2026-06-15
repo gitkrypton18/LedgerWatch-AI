@@ -334,10 +334,10 @@ async def batch_predict(
     if not file.filename.endswith(".csv"):
         raise HTTPException(status_code=400, detail="Only CSV files accepted")
 
-    MAX_BATCH_SIZE = 10 * 1024 * 1024
+    MAX_BATCH_SIZE = 500 * 1024 * 1024
     contents = await file.read(MAX_BATCH_SIZE + 1)
     if len(contents) > MAX_BATCH_SIZE:
-        raise HTTPException(status_code=413, detail="File too large. Max 10MB.")
+        raise HTTPException(status_code=413, detail="File too large. Max 500MB.")
 
     start = time.time()
 
