@@ -45,11 +45,11 @@ ENV/
 *.db-journal
 
 # === MODELS (ALL ignored for free deploy) ===
-*.joblib
-*.pkl
-*.h5
-*.onnx
-saved_models/
+# *.joblib
+# *.pkl
+# *.h5
+# *.onnx
+# saved_models/
 
 # === DATA FILES ===
 data/
