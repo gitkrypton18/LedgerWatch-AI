@@ -181,14 +181,13 @@ class OCRExtraction(BaseModel):
 
 
 class HealthResponse(BaseModel):
-    """Service health check response."""
-
-    status: str
-    version: str
-    model_loaded: bool
-    risk_engine_loaded: bool
-    ocr_available: bool
-    timestamp: str
+    status: str = "ok"
+    version: str = "1.0.0"
+    model_loaded: bool = False
+    risk_engine_loaded: bool = False
+    ocr_available: bool = False
+    retrain_available: bool = False  # ✅ ADDED
+    timestamp: str = ""
 
 
 class TransactionQueryParams(BaseModel):

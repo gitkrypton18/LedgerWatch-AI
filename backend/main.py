@@ -131,12 +131,15 @@ async def verify_api_key(api_key: str = Security(api_key_header)):
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "https://ledgerwatch-ai.vercel.app",  # ✅ Vercel frontend
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
 
 # ─── Helper Functions ───────────────────────────────────────────────────────
 
