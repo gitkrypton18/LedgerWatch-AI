@@ -43,13 +43,12 @@ ENV/
 *.sqlite
 *.sqlite3
 *.db-journal
-
 # === DATA FILES ===
-data/
-!data/.gitkeep
-!data/sample.csv          # ← YE ADD KARO
-*.csv
-!data/sample.csv          # ← YE ADD KARO
+data/processed/            ← Sirf processed block karo
+data/raw/                  ← Sirf raw block karo
+!data/sample.csv           ← sample.csv allow karo
+*.csv                      ← Baaki CSV block karo
+!data/sample.csv           ← sample.csv allow karo
 *.parquet
 *.xlsx
 # === MODELS (INCLUDE) ===
