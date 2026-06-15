@@ -44,19 +44,19 @@ ENV/
 *.sqlite3
 *.db-journal
 
-# === MODELS (ALL ignored for free deploy) ===
-# *.joblib
-# *.pkl
-# *.h5
-# *.onnx
-# saved_models/
-
 # === DATA FILES ===
 data/
 !data/.gitkeep
+!data/sample.csv          # ← INCLUDE sample.csv
 *.csv
+!data/sample.csv          # ← INCLUDE sample.csv
 *.parquet
 *.xlsx
+
+# === MODELS (INCLUDE) ===
+!saved_models/            # ← INCLUDE saved_models folder
+!saved_models/*.joblib    # ← INCLUDE joblib files
+!saved_models/*.pkl       # ← INCLUDE pkl files
 
 # === FRONTEND ===
 frontend/node_modules/
