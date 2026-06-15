@@ -45,7 +45,7 @@ export const useStats = () => {
     const [error, setError] = useState(null);
 
     useEffect(() => {
-        fetch('http://localhost:8000/stats', {
+        fetch('https://ledgerwatch-api.onrender.com/stats', {
             headers: { 'X-API-Key': import.meta.env.VITE_API_KEY || 'demo-key-123' }
         })
             .then(r => r.json())
