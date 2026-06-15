@@ -9,7 +9,7 @@ services:
       - key: PYTHON_VERSION
         value: 3.11.0
       - key: API_KEY
-        generateValue: true
+        value: demo-key-123
       - key: DATABASE_URL
         value: sqlite:///./ledgerwatch.db
       - key: MODEL_PATH
