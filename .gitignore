@@ -47,12 +47,11 @@ ENV/
 # === DATA FILES ===
 data/
 !data/.gitkeep
-!data/sample.csv          # ← INCLUDE sample.csv
+!data/sample.csv          # ← YE ADD KARO
 *.csv
-!data/sample.csv          # ← INCLUDE sample.csv
+!data/sample.csv          # ← YE ADD KARO
 *.parquet
 *.xlsx
-
 # === MODELS (INCLUDE) ===
 !saved_models/            # ← INCLUDE saved_models folder
 !saved_models/*.joblib    # ← INCLUDE joblib files
