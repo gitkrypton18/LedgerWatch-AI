@@ -245,9 +245,7 @@ export default function SettingsPage() {
 
   const saveSettings = () => {
     Object.entries(settings).forEach(([key, value]) => {
-      // Convert apiUrl → api_url, apiKey → api_key
-      const snakeKey = key.replace(/([A-Z])/g, '_$1').toLowerCase();
-      localStorage.setItem(`ledgerwatch_${snakeKey}`, value);
+      localStorage.setItem(`ledgerwatch_${key}`, value);
     });
     setSaved(true);
     setTimeout(() => setSaved(false), 3000);

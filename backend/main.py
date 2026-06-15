@@ -30,7 +30,6 @@ from src.risk_engine import RiskEngine
 from src.schemas import (
     BatchPredictionResponse,
     HealthResponse,
-    OCRExtraction,
     PredictionResult,
     TransactionCreate,
     TransactionRead,
