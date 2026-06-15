@@ -337,7 +337,7 @@ export default function SettingsPage() {
             label="Backend API URL"
             value={settings.apiUrl}
             onChange={(v) => updateSetting('apiUrl', v)}
-            placeholder="http://localhost:8000"
+            placeholder="https://ledgerwatch-api.onrender.com"
             description="FastAPI backend endpoint"
           />
           <InputField
