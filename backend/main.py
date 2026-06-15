@@ -341,7 +341,7 @@ def predict_single(
 # ─── Endpoints ───────────────────────────────────────────────────────────────
 
 
-@app.get("/")
+@app.api_route("/", methods=["GET", "HEAD"])
 async def root():
     """Instant response for uptime monitoring (no DB, no auth)."""
     return {"status": "ok", "message": "LedgerWatch API is running"}
