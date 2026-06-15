@@ -58,6 +58,8 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     """Load ML models on startup, clean up on shutdown."""
     logger.info("Starting LedgerWatch API...")
+    logger.info(f"Working directory: {os.getcwd()}")
+    logger.info(f"Root files: {os.listdir('.')}")
 
     # Create database tables if they don't exist (critical for fresh deploys)
     Base.metadata.create_all(bind=engine)
@@ -71,14 +73,27 @@ async def lifespan(app: FastAPI):
 
         if count == 0:
             logger.info("Database empty — seeding sample data...")
-            sample_path = os.path.join(
-                os.path.dirname(__file__), "..", "data", "sample.csv"
-            )
 
-            if os.path.exists(sample_path):
+            # Try multiple paths to find sample.csv
+            possible_paths = [
+                "data/sample.csv",
+                "../data/sample.csv",
+                "/opt/render/project/src/data/sample.csv",
+            ]
+
+            sample_path = None
+            for path in possible_paths:
+                abs_path = os.path.abspath(path)
+                exists = os.path.exists(abs_path)
+                logger.info(f"Checking: {abs_path} → Exists: {exists}")
+                if exists:
+                    sample_path = abs_path
+                    break
+
+            if sample_path:
                 df = pd.read_csv(sample_path)
 
-                # Batch insert for performance
+                # Batch insert
                 batch_size = 1000
                 total_rows = len(df)
 
@@ -118,7 +133,8 @@ async def lifespan(app: FastAPI):
 
                 logger.info(f"✅ Seeded {total_rows} transactions from sample.csv")
             else:
-                logger.warning("⚠️ sample.csv not found — database will remain empty")
+                logger.warning("⚠️ sample.csv not found in any location!")
+                logger.info("Creating empty database...")
 
         else:
             logger.info(f"Database already has {count} transactions — skipping seed")
@@ -127,6 +143,9 @@ async def lifespan(app: FastAPI):
 
     except Exception as e:
         logger.error(f"❌ Auto-seed failed: {e}")
+        import traceback
+
+        logger.error(traceback.format_exc())
         try:
             db.close()
         except:
@@ -135,6 +154,9 @@ async def lifespan(app: FastAPI):
 
     # Load Isolation Forest model
     model_path = settings.MODEL_PATH
+    logger.info(f"Model path: {os.path.abspath(model_path)}")
+    logger.info(f"Model exists: {os.path.exists(model_path)}")
+
     if os.path.exists(model_path):
         model_data = joblib.load(model_path)
         if isinstance(model_data, dict) and "model" in model_data:
