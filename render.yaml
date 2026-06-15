@@ -13,6 +13,8 @@ services:
       - key: DATABASE_URL
         value: sqlite:///./ledgerwatch.db
       - key: MODEL_PATH
-        value: models/isolation_forest_v1.0.0.pkl
+        value: saved_models/isolation_forest_v1.0.0.joblib  # ✅ FIXED
+      - key: RISK_ENGINE_PATH
+        value: saved_models/risk_engine_v1.0.0.joblib      # ✅ ADDED
     healthCheckPath: /health
     autoDeploy: true

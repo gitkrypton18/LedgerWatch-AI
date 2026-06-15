@@ -245,7 +245,9 @@ export default function SettingsPage() {
 
   const saveSettings = () => {
     Object.entries(settings).forEach(([key, value]) => {
-      localStorage.setItem(`ledgerwatch_${key}`, value);
+      // Convert apiUrl → api_url, apiKey → api_key
+      const snakeKey = key.replace(/([A-Z])/g, '_$1').toLowerCase();
+      localStorage.setItem(`ledgerwatch_${snakeKey}`, value);
     });
     setSaved(true);
     setTimeout(() => setSaved(false), 3000);
@@ -256,8 +258,8 @@ export default function SettingsPage() {
     setConnStatus('checking');
     setConnMessage('Testing connection...');
 
-    const prevUrl = localStorage.getItem('ledgerwatch_apiUrl');
-    localStorage.setItem('ledgerwatch_apiUrl', settings.apiUrl);
+    const prevUrl = localStorage.getItem('ledgerwatch_api_url');
+    localStorage.setItem('ledgerwatch_api_url', settings.apiUrl);
 
     try {
       const result = await checkHealth();
@@ -273,7 +275,7 @@ export default function SettingsPage() {
       setConnMessage(err.message || 'Connection failed');
     } finally {
       if (connStatus === 'error' && prevUrl) {
-        localStorage.setItem('ledgerwatch_apiUrl', prevUrl);
+        localStorage.setItem('ledgerwatch_api_url', prevUrl);
       }
     }
   };
