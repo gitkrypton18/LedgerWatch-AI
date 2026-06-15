@@ -1,7 +1,6 @@
 import axios from 'axios';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-const API_KEY = import.meta.env.VITE_API_KEY || 'demo-key-123';
+const API_URL = 'https://ledgerwatch-api.onrender.com';
+const API_KEY = 'demo-key-123';
 
 const api = axios.create({
   baseURL: API_URL,
