@@ -227,7 +227,10 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:5173",
         "http://127.0.0.1:5173",
-        "https://ledgerwatch-ai.vercel.app",  # ✅ Vercel frontend
+        "https://ledgerwatch-ai.vercel.app",
+        "https://ledger-watch-ai-delta.vercel.app",
+        "https://ledger-watch-8qjgx6ld5-kalpit-nagar-s-projects.vercel.app",
+        "https://*.vercel.app",
     ],
     allow_credentials=True,
     allow_methods=["*"],
