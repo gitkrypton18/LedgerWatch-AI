@@ -43,18 +43,31 @@ ENV/
 *.sqlite
 *.sqlite3
 *.db-journal
+
 # === DATA FILES ===
-data/processed/            ← Sirf processed block karo
-data/raw/                  ← Sirf raw block karo
-!data/sample.csv           ← sample.csv allow karo
-*.csv                      ← Baaki CSV block karo
-!data/sample.csv           ← sample.csv allow karo
+# Block all data folders except sample.csv
+data/processed/
+data/raw/
+data/interim/
+data/external/
+# Allow sample.csv for Render seeding
+!data/sample.csv
+# Block all CSV/Parquet/Excel except sample
+*.csv
+!data/sample.csv
 *.parquet
 *.xlsx
-# === MODELS (INCLUDE) ===
-!saved_models/            # ← INCLUDE saved_models folder
-!saved_models/*.joblib    # ← INCLUDE joblib files
-!saved_models/*.pkl       # ← INCLUDE pkl files
+
+# === MODELS ===
+# Block all model files by default
+*.joblib
+*.pkl
+*.h5
+*.onnx
+# Allow saved_models folder and its contents
+!saved_models/
+!saved_models/*.joblib
+!saved_models/*.pkl
 
 # === FRONTEND ===
 frontend/node_modules/
