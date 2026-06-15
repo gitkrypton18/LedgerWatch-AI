@@ -66,15 +66,15 @@ async def lifespan(app: FastAPI):
 
     # ═══════════════════════════════════════════════════════════════════════
     # AUTO-SEED: Load sample data if database is empty (fresh deploy)
+    # MAX 5000 rows for fast cold start on Render free tier
     # ═══════════════════════════════════════════════════════════════════════
     try:
         db = SessionLocal()
         count = db.query(func.count(DBTransaction.id)).scalar()
 
         if count == 0:
-            logger.info("Database empty — seeding sample data...")
+            logger.info("Database empty — seeding sample data (max 5000 rows)...")
 
-            # Try multiple paths to find sample.csv
             possible_paths = [
                 "data/sample.csv",
                 "../data/sample.csv",
@@ -84,57 +84,48 @@ async def lifespan(app: FastAPI):
             sample_path = None
             for path in possible_paths:
                 abs_path = os.path.abspath(path)
-                exists = os.path.exists(abs_path)
-                logger.info(f"Checking: {abs_path} → Exists: {exists}")
-                if exists:
+                if os.path.exists(abs_path):
                     sample_path = abs_path
                     break
 
             if sample_path:
                 df = pd.read_csv(sample_path)
-
-                # Batch insert
-                batch_size = 1000
+                df = df.head(5000)  # ← LIMIT FOR FAST STARTUP
                 total_rows = len(df)
 
-                for start_idx in range(0, total_rows, batch_size):
-                    end_idx = min(start_idx + batch_size, total_rows)
-                    batch = df.iloc[start_idx:end_idx]
-
-                    for _, row in batch.iterrows():
-                        tx = DBTransaction(
-                            step=int(row["step"]),
-                            type=str(row["type"]),
-                            amount=float(row["amount"]),
-                            nameOrig=str(row["nameOrig"]),
-                            oldbalanceOrg=float(row["oldbalanceOrg"]),
-                            newbalanceOrig=float(row["newbalanceOrig"]),
-                            nameDest=str(row["nameDest"]),
-                            oldbalanceDest=float(row["oldbalanceDest"]),
-                            newbalanceDest=float(row["newbalanceDest"]),
-                            isFraud=(
+                # Bulk insert — 100x faster than row-by-row
+                records = []
+                for _, row in df.iterrows():
+                    records.append(
+                        {
+                            "step": int(row["step"]),
+                            "type": str(row["type"]),
+                            "amount": float(row["amount"]),
+                            "nameOrig": str(row["nameOrig"]),
+                            "oldbalanceOrg": float(row["oldbalanceOrg"]),
+                            "newbalanceOrig": float(row["newbalanceOrig"]),
+                            "nameDest": str(row["nameDest"]),
+                            "oldbalanceDest": float(row["oldbalanceDest"]),
+                            "newbalanceDest": float(row["newbalanceDest"]),
+                            "isFraud": (
                                 int(row.get("isFraud", 0)) if "isFraud" in row else None
                             ),
-                            isFlaggedFraud=(
+                            "isFlaggedFraud": (
                                 int(row.get("isFlaggedFraud", 0))
                                 if "isFlaggedFraud" in row
                                 else None
                             ),
-                            risk_score=50,
-                            risk_band="Medium",
-                            is_anomaly=False,
-                        )
-                        db.add(tx)
-
-                    db.commit()
-                    logger.info(
-                        f"  Seeded rows {start_idx + 1}–{end_idx} / {total_rows}"
+                            "risk_score": 50,
+                            "risk_band": "Medium",
+                            "is_anomaly": False,
+                        }
                     )
 
+                db.bulk_insert_mappings(DBTransaction, records)
+                db.commit()
                 logger.info(f"✅ Seeded {total_rows} transactions from sample.csv")
             else:
-                logger.warning("⚠️ sample.csv not found in any location!")
-                logger.info("Creating empty database...")
+                logger.warning("⚠️ sample.csv not found — starting with empty DB")
 
         else:
             logger.info(f"Database already has {count} transactions — skipping seed")
@@ -147,6 +138,7 @@ async def lifespan(app: FastAPI):
 
         logger.error(traceback.format_exc())
         try:
+            db.rollback()
             db.close()
         except:
             pass
@@ -186,7 +178,7 @@ async def lifespan(app: FastAPI):
         logger.warning(f"Risk engine not found: {risk_path}")
         app.state.risk_engine = None
 
-    # Cache SHAP TreeExplainer (expensive to recreate per request)
+    # Cache SHAP TreeExplainer
     if app.state.model is not None:
         app.state.explainer = shap.TreeExplainer(
             app.state.model, feature_perturbation="interventional"
@@ -224,14 +216,7 @@ async def verify_api_key(api_key: str = Security(api_key_header)):
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "https://ledgerwatch-ai.vercel.app",
-        "https://ledger-watch-ai-delta.vercel.app",
-        "https://ledger-watch-8qjgx6ld5-kalpit-nagar-s-projects.vercel.app",
-        "https://*.vercel.app",
-    ],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -271,7 +256,6 @@ def engineer_features_from_df(df: pd.DataFrame) -> pd.DataFrame:
 
     try:
         features = engineer_all_features(input_path=Path(tmp_path), save=False)
-        # Fill NaNs (rolling window features create NaN for first/few rows)
         features = features.fillna(0.0)
         return features
     finally:
@@ -312,11 +296,7 @@ def predict_single(
     start = time.time()
 
     features = engineer_features_from_df(df)
-
-    # ─── FIX: Fill NaNs for single-row predictions ─────────────────
-    # Rolling window features create NaN for first rows
     features = features.fillna(0.0)
-    # ──────────────────────────────────────────────────────────────
 
     feature_cols = get_feature_columns(features)
     X = features[feature_cols]
@@ -359,6 +339,12 @@ def predict_single(
 
 
 # ─── Endpoints ───────────────────────────────────────────────────────────────
+
+
+@app.get("/")
+async def root():
+    """Instant response for uptime monitoring (no DB, no auth)."""
+    return {"status": "ok", "message": "LedgerWatch API is running"}
 
 
 @app.get("/health", response_model=HealthResponse)
@@ -466,24 +452,19 @@ async def batch_predict(
     anomaly_scores = app.state.model.score_samples(X_aligned)
     raw_predictions = app.state.model.predict(X_aligned)
 
-    # ─── FIXED RISK SCORING ───────────────────────────────────
     n = len(df)
 
-    # Rank-based risk scores: most anomalous = 100, least = 0
-    sorted_indices = np.argsort(anomaly_scores)  # ascending: most anomalous first
+    sorted_indices = np.argsort(anomaly_scores)
     risk_scores = [0] * n
     for rank, idx in enumerate(sorted_indices):
         risk_scores[idx] = int(100 * (1 - rank / max(n - 1, 1)))
 
-    # Risk bands
     risk_bands = [get_risk_band(s) for s in risk_scores]
 
-    # Top 5% = anomaly
     anomaly_threshold_idx = int(n * 0.05)
     is_anomalies = [False] * n
     for idx in sorted_indices[:anomaly_threshold_idx]:
         is_anomalies[idx] = True
-    # ───────────────────────────────────────────────────────────
 
     results = []
     for i in range(len(df)):
@@ -501,7 +482,6 @@ async def batch_predict(
 
     anomalies_detected = sum(1 for r in results if r.is_anomaly)
 
-    # ─── SAVE TO DATABASE ─────────────────────────────────────
     for i, row in df.iterrows():
         db_tx = DBTransaction(
             step=int(row["step"]),
@@ -522,7 +502,6 @@ async def batch_predict(
         db.add(db_tx)
 
     db.commit()
-    # ───────────────────────────────────────────────────────────
 
     return BatchPredictionResponse(
         total_processed=len(df),
@@ -680,19 +659,16 @@ async def retrain(
     logger.info("Starting model retraining...")
 
     try:
-        # 1. Retrain
         model, risk_engine, version = retrain_model(
             contamination=contamination,
             n_estimators=n_estimators,
             dry_run=dry_run,
         )
 
-        # 2. If not dry_run, hot-swap in memory
         if not dry_run:
             app.state.model = model
             app.state.risk_engine = risk_engine
 
-            # Update explainer with new model
             if app.state.model is not None:
                 app.state.explainer = shap.TreeExplainer(
                     app.state.model, feature_perturbation="interventional"
