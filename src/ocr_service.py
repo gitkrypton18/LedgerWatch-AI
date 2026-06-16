@@ -78,13 +78,17 @@ class InvoiceOCR:
     Falls back to MOCK mode if Tesseract is not installed.
     """
 
-    # Regex patterns for common invoice fields
+    # ✅ FIX: Improved regex patterns for better amount extraction
     PATTERNS = {
         "amount": [
-            r"(?:total|amount|sum|due|payment)[^\d]*?[$€£]?\s*([\d,]+\.?\d{0,2})",
+            # "Amount: $5,000.00" or "Total Due: $5,000.00"
+            r"(?:amount|total|sum|due|payment|total due)[^\d]*?[$€£]?\s*([\d,]+\.?\d{0,2})",
+            # "$5,000.00" standalone
             r"[$€£]\s*([\d,]+\.?\d{0,2})",
-            r"(?:amount|total)[^\d]*?([\d,]+\.?\d{0,2})\s*(?:USD|EUR|GBP|$)",
-            r"([\d,]+\.\d{2})\s*(?:USD|EUR|GBP|$)",
+            # "5,000.00 USD"
+            r"([\d,]+\.?\d{0,2})\s*(?:USD|EUR|GBP)",
+            # "5000.00" at end of line
+            r"([\d,]+\.\d{2})\s*$",
         ],
         "date": [
             r"(?:date|dated|invoice date)[^\d]*?(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})",
@@ -357,10 +361,12 @@ Thank you for your business!""",
 
     def _clean_field(self, field: str, raw: str) -> Optional[Any]:
         """Clean and validate extracted field values."""
-        raw = raw.strip().replace(",", "")
+        raw = raw.strip()
 
         if field == "amount":
-            cleaned = re.sub(r"[^\d.]", "", raw)
+            # ✅ FIX: Properly handle comma-separated amounts
+            # Remove $, €, £, commas, spaces
+            cleaned = re.sub(r"[^\d.]", "", raw.replace(",", ""))
             try:
                 val = float(cleaned)
                 return val if val > 0 and val < 1e9 else None

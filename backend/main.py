@@ -347,6 +347,38 @@ def predict_single(
     }
 
 
+# ─── NEW: OCR Helper Function ───────────────────────────────────────────────
+
+
+async def process_ocr_file(file: UploadFile, ocr: InvoiceOCR) -> dict:
+    """Process OCR file and extract transaction data."""
+    import tempfile
+
+    ext = file.filename.lower().split(".")[-1]
+
+    with tempfile.NamedTemporaryFile(delete=False, suffix=f".{ext}") as tmp:
+        contents = await file.read()
+        tmp.write(contents)
+        tmp_path = tmp.name
+
+    try:
+        if ext == "pdf":
+            result = ocr.parse_invoice(tmp_path)
+        else:
+            result = ocr.parse_image(tmp_path)
+
+        return {
+            "amount": result.amount,
+            "date": result.date,
+            "vendor": result.vendor,
+            "type": "PAYMENT",  # Default type from invoice
+            "raw_text": result.raw_text,
+            "confidence": result.confidence,
+        }
+    finally:
+        os.unlink(tmp_path)
+
+
 # ─── Endpoints ───────────────────────────────────────────────────────────────
 
 
@@ -431,121 +463,216 @@ async def predict(
     dependencies=[Depends(verify_api_key)],
 )
 async def batch_predict(
-    file: UploadFile = File(...),
+    files: list[UploadFile] = File(...),  # ✅ FIX: Accept multiple files
     explain: bool = Query(default=False),
     db: Session = Depends(get_db),
 ):
+    """Batch predict — supports CSV, JSON, and image/PDF files via OCR."""
     if app.state.model is None or app.state.risk_engine is None:
         raise HTTPException(status_code=503, detail="Model or risk engine not loaded")
 
-    if not file.filename.endswith(".csv"):
-        raise HTTPException(status_code=400, detail="Only CSV files accepted")
-
-    # Read file
-    MAX_BATCH_SIZE = 500 * 1024 * 1024
-    contents = await file.read(MAX_BATCH_SIZE + 1)
-    if len(contents) > MAX_BATCH_SIZE:
-        raise HTTPException(status_code=413, detail="File too large. Max 500MB.")
-
-    try:
-        df = pd.read_csv(StringIO(contents.decode("utf-8")))
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Invalid CSV: {e}")
-
-    required = {
-        "step",
-        "type",
-        "amount",
-        "nameOrig",
-        "oldbalanceOrg",
-        "newbalanceOrig",
-        "nameDest",
-        "oldbalanceDest",
-        "newbalanceDest",
-    }
-    missing = required - set(df.columns)
-    if missing:
-        raise HTTPException(status_code=400, detail=f"Missing columns: {missing}")
-
-    # ═══════════════════════════════════════════════════════════════
-    # CHUNKED PROCESSING — Process in batches of 1000 rows
-    # ═══════════════════════════════════════════════════════════════
-    CHUNK_SIZE = 1000
-    total_rows = len(df)
     all_results = []
     anomalies_detected = 0
+    total_processed = 0
 
-    logger.info(f"Processing {total_rows} rows in chunks of {CHUNK_SIZE}")
+    for file in files:
+        ext = file.filename.lower().split(".")[-1]
 
-    for chunk_start in range(0, total_rows, CHUNK_SIZE):
-        chunk_end = min(chunk_start + CHUNK_SIZE, total_rows)
-        chunk_df = df.iloc[chunk_start:chunk_end]
+        # ═══════════════════════════════════════════════════════════════
+        # ✅ FIX: Handle image/PDF files via OCR
+        # ═══════════════════════════════════════════════════════════════
+        if ext in ["png", "jpg", "jpeg", "pdf", "tiff", "tif"]:
+            logger.info(f"Processing OCR file: {file.filename}")
 
-        logger.info(f"Processing chunk {chunk_start}-{chunk_end}...")
+            try:
+                ocr_result = await process_ocr_file(file, app.state.ocr)
+                logger.info(f"OCR extracted: {ocr_result}")
 
-        # Process chunk
-        features = engineer_features_from_df(chunk_df)
-        feature_cols = get_feature_columns(features)
-        X = features[feature_cols]
-        X_aligned = align_features(X, app.state.expected_features)
+                # Create transaction from OCR data
+                tx_data = {
+                    "step": 1,
+                    "type": ocr_result.get("type", "PAYMENT"),
+                    "amount": ocr_result.get("amount", 0.0),
+                    "nameOrig": ocr_result.get("vendor", "Unknown")[
+                        :50
+                    ],  # Limit length
+                    "oldbalanceOrg": 0.0,
+                    "newbalanceOrig": 0.0,
+                    "nameDest": "OCR_Extracted",
+                    "oldbalanceDest": 0.0,
+                    "newbalanceDest": 0.0,
+                }
 
-        anomaly_scores = app.state.model.score_samples(X_aligned)
-        raw_predictions = app.state.model.predict(X_aligned)
-
-        n = len(chunk_df)
-        sorted_indices = np.argsort(anomaly_scores)
-        risk_scores = [0] * n
-        for rank, idx in enumerate(sorted_indices):
-            risk_scores[idx] = int(100 * (1 - rank / max(n - 1, 1)))
-
-        risk_bands = [get_risk_band(s) for s in risk_scores]
-
-        anomaly_threshold_idx = int(n * 0.05)
-        is_anomalies = [False] * n
-        for idx in sorted_indices[:anomaly_threshold_idx]:
-            is_anomalies[idx] = True
-
-        # Build results for chunk
-        for i in range(n):
-            all_results.append(
-                PredictionResult(
-                    transaction_id=chunk_start + i,
-                    anomaly_score=float(anomaly_scores[i]),
-                    risk_score=risk_scores[i],
-                    risk_band=risk_bands[i],
-                    is_anomaly=is_anomalies[i],
-                    shap_values=None,
-                    top_features=None,
+                df = pd.DataFrame([tx_data])
+                result = predict_single(
+                    df,
+                    app.state.model,
+                    app.state.risk_engine,
+                    app.state.expected_features,
+                    explainer=app.state.explainer,
+                    explain=explain,
                 )
-            )
-            if is_anomalies[i]:
-                anomalies_detected += 1
 
-        # Save chunk to DB
-        for i, (_, row) in enumerate(chunk_df.iterrows()):
-            db_tx = DBTransaction(
-                step=int(row["step"]),
-                type=str(row["type"]),
-                amount=float(row["amount"]),
-                nameOrig=str(row["nameOrig"]),
-                oldbalanceOrg=float(row["oldbalanceOrg"]),
-                newbalanceOrig=float(row["newbalanceOrig"]),
-                nameDest=str(row["nameDest"]),
-                oldbalanceDest=float(row["oldbalanceDest"]),
-                newbalanceDest=float(row["newbalanceDest"]),
-                is_anomaly=is_anomalies[i],
-                risk_band=risk_bands[i],
-                risk_score=risk_scores[i],
-                isFraud=None,
-                isFlaggedFraud=None,
-            )
-            db.add(db_tx)
+                # Save to DB
+                db_tx = DBTransaction(
+                    step=tx_data["step"],
+                    type=tx_data["type"],
+                    amount=tx_data["amount"],
+                    nameOrig=tx_data["nameOrig"],
+                    oldbalanceOrg=tx_data["oldbalanceOrg"],
+                    newbalanceOrig=tx_data["newbalanceOrig"],
+                    nameDest=tx_data["nameDest"],
+                    oldbalanceDest=tx_data["oldbalanceDest"],
+                    newbalanceDest=tx_data["newbalanceDest"],
+                    is_anomaly=result["is_anomaly"],
+                    risk_band=result["risk_band"],
+                    risk_score=result["risk_score"],
+                    created_at=datetime.utcnow(),
+                )
+                db.add(db_tx)
+                db.commit()
+                db.refresh(db_tx)
+                result["transaction_id"] = db_tx.id
 
-        db.commit()
-        logger.info(f"Chunk {chunk_start}-{chunk_end} complete")
+                all_results.append(PredictionResult(**result))
+                total_processed += 1
+                if result["is_anomaly"]:
+                    anomalies_detected += 1
+
+                logger.info(
+                    f"OCR transaction saved: ID={db_tx.id}, Amount={tx_data['amount']}"
+                )
+
+            except Exception as e:
+                logger.error(f"OCR processing failed for {file.filename}: {e}")
+                import traceback
+
+                logger.error(traceback.format_exc())
+                continue
+
+        # ═══════════════════════════════════════════════════════════════
+        # CSV Processing (existing code)
+        # ═══════════════════════════════════════════════════════════════
+        elif ext == "csv":
+            logger.info(f"Processing CSV file: {file.filename}")
+
+            if not file.filename.endswith(".csv"):
+                raise HTTPException(status_code=400, detail="Only CSV files accepted")
+
+            # Read file
+            MAX_BATCH_SIZE = 500 * 1024 * 1024
+            contents = await file.read(MAX_BATCH_SIZE + 1)
+            if len(contents) > MAX_BATCH_SIZE:
+                raise HTTPException(
+                    status_code=413, detail="File too large. Max 500MB."
+                )
+
+            try:
+                df = pd.read_csv(StringIO(contents.decode("utf-8")))
+            except Exception as e:
+                raise HTTPException(status_code=400, detail=f"Invalid CSV: {e}")
+
+            required = {
+                "step",
+                "type",
+                "amount",
+                "nameOrig",
+                "oldbalanceOrg",
+                "newbalanceOrig",
+                "nameDest",
+                "oldbalanceDest",
+                "newbalanceDest",
+            }
+            missing = required - set(df.columns)
+            if missing:
+                raise HTTPException(
+                    status_code=400, detail=f"Missing columns: {missing}"
+                )
+
+            # ═══════════════════════════════════════════════════════════════
+            # CHUNKED PROCESSING — Process in batches of 1000 rows
+            # ═══════════════════════════════════════════════════════════════
+            CHUNK_SIZE = 1000
+            total_rows = len(df)
+
+            logger.info(f"Processing {total_rows} rows in chunks of {CHUNK_SIZE}")
+
+            for chunk_start in range(0, total_rows, CHUNK_SIZE):
+                chunk_end = min(chunk_start + CHUNK_SIZE, total_rows)
+                chunk_df = df.iloc[chunk_start:chunk_end]
+
+                logger.info(f"Processing chunk {chunk_start}-{chunk_end}...")
+
+                # Process chunk
+                features = engineer_features_from_df(chunk_df)
+                feature_cols = get_feature_columns(features)
+                X = features[feature_cols]
+                X_aligned = align_features(X, app.state.expected_features)
+
+                anomaly_scores = app.state.model.score_samples(X_aligned)
+                raw_predictions = app.state.model.predict(X_aligned)
+
+                n = len(chunk_df)
+                sorted_indices = np.argsort(anomaly_scores)
+                risk_scores = [0] * n
+                for rank, idx in enumerate(sorted_indices):
+                    risk_scores[idx] = int(100 * (1 - rank / max(n - 1, 1)))
+
+                risk_bands = [get_risk_band(s) for s in risk_scores]
+
+                anomaly_threshold_idx = int(n * 0.05)
+                is_anomalies = [False] * n
+                for idx in sorted_indices[:anomaly_threshold_idx]:
+                    is_anomalies[idx] = True
+
+                # Build results for chunk
+                for i in range(n):
+                    all_results.append(
+                        PredictionResult(
+                            transaction_id=chunk_start + i,
+                            anomaly_score=float(anomaly_scores[i]),
+                            risk_score=risk_scores[i],
+                            risk_band=risk_bands[i],
+                            is_anomaly=is_anomalies[i],
+                            shap_values=None,
+                            top_features=None,
+                        )
+                    )
+                    if is_anomalies[i]:
+                        anomalies_detected += 1
+
+                # Save chunk to DB
+                for i, (_, row) in enumerate(chunk_df.iterrows()):
+                    db_tx = DBTransaction(
+                        step=int(row["step"]),
+                        type=str(row["type"]),
+                        amount=float(row["amount"]),
+                        nameOrig=str(row["nameOrig"]),
+                        oldbalanceOrg=float(row["oldbalanceOrg"]),
+                        newbalanceOrig=float(row["newbalanceOrig"]),
+                        nameDest=str(row["nameDest"]),
+                        oldbalanceDest=float(row["oldbalanceDest"]),
+                        newbalanceDest=float(row["newbalanceDest"]),
+                        is_anomaly=is_anomalies[i],
+                        risk_band=risk_bands[i],
+                        risk_score=risk_scores[i],
+                        isFraud=None,
+                        isFlaggedFraud=None,
+                        created_at=datetime.utcnow(),
+                    )
+                    db.add(db_tx)
+
+                db.commit()
+                logger.info(f"Chunk {chunk_start}-{chunk_end} complete")
+
+            total_processed += total_rows
+
+        else:
+            logger.warning(f"Unsupported file type: {ext}")
+            continue
 
     return BatchPredictionResponse(
-        total_processed=total_rows,
+        total_processed=total_processed,
         anomalies_detected=anomalies_detected,
         results=all_results,
     )

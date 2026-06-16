@@ -1,5 +1,5 @@
 """
-src/features.py � Feature Engineering Pipeline for LedgerWatch AI
+src/features.py — Feature Engineering Pipeline for LedgerWatch AI
 
 Day 3: Feature Engineering
 ==========================
@@ -12,30 +12,30 @@ Output: data/processed/features.csv (6.3M rows, 27 cols)
 
 Features:
 ---------
-1.  amount_log              � Log-transformed amount
-2.  is_round_amount         � Round amount flag
-3.  amount_to_balance_ratio � Sender liquidity stress
-4.  balance_diff_orig       � Origin balance anomaly magnitude
-5.  balance_diff_dest       � Destination balance anomaly magnitude
-6.  balance_change_orig     � Signed origin balance change
-7.  balance_change_dest     � Signed destination balance change
-8.  zero_balance_orig       � Sender emptied account
-9.  zero_balance_dest       � Recipient started at zero
-10. hour_of_step            � Hour of day (0-23)
-11. hour_of_step_sin        � Cyclical encoding (sin)
-12. hour_of_step_cos        � Cyclical encoding (cos)
-13. type_encoded            � Ordinal by fraud risk
-14. type_CASH_IN            � One-hot dummy
-15. type_CASH_OUT           � One-hot dummy
-16. type_DEBIT              � One-hot dummy
-17. type_PAYMENT            � One-hot dummy
-18. type_TRANSFER           � One-hot dummy
-19. freq_orig               � Expanding count per sender
-20. freq_dest               � Expanding count per recipient
-21. is_new_orig             � First transaction for sender
-22. is_new_dest             � First transaction for recipient
-23. is_merchant_orig        � Sender is merchant
-24. is_merchant_dest        � Recipient is merchant
+1.  amount_log              — Log-transformed amount
+2.  is_round_amount         — Round amount flag
+3.  amount_to_balance_ratio — Sender liquidity stress
+4.  balance_diff_orig       — Origin balance anomaly magnitude
+5.  balance_diff_dest       — Destination balance anomaly magnitude
+6.  balance_change_orig     — Signed origin balance change
+7.  balance_change_dest     — Signed destination balance change
+8.  zero_balance_orig       — Sender emptied account
+9.  zero_balance_dest       — Recipient started at zero
+10. hour_of_step            — Hour of day (0-23)
+11. hour_of_step_sin        — Cyclical encoding (sin)
+12. hour_of_step_cos        — Cyclical encoding (cos)
+13. type_encoded            — Ordinal by fraud risk
+14. type_CASH_IN            — One-hot dummy
+15. type_CASH_OUT           — One-hot dummy
+16. type_DEBIT              — One-hot dummy
+17. type_PAYMENT            — One-hot dummy
+18. type_TRANSFER           — One-hot dummy
+19. freq_orig               — Expanding count per sender
+20. freq_dest               — Expanding count per recipient
+21. is_new_orig             — First transaction for sender
+22. is_new_dest             — First transaction for recipient
+23. is_merchant_orig        — Sender is merchant
+24. is_merchant_dest        — Recipient is merchant
 
 Author: Kalpit
 Date: June 12, 2026
@@ -62,15 +62,14 @@ FEATURES_PATH = PROJECT_ROOT / "data" / "processed" / "features.csv"
 
 def engineer_amount_features(df: pd.DataFrame) -> pd.DataFrame:
     """Amount-based features: log transform, round flag, liquidity ratio."""
+    df = df.copy()  # ✅ FIX: Prevent SettingWithCopyWarning
     df["amount_log"] = np.log1p(df["amount"])
     df["is_round_amount"] = (df["amount"] % 1.0 == 0).astype(int)
-    df["amount_to_balance_ratio"] = df.apply(
-        lambda row: (
-            row["amount"] / row["oldbalanceOrg"]
-            if row["oldbalanceOrg"] > 0
-            else row["amount"]
-        ),
-        axis=1,
+    # ✅ FIX: Use vectorized np.where instead of apply
+    df["amount_to_balance_ratio"] = np.where(
+        df["oldbalanceOrg"] > 0,
+        df["amount"] / df["oldbalanceOrg"],
+        df["amount"],  # If zero balance, ratio = amount itself
     )
     ratio_cap = df["amount_to_balance_ratio"].quantile(0.999)
     df["amount_to_balance_ratio"] = df["amount_to_balance_ratio"].clip(upper=ratio_cap)
@@ -79,6 +78,7 @@ def engineer_amount_features(df: pd.DataFrame) -> pd.DataFrame:
 
 def engineer_balance_features(df: pd.DataFrame) -> pd.DataFrame:
     """Balance-based features: diff magnitudes, changes, zero flags."""
+    df = df.copy()  # ✅ FIX: Prevent SettingWithCopyWarning
     df["balance_diff_orig"] = (
         df["oldbalanceOrg"] - df["newbalanceOrig"] - df["amount"]
     ).abs()
@@ -94,6 +94,7 @@ def engineer_balance_features(df: pd.DataFrame) -> pd.DataFrame:
 
 def engineer_temporal_features(df: pd.DataFrame) -> pd.DataFrame:
     """Temporal features: hour extraction + cyclical sin/cos encoding."""
+    df = df.copy()  # ✅ FIX: Prevent SettingWithCopyWarning
     df["hour_of_step"] = (df["step"] - 1) % 24
     df["hour_of_step_sin"] = np.sin(2 * np.pi * df["hour_of_step"] / 24)
     df["hour_of_step_cos"] = np.cos(2 * np.pi * df["hour_of_step"] / 24)
@@ -102,6 +103,7 @@ def engineer_temporal_features(df: pd.DataFrame) -> pd.DataFrame:
 
 def engineer_categorical_features(df: pd.DataFrame) -> pd.DataFrame:
     """Categorical features: ordinal encoding + one-hot dummies."""
+    df = df.copy()  # ✅ FIX: Prevent SettingWithCopyWarning
     type_risk_map = {
         "TRANSFER": 4,
         "CASH_OUT": 3,
@@ -117,6 +119,7 @@ def engineer_categorical_features(df: pd.DataFrame) -> pd.DataFrame:
 
 def engineer_frequency_features(df: pd.DataFrame) -> pd.DataFrame:
     """Frequency features: EXPANDING count (no data leakage)."""
+    df = df.copy()  # ✅ FIX: Prevent SettingWithCopyWarning
     df = df.sort_values("step").reset_index(drop=True)
     df["freq_orig"] = df.groupby("nameOrig").cumcount()
     df["freq_dest"] = df.groupby("nameDest").cumcount()
@@ -127,6 +130,7 @@ def engineer_frequency_features(df: pd.DataFrame) -> pd.DataFrame:
 
 def engineer_merchant_features(df: pd.DataFrame) -> pd.DataFrame:
     """Merchant features: C=customer, M=merchant prefix flags."""
+    df = df.copy()  # ✅ FIX: Prevent SettingWithCopyWarning
     df["is_merchant_orig"] = df["nameOrig"].str.startswith("M").astype(int)
     df["is_merchant_dest"] = df["nameDest"].str.startswith("M").astype(int)
     return df
@@ -142,7 +146,7 @@ def engineer_all_features(
     output_path = output_path or FEATURES_PATH
 
     logger.info("=" * 60)
-    logger.info("LEDGERWATCH AI � Feature Engineering Pipeline")
+    logger.info("LEDGERWATCH AI — Feature Engineering Pipeline")
     logger.info("=" * 60)
 
     logger.info(f"Loading: {input_path}")
