@@ -4,82 +4,80 @@ const API_URL = import.meta.env.VITE_API_URL || 'https://ledgerwatch-api.onrende
 const API_KEY = import.meta.env.VITE_API_KEY || 'demo-key-123';
 
 const api = axios.create({
-  baseURL: API_URL,
-  headers: {
-    'Content-Type': 'application/json',
-    'X-API-Key': API_KEY,
-  },
-  timeout: 300000,
+    baseURL: API_URL,
+    headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key': API_KEY,
+    },
+    timeout: 300000,
 });
 
 // Response interceptor
 api.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (!error.response && (error.code === 'ERR_NETWORK' || error.message === 'Network Error')) {
-      console.error('🔴 Network Error — Possible causes:');
-      console.error('   1. Ad blocker / Brave Shields blocking the request');
-      console.error('   2. Backend is sleeping (Render free tier)');
-      console.error('   3. CORS issue');
-      console.error('💡 FIX: Disable ad blocker for this site or try incognito mode');
-
-      error.isAdBlocker = true;
-      error.userMessage = 'Connection blocked by ad blocker or Brave Shields! Please disable extensions for this site, then refresh.';
+    (response) => response,
+    (error) => {
+        if (!error.response && (error.code === 'ERR_NETWORK' || error.message === 'Network Error')) {
+            console.error('🔴 Network Error — Possible causes:');
+            console.error('   1. Ad blocker / Brave Shields blocking the request');
+            console.error('   2. Backend is sleeping (Render free tier)');
+            console.error('   3. CORS issue');
+            error.isAdBlocker = true;
+            error.userMessage = 'Connection blocked by ad blocker or Brave Shields! Please disable extensions for this site, then refresh.';
+        }
+        return Promise.reject(error);
     }
-    return Promise.reject(error);
-  }
 );
 
 export const checkHealth = async () => {
-  const { data } = await api.get('/health');
-  return data;
+    const { data } = await api.get('/health');
+    return data;
 };
 
 export const getTransactions = async (limit = 100, offset = 0) => {
-  const { data } = await api.get(`/transactions?limit=${limit}&offset=${offset}`);
-  return data;
+    const { data } = await api.get(`/transactions?limit=${limit}&offset=${offset}`);
+    return data;
 };
 
 export const getTransactionById = async (id) => {
-  const { data } = await api.get(`/transactions/${id}`);
-  return data;
+    const { data } = await api.get(`/transactions/${id}`);
+    return data;
 };
 
 export const predict = async (transactionData, explain = true) => {
-  const { data } = await api.post(`/predict?explain=${explain}`, transactionData);
-  return data;
+    const { data } = await api.post(`/predict?explain=${explain}`, transactionData);
+    return data;
 };
 
-// ✅ batchPredict — NO manual Content-Type
+// ✅ FIXED: 'files' key + NO manual Content-Type
 export const batchPredict = async (file, onProgress = null) => {
-  const formData = new FormData();
-  formData.append('files', file);
-  
-  const config = {
-    onUploadProgress: onProgress ? (progressEvent) => {
-      const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-      onProgress(percent);
-    } : undefined,
-  };
-  
-  const { data } = await api.post('/batch-predict', formData, config);
-  return data;
+    const formData = new FormData();
+    formData.append('files', file);  // ✅ 'files' not 'file'
+
+    const config = {
+        onUploadProgress: onProgress ? (progressEvent) => {
+            const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+            onProgress(percent);
+        } : undefined,
+    };
+
+    const { data } = await api.post('/batch-predict', formData, config);
+    return data;
 };
 
-// ✅ ocrUpload — NO manual Content-Type
+// ✅ FIXED: 'file' key for OCR (sahi hai) + NO manual Content-Type
 export const ocrUpload = async (file, onProgress = null) => {
-  const formData = new FormData();
-  formData.append('file', file);
-  
-  const config = {
-    onUploadProgress: onProgress ? (progressEvent) => {
-      const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-      onProgress(percent);
-    } : undefined,
-  };
-  
-  const { data } = await api.post('/ocr', formData, config);
-  return data;
+    const formData = new FormData();
+    formData.append('file', file);  // ✅ OCR endpoint mein 'file' sahi hai
+
+    const config = {
+        onUploadProgress: onProgress ? (progressEvent) => {
+            const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+            onProgress(percent);
+        } : undefined,
+    };
+
+    const { data } = await api.post('/ocr', formData, config);
+    return data;
 };
 
 export default api;
