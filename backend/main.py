@@ -469,8 +469,7 @@ async def predict(
     dependencies=[Depends(verify_api_key)],
 )
 async def batch_predict(
-    files: list[UploadFile] = File(default=[]),  # ✅ Optional list
-    file: UploadFile = File(None),  # ✅ Single file fallback
+    file: UploadFile = File(...),  # ✅ Single file, required
     explain: bool = Query(default=False),
     db: Session = Depends(get_db),
 ):
@@ -478,19 +477,12 @@ async def batch_predict(
     if app.state.model is None or app.state.risk_engine is None:
         raise HTTPException(status_code=503, detail="Model or risk engine not loaded")
 
-    # ✅ FIX: Combine both parameters
-    all_files = list(files) if files else []
-    if file:
-        all_files.append(file)
-
-    if not all_files:
-        raise HTTPException(status_code=400, detail="No files provided")
+    all_files = [file]  # ✅ Single file ko list mein daalo
 
     all_results = []
     anomalies_detected = 0
     total_processed = 0
 
-    # ✅ FIX: Use 'f' instead of 'file' to avoid shadowing
     for f in all_files:
         ext = f.filename.lower().split(".")[-1]
 
