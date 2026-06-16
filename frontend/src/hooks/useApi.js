@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import {
+import api, {
     batchPredict,
     checkHealth,
     getTransactionById,
@@ -25,7 +25,7 @@ export const useHealth = (pollInterval = 30000) => {
             setIsBlocked(false);
         } catch (err) {
             setOnline(false);
-            setError(err.message);
+            setError(err.message || 'Connection failed');
             setIsBlocked(err.isAdBlocker || false);
             setData(null);
         } finally {
@@ -41,20 +41,34 @@ export const useHealth = (pollInterval = 30000) => {
 
     return { online, data, loading, error, isBlocked, check };
 };
+
 // ─── useStats ─────────────────────────────────────────────────
+// ✅ FIX: Use axios instance instead of hardcoded fetch
 export const useStats = () => {
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
     useEffect(() => {
-        fetch('https://ledgerwatch-api.onrender.com/stats', {
-            headers: { 'X-API-Key': import.meta.env.VITE_API_KEY || 'demo-key-123' }
-        })
-            .then(r => r.json())
-            .then(setData)
-            .catch(setError)
-            .finally(() => setLoading(false));
+        let cancelled = false;
+
+        const fetchStats = async () => {
+            try {
+                setLoading(true);
+                // ✅ FIX: Use axios instance — respects env vars + headers
+                const result = await api.get('/stats');
+                if (!cancelled) setData(result.data);
+            } catch (err) {
+                if (!cancelled) {
+                    setError(err.userMessage || err.message || 'Failed to fetch stats');
+                }
+            } finally {
+                if (!cancelled) setLoading(false);
+            }
+        };
+
+        fetchStats();
+        return () => { cancelled = true; };
     }, []);
 
     return { data, loading, error };
@@ -75,7 +89,7 @@ export const useTransactions = (limit = 10, offset = 0) => {
                 const result = await getTransactions(limit, offset);
                 if (!cancelled) setData(result);
             } catch (err) {
-                if (!cancelled) setError(err.message || 'Failed to fetch');
+                if (!cancelled) setError(err.userMessage || err.message || 'Failed to fetch');
             } finally {
                 if (!cancelled) setLoading(false);
             }
@@ -106,7 +120,9 @@ export const useTransaction = (id) => {
 
         getTransactionById(id)
             .then(result => { if (!cancelled) setData(result); })
-            .catch(err => { if (!cancelled) setError(err.message); })
+            .catch(err => { 
+                if (!cancelled) setError(err.userMessage || err.message); 
+            })
             .finally(() => { if (!cancelled) setLoading(false); });
 
         return () => { cancelled = true; };
@@ -129,7 +145,7 @@ export const usePredict = () => {
             setData(result);
             return result;
         } catch (err) {
-            setError(err.message);
+            setError(err.userMessage || err.message);
             throw err;
         } finally {
             setLoading(false);
@@ -140,27 +156,36 @@ export const usePredict = () => {
 };
 
 // ─── useBatchPredict ──────────────────────────────────────────
+// ✅ FIX: Add progress tracking
 export const useBatchPredict = () => {
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
+    const [progress, setProgress] = useState(0);  // ✅ NEW: Upload progress %
 
     const upload = useCallback(async (file) => {
         setLoading(true);
         setError(null);
+        setProgress(0);  // ✅ Reset progress
+        
         try {
-            const result = await batchPredict(file);
+            // ✅ FIX: Pass progress callback
+            const result = await batchPredict(file, (percent) => {
+                setProgress(percent);
+            });
             setData(result);
+            setProgress(100);  // ✅ Complete
             return result;
         } catch (err) {
-            setError(err.message);
+            setError(err.userMessage || err.message);
+            setProgress(0);  // ✅ Reset on error
             throw err;
         } finally {
             setLoading(false);
         }
     }, []);
 
-    return { result: data, loading, error, upload };
+    return { result: data, loading, error, progress, upload };  // ✅ Return progress
 };
 
 // ─── useOCR ───────────────────────────────────────────────────
@@ -168,23 +193,30 @@ export const useOCR = () => {
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
+    const [progress, setProgress] = useState(0);  // ✅ NEW: Upload progress %
 
     const upload = useCallback(async (file) => {
         setLoading(true);
         setError(null);
+        setProgress(0);
+        
         try {
-            const result = await ocrUpload(file);
+            const result = await ocrUpload(file, (percent) => {
+                setProgress(percent);
+            });
             setData(result);
+            setProgress(100);
             return result;
         } catch (err) {
-            setError(err.message);
+            setError(err.userMessage || err.message);
+            setProgress(0);
             throw err;
         } finally {
             setLoading(false);
         }
     }, []);
 
-    return { result: data, loading, error, upload };
+    return { result: data, loading, error, progress, upload };
 };
 
 // ─── useMockFallback ──────────────────────────────────────────
