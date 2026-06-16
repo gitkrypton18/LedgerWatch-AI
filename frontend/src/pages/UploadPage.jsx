@@ -14,14 +14,14 @@ import {
     Upload,
     X
 } from 'lucide-react';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useBatchPredict, useOCR } from '../hooks/useApi';
 
 /* ─────────────────────────────────────────────
    Upload Page — Final Merged Version
    Dark fintech theme: #0A0E1A bg, Inter/JetBrains Mono
    Features: Drag & Drop, CSV/JSON/Parquet/Image/PDF support,
-   Real API integration (batch-predict + OCR), Progress simulation,
+   Real API integration (batch-predict + OCR), Real progress,
    Validation, Batch upload, Retry, Result display
    ───────────────────────────────────────────── */
 
@@ -194,12 +194,43 @@ export default function UploadPage() {
     const [files, setFiles] = useState([]);
     const [isDragOver, setIsDragOver] = useState(false);
     const [globalError, setGlobalError] = useState(null);
+    const [recentUploads, setRecentUploads] = useState([]); // ✅ FIX: Dynamic recent uploads
     const fileInputRef = useRef(null);
 
-    const { upload: batchUpload, loading: batchLoading } = useBatchPredict();
-    const { upload: ocrUpload, loading: ocrLoading } = useOCR();
+    // ✅ FIX: Use progress from hooks
+    const { upload: batchUpload, loading: batchLoading, progress: batchProgress } = useBatchPredict();
+    const { upload: ocrUpload, loading: ocrLoading, progress: ocrProgress } = useOCR();
 
     const isLoading = batchLoading || ocrLoading;
+
+    // ✅ FIX: Load recent uploads from localStorage on mount
+    useEffect(() => {
+        const stored = localStorage.getItem('ledgerwatch_recent_uploads');
+        if (stored) {
+            try {
+                setRecentUploads(JSON.parse(stored));
+            } catch (e) {
+                console.warn('Failed to parse recent uploads:', e);
+            }
+        }
+    }, []);
+
+    // ✅ FIX: Save recent uploads to localStorage
+    const saveRecentUpload = (fileName, size, status, result) => {
+        const newUpload = {
+            name: fileName,
+            size: formatBytes(size),
+            time: 'Just now',
+            status,
+            result: result?.total_processed ? `${result.anomalies_detected} anomalies` : null,
+            timestamp: Date.now(),
+        };
+        setRecentUploads(prev => {
+            const updated = [newUpload, ...prev.slice(0, 9)]; // Keep last 10
+            localStorage.setItem('ledgerwatch_recent_uploads', JSON.stringify(updated));
+            return updated;
+        });
+    };
 
     const validateFile = (file) => {
         const ext = file.name.split('.').pop().toLowerCase();
@@ -279,27 +310,18 @@ export default function UploadPage() {
         const useOCR = isImageOrPDF(file);
 
         setFiles((prev) =>
-            prev.map((f) => (f.id === id ? { ...f, status: 'uploading', progress: 10 } : f))
+            prev.map((f) => (f.id === id ? { ...f, status: 'uploading', progress: 5 } : f))
         );
 
         try {
-            // Simulate progress while API runs
-            const progressInterval = setInterval(() => {
-                setFiles((prev) =>
-                    prev.map((f) =>
-                        f.id === id && f.progress < 85 ? { ...f, progress: f.progress + 12 } : f
-                    )
-                );
-            }, 300);
-
             let result;
             if (useOCR) {
+                // ✅ FIX: Use real OCR progress
                 result = await ocrUpload(file);
             } else {
+                // ✅ FIX: Use real batch progress
                 result = await batchUpload(file);
             }
-
-            clearInterval(progressInterval);
 
             setFiles((prev) =>
                 prev.map((f) =>
@@ -309,12 +331,15 @@ export default function UploadPage() {
                 )
             );
 
+            // ✅ FIX: Save to recent uploads
+            saveRecentUpload(file.name, file.size, 'success', result);
+
             return result;
         } catch (err) {
             setFiles((prev) =>
                 prev.map((f) =>
                     f.id === id
-                        ? { ...f, status: 'error', progress: 0, error: err.message || 'Upload failed' }
+                        ? { ...f, status: 'error', progress: 0, error: err.userMessage || err.message || 'Upload failed' }
                         : f
                 )
             );
@@ -337,6 +362,27 @@ export default function UploadPage() {
             }
         }
     };
+
+    // ✅ FIX: Update progress from hooks
+    useEffect(() => {
+        if (batchLoading && batchProgress > 0) {
+            setFiles(prev => prev.map(f => 
+                f.status === 'uploading' && !isImageOrPDF(f.file) 
+                    ? { ...f, progress: batchProgress } 
+                    : f
+            ));
+        }
+    }, [batchProgress, batchLoading]);
+
+    useEffect(() => {
+        if (ocrLoading && ocrProgress > 0) {
+            setFiles(prev => prev.map(f => 
+                f.status === 'uploading' && isImageOrPDF(f.file) 
+                    ? { ...f, progress: ocrProgress } 
+                    : f
+            ));
+        }
+    }, [ocrProgress, ocrLoading]);
 
     const pendingCount = files.filter((f) => f.status === 'pending').length;
     const successCount = files.filter((f) => f.status === 'success').length;
@@ -566,27 +612,29 @@ export default function UploadPage() {
                         </div>
                     </div>
 
-                    {/* Recent Uploads */}
+                    {/* Recent Uploads — ✅ DYNAMIC */}
                     <div className="bg-[#111827]/60 border border-slate-800/50 rounded-xl p-6">
                         <h3 className="text-sm font-semibold text-slate-200 mb-4 flex items-center gap-2">
                             <Clock className="w-4 h-4 text-cyan-400" />
                             Recent Uploads
                         </h3>
                         <div className="space-y-3">
-                            {[
-                                { name: 'paysim_sample_1M.csv', size: '45.2 MB', time: '2h ago', status: 'success' },
-                                { name: 'invoice_q2_001.pdf', size: '1.2 MB', time: '3h ago', status: 'success' },
-                                { name: 'transactions_q2.json', size: '12.8 MB', time: '5h ago', status: 'success' },
-                                { name: 'fraud_labels.parquet', size: '3.1 MB', time: '1d ago', status: 'success' },
-                            ].map((item) => (
-                                <div key={item.name} className="flex items-center gap-3 py-2">
-                                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                                    <div className="flex-1 min-w-0">
-                                        <p className="text-xs text-slate-300 truncate">{item.name}</p>
-                                        <p className="text-[10px] text-slate-500 font-mono">{item.size} · {item.time}</p>
+                            {recentUploads.length > 0 ? (
+                                recentUploads.map((item, index) => (
+                                    <div key={index} className="flex items-center gap-3 py-2">
+                                        <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-xs text-slate-300 truncate">{item.name}</p>
+                                            <p className="text-[10px] text-slate-500 font-mono">
+                                                {item.size} · {item.time}
+                                                {item.result && <span className="text-emerald-400 ml-1">· {item.result}</span>}
+                                            </p>
+                                        </div>
                                     </div>
-                                </div>
-                            ))}
+                                ))
+                            ) : (
+                                <p className="text-slate-500 text-xs text-center py-4">No recent uploads</p>
+                            )}
                         </div>
                     </div>
                 </div>
