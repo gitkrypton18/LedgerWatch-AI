@@ -39,7 +39,7 @@ export default function Sidebar({ collapsed, onToggle }) {
                 </div>
                 <button
                     onClick={onToggle}
-                    className="hidden lg:flex p-1.5 rounded-lg hover:bg-background-tertiary transition-colors"
+                    className="p-1.5 rounded-lg hover:bg-background-tertiary transition-colors"
                 >
                     {collapsed ? (
                         <ChevronRight className="w-4 h-4 text-text-muted" />

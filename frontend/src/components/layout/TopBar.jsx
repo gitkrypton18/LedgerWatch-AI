@@ -1,4 +1,4 @@
-import { Bell, Search, User, X } from 'lucide-react';
+import { Bell, Search, User } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
 const routeTitles = {
@@ -13,7 +13,6 @@ const routeTitles = {
 
 export default function TopBar({ sidebarCollapsed }) {
     const [pathname, setPathname] = useState(() => window.location.pathname);
-    const [searchOpen, setSearchOpen] = useState(false);
     const intervalRef = useRef(null);
 
     useEffect(() => {
@@ -45,59 +44,16 @@ export default function TopBar({ sidebarCollapsed }) {
 
     return (
         <header
-            className={`
-                h-16 bg-background-secondary/80 backdrop-blur-xl border-b border-border-subtle
-                fixed top-0 right-0 z-30 flex items-center justify-between px-4 lg:px-6
-                transition-all duration-300
-                ${sidebarCollapsed ? 'lg:left-16' : 'lg:left-60'}
-                left-0
-            `}
+            className={`h-16 bg-background-secondary/80 backdrop-blur-xl border-b border-border-subtle fixed top-0 right-0 z-30 flex items-center justify-between px-6 transition-all duration-300 ${sidebarCollapsed ? 'left-16' : 'left-60'}`}
         >
-            {/* Left: Title */}
-            <div className="flex items-center gap-2 lg:gap-4 ml-12 lg:ml-0">
-                <h2 className="text-base lg:text-lg font-semibold text-text-primary truncate">
-                    {currentRoute.title}
-                </h2>
-                <span className="text-text-muted hidden sm:inline">/</span>
-                <span className="text-sm text-text-secondary hidden sm:inline truncate">
-                    {currentRoute.subtitle}
-                </span>
+            <div className="flex items-center gap-4">
+                <h2 className="text-lg font-semibold text-text-primary">{currentRoute.title}</h2>
+                <span className="text-text-muted">/</span>
+                <span className="text-sm text-text-secondary">{currentRoute.subtitle}</span>
             </div>
 
-            {/* Right: Search + Icons */}
-            <div className="flex items-center gap-2 lg:gap-4">
-                {/* Mobile Search Overlay */}
-                {searchOpen && (
-                    <div className="absolute inset-x-0 top-0 h-16 px-4 bg-background-secondary/95 backdrop-blur-xl flex items-center z-50 lg:hidden">
-                        <div className="relative flex-1">
-                            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
-                            <input
-                                type="text"
-                                placeholder="Search transactions..."
-                                className="w-full bg-background-tertiary border border-border-subtle rounded-lg pl-9 pr-4 py-2 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent-info"
-                                autoFocus
-                                onBlur={() => setTimeout(() => setSearchOpen(false), 200)}
-                            />
-                        </div>
-                        <button
-                            className="ml-2 p-2 text-text-muted"
-                            onClick={() => setSearchOpen(false)}
-                        >
-                            <X className="w-5 h-5" />
-                        </button>
-                    </div>
-                )}
-
-                {/* Mobile Search Icon */}
-                <button
-                    className="lg:hidden p-2 rounded-lg hover:bg-background-tertiary transition-colors"
-                    onClick={() => setSearchOpen(true)}
-                >
-                    <Search className="w-5 h-5 text-text-secondary" />
-                </button>
-
-                {/* Desktop Search */}
-                <div className="hidden lg:block relative">
+            <div className="flex items-center gap-4">
+                <div className="relative">
                     <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
                     <input
                         type="text"
