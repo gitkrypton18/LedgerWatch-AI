@@ -113,15 +113,11 @@ export default function TopBar({ sidebarCollapsed }) {
             className={`h-16 bg-background-secondary/80 backdrop-blur-xl border-b border-border-subtle fixed top-0 right-0 z-40 flex items-center justify-between px-6 transition-all duration-300 ${sidebarCollapsed ? 'left-16' : 'left-60'}`}
         >
             <div className="flex items-center gap-4">
-                {/* ✅ Title with debug info */}
                 <h2 className="text-lg font-semibold text-text-primary">
                     {currentRoute.title}
                 </h2>
                 <span className="text-text-muted">/</span>
                 <span className="text-sm text-text-secondary">{currentRoute.subtitle}</span>
-
-                {/* ✅ DEBUG: Show pathname (remove after fix) */}
-
             </div>
 
             <div className="flex items-center gap-4">
