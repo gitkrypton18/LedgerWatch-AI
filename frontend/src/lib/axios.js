@@ -12,6 +12,14 @@ const api = axios.create({
     timeout: 300000,
 });
 
+// ✅ FIX: Request interceptor — remove Content-Type for FormData
+api.interceptors.request.use((config) => {
+    if (config.data instanceof FormData) {
+        delete config.headers['Content-Type']; // Let browser set it with boundary
+    }
+    return config;
+});
+
 api.interceptors.response.use(
     (response) => response,
     (error) => {
@@ -43,10 +51,10 @@ export const predict = async (transactionData, explain = true) => {
     return data;
 };
 
-// ✅ FIXED: 'files' key + NO manual Content-Type
+// ✅ FIXED: 'file' key (backend expects single file)
 export const batchPredict = async (file, onProgress = null) => {
     const formData = new FormData();
-    formData.append('files', file);  // ✅ 'files' not 'file'
+    formData.append('file', file);  // ✅ 'file' not 'files'
 
     const config = {
         onUploadProgress: onProgress ? (progressEvent) => {
