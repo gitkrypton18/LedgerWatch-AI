@@ -9,7 +9,7 @@ const api = axios.create({
     'Content-Type': 'application/json',
     'X-API-Key': API_KEY,
   },
-  timeout: 300000, // 5 minutes timeout for batch predictions
+  timeout: 300000,
 });
 
 // Response interceptor for ad-blocker detection
@@ -50,36 +50,34 @@ export const predict = async (transactionData, explain = true) => {
   return data;
 };
 
-// ✅ FIX: batchPredict with progress callback
+// ✅ FIXED: batchPredict — 'files' key for backend
 export const batchPredict = async (file, onProgress = null) => {
   const formData = new FormData();
-  formData.append('file', file);
-  
+  formData.append('files', file);  // ✅ 'files' key!
+
   const config = {
-    headers: { 'Content-Type': 'multipart/form-data' },
     onUploadProgress: onProgress ? (progressEvent) => {
       const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
       onProgress(percent);
     } : undefined,
   };
-  
+
   const { data } = await api.post('/batch-predict', formData, config);
   return data;
 };
 
-// ✅ FIX: ocrUpload with progress callback
+// ✅ FIXED: ocrUpload — 'file' key for /ocr endpoint
 export const ocrUpload = async (file, onProgress = null) => {
   const formData = new FormData();
-  formData.append('file', file);
-  
+  formData.append('file', file);  // ✅ 'file' key for /ocr
+
   const config = {
-    headers: { 'Content-Type': 'multipart/form-data' },
     onUploadProgress: onProgress ? (progressEvent) => {
       const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
       onProgress(percent);
     } : undefined,
   };
-  
+
   const { data } = await api.post('/ocr', formData, config);
   return data;
 };
