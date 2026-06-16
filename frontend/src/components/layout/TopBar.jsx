@@ -121,9 +121,7 @@ export default function TopBar({ sidebarCollapsed }) {
                 <span className="text-sm text-text-secondary">{currentRoute.subtitle}</span>
 
                 {/* ✅ DEBUG: Show pathname (remove after fix) */}
-                <span className="text-[10px] text-text-muted font-mono ml-2 opacity-50">
-                    [{pathname}]
-                </span>
+
             </div>
 
             <div className="flex items-center gap-4">
