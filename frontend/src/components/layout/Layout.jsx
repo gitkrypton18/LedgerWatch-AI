@@ -14,12 +14,22 @@ export default function Layout() {
         setMobileMenuOpen(false);
     }, [location.pathname]);
 
+    // Close mobile sidebar on escape key
+    useEffect(() => {
+        const handleEscape = (e) => {
+            if (e.key === 'Escape') setMobileMenuOpen(false);
+        };
+        window.addEventListener('keydown', handleEscape);
+        return () => window.removeEventListener('keydown', handleEscape);
+    }, []);
+
     return (
         <div className="min-h-screen bg-background-primary relative">
-            {/* Mobile Hamburger Button */}
+            {/* Mobile Hamburger Button — visible only on mobile */}
             <button
                 className="lg:hidden fixed top-4 left-4 z-[60] p-2.5 bg-background-secondary rounded-xl border border-border-subtle shadow-lg"
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                aria-label="Toggle menu"
             >
                 {mobileMenuOpen ? (
                     <X className="w-5 h-5 text-text-primary" />
@@ -39,10 +49,11 @@ export default function Layout() {
                 <Sidebar
                     collapsed={sidebarCollapsed}
                     onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
+                    onMobileClose={() => setMobileMenuOpen(false)}
                 />
             </aside>
 
-            {/* Mobile Overlay */}
+            {/* Mobile Overlay Backdrop */}
             {mobileMenuOpen && (
                 <div
                     className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 lg:hidden"
@@ -53,9 +64,13 @@ export default function Layout() {
             {/* Main Content */}
             <div className={`
                 min-h-screen transition-all duration-300
+                lg:ml-0
                 ${sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-60'}
             `}>
-                <TopBar sidebarCollapsed={sidebarCollapsed} />
+                <TopBar
+                    sidebarCollapsed={sidebarCollapsed}
+                    mobileMenuOpen={mobileMenuOpen}
+                />
                 <main className="pt-20 lg:pt-16 px-4 lg:px-6 pb-6 min-h-screen">
                     <Outlet />
                 </main>
