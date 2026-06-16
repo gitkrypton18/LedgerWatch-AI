@@ -1,13 +1,14 @@
 import {
     BarChart3,
     Brain,
+    ChevronLeft,
+    ChevronRight,
     LayoutDashboard,
     List,
     Settings,
     Upload,
     Zap
 } from 'lucide-react';
-import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useHealth } from '../hooks/useApi';
 
@@ -20,10 +21,10 @@ const navItems = [
     { path: '/settings', label: 'Settings', icon: Settings },
 ];
 
-export default function Sidebar() {
+// ✅ FIX: Accept props from Layout
+export default function Sidebar({ collapsed, onToggle }) {
     const location = useLocation();
-    const [collapsed, setCollapsed] = useState(false);
-
+    
     // ✅ REAL API STATUS — hook use karo!
     const { online, data, loading } = useHealth(30000);
 
@@ -32,17 +33,32 @@ export default function Sidebar() {
             className={`fixed left-0 top-0 h-screen bg-background-secondary border-r border-border-subtle transition-all duration-300 z-50 flex flex-col ${collapsed ? 'w-16' : 'w-60'
                 }`}
         >
-            {/* Logo */}
-            <div className="h-16 flex items-center px-4 border-b border-border-subtle">
-                <Zap className="w-7 h-7 text-accent-success flex-shrink-0" />
-                {!collapsed && (
-                    <div className="ml-3 overflow-hidden">
-                        <h1 className="text-lg font-bold bg-gradient-to-r from-accent-success to-accent-info bg-clip-text text-transparent whitespace-nowrap">
-                            LedgerWatch
-                        </h1>
-                        <p className="text-[10px] text-text-muted -mt-1 tracking-wider">AI</p>
-                    </div>
-                )}
+            {/* Logo + Toggle Button */}
+            <div className="h-16 flex items-center px-4 border-b border-border-subtle justify-between">
+                <div className="flex items-center overflow-hidden">
+                    <Zap className="w-7 h-7 text-accent-success flex-shrink-0" />
+                    {!collapsed && (
+                        <div className="ml-3 overflow-hidden">
+                            <h1 className="text-lg font-bold bg-gradient-to-r from-accent-success to-accent-info bg-clip-text text-transparent whitespace-nowrap">
+                                LedgerWatch
+                            </h1>
+                            <p className="text-[10px] text-text-muted -mt-1 tracking-wider">AI</p>
+                        </div>
+                    )}
+                </div>
+                
+                {/* ✅ NEW: Toggle button */}
+                <button
+                    onClick={onToggle}
+                    className="p-1 rounded-lg hover:bg-background-tertiary text-text-muted transition-colors flex-shrink-0"
+                    title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+                >
+                    {collapsed ? (
+                        <ChevronRight className="w-4 h-4" />
+                    ) : (
+                        <ChevronLeft className="w-4 h-4" />
+                    )}
+                </button>
             </div>
 
             {/* Navigation */}
