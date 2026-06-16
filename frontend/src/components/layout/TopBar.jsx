@@ -22,7 +22,6 @@ export default function TopBar({ sidebarCollapsed }) {
     useEffect(() => {
         const handlePopState = () => {
             const current = window.location.pathname;
-            console.log('[TopBar] popstate:', current);
             setPathname(current);
         };
 
@@ -34,7 +33,6 @@ export default function TopBar({ sidebarCollapsed }) {
     useEffect(() => {
         const handleHashChange = () => {
             const current = window.location.pathname;
-            console.log('[TopBar] hashchange:', current);
             setPathname(current);
         };
 
@@ -49,7 +47,6 @@ export default function TopBar({ sidebarCollapsed }) {
             if (link && link.href && link.href.includes(window.location.origin)) {
                 setTimeout(() => {
                     const current = window.location.pathname;
-                    console.log('[TopBar] link click:', current);
                     setPathname(current);
                 }, 50);
             }
@@ -65,7 +62,6 @@ export default function TopBar({ sidebarCollapsed }) {
             const current = window.location.pathname;
             setPathname(prev => {
                 if (prev !== current) {
-                    console.log('[TopBar] mutation:', prev, '→', current);
                     return current;
                 }
                 return prev;
@@ -82,7 +78,6 @@ export default function TopBar({ sidebarCollapsed }) {
             const current = window.location.pathname;
             setPathname(prev => {
                 if (prev !== current) {
-                    console.log('[TopBar] poll:', prev, '→', current);
                     return current;
                 }
                 return prev;
@@ -106,7 +101,6 @@ export default function TopBar({ sidebarCollapsed }) {
     const currentRoute = routeTitles[pathname] || { title: 'LedgerWatch', subtitle: 'AI' };
 
     // ✅ DEBUG: Log every render
-    console.log(`[TopBar] render: pathname=${pathname}, title=${currentRoute.title}, tick=${tick}`);
 
     return (
         <header
