@@ -7,6 +7,10 @@ Includes MOCK mode for testing without Tesseract installed.
 
 # src/ocr_service.py — TOP OF FILE REPLACE KARO
 
+"""
+src/ocr_service.py — OCR-powered invoice parser for LedgerWatch AI
+"""
+
 import io
 import json
 import logging
@@ -17,18 +21,18 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-# ✅ FIX: Safe import — agar pytesseract nahi hai toh bhi app chalega
+# ✅ FIX: Safe import — agar pytesseract/pdf2image nahi hai toh bhi app chalega
 try:
     import pytesseract
     from pdf2image import convert_from_path
 
     TESSERACT_AVAILABLE = True
-
 except ImportError:
     TESSERACT_AVAILABLE = False
-
     pytesseract = None
     convert_from_path = None
+    logging.warning("pytesseract/pdf2image not installed — OCR will use mock mode")
+
 from PIL import Image, ImageDraw, ImageFont
 
 # Configure logging
@@ -137,7 +141,9 @@ class InvoiceOCR:
         self.tesseract_available = False
 
         if not mock_mode:
-            if tesseract_cmd:
+            if (
+                tesseract_cmd and TESSERACT_AVAILABLE
+            ):  # ✅ TESSERACT_AVAILABLE check add karo
                 pytesseract.pytesseract.tesseract_cmd = tesseract_cmd
             self.tesseract_available = self._check_tesseract()
 
@@ -148,16 +154,17 @@ class InvoiceOCR:
 
     def _check_tesseract(self) -> bool:
         """Verify Tesseract is installed and accessible."""
+        if not TESSERACT_AVAILABLE:  # ✅ YEH LINE ADD KARO
+            logger.warning("Tesseract not available — pytesseract not installed")
+            return False
+
         try:
             version = pytesseract.get_tesseract_version()
             logger.info(f"Tesseract OCR v{version} ready")
             return True
         except Exception as e:
             logger.warning(f"Tesseract not found: {e}")
-            logger.warning("Falling back to MOCK mode — install Tesseract for real OCR")
-            logger.warning("  Windows: https://github.com/UB-Mannheim/tesseract/wiki")
-            logger.warning("  Mac: brew install tesseract")
-            logger.warning("  Linux: sudo apt install tesseract-ocr")
+            logger.warning("Falling back to MOCK mode")
             return False
 
     def pdf_to_text(self, pdf_path: str | Path) -> str:
@@ -170,7 +177,7 @@ class InvoiceOCR:
         Returns:
             Extracted text string
         """
-        if self.mock_mode or not self.tesseract_available:
+        if self.mock_mode or not TESSERACT_AVAILABLE:
             logger.info("Using mock invoice text (no real OCR)")
             return self._generate_mock_invoice_text()
 
@@ -202,7 +209,7 @@ class InvoiceOCR:
         Returns:
             Extracted text string
         """
-        if self.mock_mode or not self.tesseract_available:
+        if self.mock_mode or not TESSERACT_AVAILABLE:
             return self._generate_mock_invoice_text()
 
         image_path = Path(image_path)
