@@ -4,6 +4,7 @@ src/config.py — LedgerWatch AI configuration
 Pydantic-settings with .env loading. All paths validated at startup.
 """
 
+import os
 from pathlib import Path
 
 from pydantic_settings import BaseSettings
@@ -15,7 +16,11 @@ class Settings(BaseSettings):
     # ─── Paths ────────────────────────────────────────────────────────────────
     MODEL_PATH: str = "saved_models/isolation_forest_v1.0.0.joblib"
     RISK_ENGINE_PATH: str = "saved_models/risk_engine_v1.0.0.joblib"
-    DATABASE_URL: str = "sqlite:///ledgerwatch.db"
+    
+    # ✅ FIX: DATABASE_URL — no default, let database.py handle path logic
+    # Or use env var if explicitly set
+    DATABASE_URL: str = os.environ.get("DATABASE_URL", "")
+    
     DATA_DIR: str = "data"
     PROCESSED_DIR: str = "data/processed"
 
