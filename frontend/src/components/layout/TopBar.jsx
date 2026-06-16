@@ -13,48 +13,117 @@ const routeTitles = {
 };
 
 export default function TopBar({ sidebarCollapsed }) {
-    // ✅ FIX: Track pathname with multiple detection methods
-    const [pathname, setPathname] = useState(window.location.pathname);
+    // ✅ NUCLEAR FIX: Read from URL every render + force update
+    const [pathname, setPathname] = useState(() => window.location.pathname);
+    const [tick, setTick] = useState(0); // Force re-render trigger
     const intervalRef = useRef(null);
 
+    // ✅ METHOD 1: popstate (browser back/forward)
     useEffect(() => {
-        // Method 1: popstate event (browser back/forward)
         const handlePopState = () => {
-            setPathname(window.location.pathname);
+            const current = window.location.pathname;
+            console.log('[TopBar] popstate:', current);
+            setPathname(current);
         };
 
-        // Method 2: MutationObserver (detects DOM changes from React Router)
+        window.addEventListener('popstate', handlePopState);
+        return () => window.removeEventListener('popstate', handlePopState);
+    }, []);
+
+    // ✅ METHOD 2: hashchange (fallback)
+    useEffect(() => {
+        const handleHashChange = () => {
+            const current = window.location.pathname;
+            console.log('[TopBar] hashchange:', current);
+            setPathname(current);
+        };
+
+        window.addEventListener('hashchange', handleHashChange);
+        return () => window.removeEventListener('hashchange', handleHashChange);
+    }, []);
+
+    // ✅ METHOD 3: click on sidebar links (React Router navigation)
+    useEffect(() => {
+        const handleClick = (e) => {
+            const link = e.target.closest('a');
+            if (link && link.href && link.href.includes(window.location.origin)) {
+                setTimeout(() => {
+                    const current = window.location.pathname;
+                    console.log('[TopBar] link click:', current);
+                    setPathname(current);
+                }, 50);
+            }
+        };
+
+        document.addEventListener('click', handleClick);
+        return () => document.removeEventListener('click', handleClick);
+    }, []);
+
+    // ✅ METHOD 4: MutationObserver (DOM changes)
+    useEffect(() => {
         const observer = new MutationObserver(() => {
-            const currentPath = window.location.pathname;
-            setPathname(prev => prev !== currentPath ? currentPath : prev);
+            const current = window.location.pathname;
+            setPathname(prev => {
+                if (prev !== current) {
+                    console.log('[TopBar] mutation:', prev, '→', current);
+                    return current;
+                }
+                return prev;
+            });
         });
 
-        // Method 3: Periodic check as fallback
-        intervalRef.current = setInterval(() => {
-            const currentPath = window.location.pathname;
-            setPathname(prev => prev !== currentPath ? currentPath : prev);
-        }, 50);
-
-        window.addEventListener('popstate', handlePopState);
         observer.observe(document.body, { childList: true, subtree: true });
+        return () => observer.disconnect();
+    }, []);
+
+    // ✅ METHOD 5: Periodic polling (100ms)
+    useEffect(() => {
+        intervalRef.current = setInterval(() => {
+            const current = window.location.pathname;
+            setPathname(prev => {
+                if (prev !== current) {
+                    console.log('[TopBar] poll:', prev, '→', current);
+                    return current;
+                }
+                return prev;
+            });
+        }, 100);
 
         return () => {
-            window.removeEventListener('popstate', handlePopState);
-            observer.disconnect();
             if (intervalRef.current) clearInterval(intervalRef.current);
         };
     }, []);
 
+    // ✅ METHOD 6: Force re-render every second (nuclear option)
+    useEffect(() => {
+        const interval = setInterval(() => {
+            setTick(t => t + 1);
+        }, 1000);
+        return () => clearInterval(interval);
+    }, []);
+
+    // ✅ Get title based on current pathname
     const currentRoute = routeTitles[pathname] || { title: 'LedgerWatch', subtitle: 'AI' };
+
+    // ✅ DEBUG: Log every render
+    console.log(`[TopBar] render: pathname=${pathname}, title=${currentRoute.title}, tick=${tick}`);
 
     return (
         <header
             className={`h-16 bg-background-secondary/80 backdrop-blur-xl border-b border-border-subtle fixed top-0 right-0 z-40 flex items-center justify-between px-6 transition-all duration-300 ${sidebarCollapsed ? 'left-16' : 'left-60'}`}
         >
             <div className="flex items-center gap-4">
-                <h2 className="text-lg font-semibold text-text-primary">{currentRoute.title}</h2>
+                {/* ✅ Title with debug info */}
+                <h2 className="text-lg font-semibold text-text-primary">
+                    {currentRoute.title}
+                </h2>
                 <span className="text-text-muted">/</span>
                 <span className="text-sm text-text-secondary">{currentRoute.subtitle}</span>
+                
+                {/* ✅ DEBUG: Show pathname (remove after fix) */}
+                <span className="text-[10px] text-text-muted font-mono ml-2 opacity-50">
+                    [{pathname}]
+                </span>
             </div>
 
             <div className="flex items-center gap-4">
