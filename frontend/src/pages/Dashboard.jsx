@@ -2,13 +2,12 @@ import {
     Activity,
     AlertTriangle,
     Database,
-    DollarSign,
     Loader2,
     Shield,
     TrendingDown,
     TrendingUp,
     Wifi,
-    WifiOff,
+    WifiOff
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import {
@@ -290,12 +289,12 @@ export default function Dashboard() {
             score: tx.risk_score || 0,
             status: tx.risk_band || "Low",
             // ✅ FIX: Better time formatting
-            time: tx.created_at 
-                ? new Date(tx.created_at).toLocaleTimeString('en-US', { 
-                    hour: '2-digit', 
+            time: tx.created_at
+                ? new Date(tx.created_at).toLocaleTimeString('en-US', {
+                    hour: '2-digit',
                     minute: '2-digit',
-                    hour12: true 
-                  }) 
+                    hour12: true
+                })
                 : "—",
         }));
 

@@ -424,7 +424,51 @@ export default function TransactionsPage() {
           </div>
         </div>
       )}
+      {/* Mobile Card View */}
+      <div className="lg:hidden space-y-3 p-4">
+        {filteredTransactions.map((tx) => (
+          <div key={tx.id} className="bg-background-secondary border border-border-subtle rounded-xl p-4">
+            <div className="flex items-center justify-between mb-2">
+              <span className="font-mono text-text-primary">#{tx.id}</span>
+              <span className={`px-2 py-1 rounded-full text-xs font-medium ${tx.risk_band === 'Critical' ? 'bg-red-500/20 text-red-400' :
+                  tx.risk_band === 'High' ? 'bg-amber-500/20 text-amber-400' :
+                    tx.risk_band === 'Medium' ? 'bg-blue-500/20 text-blue-400' :
+                      'bg-emerald-500/20 text-emerald-400'
+                }`}>
+                {tx.risk_band}
+              </span>
+            </div>
+            <div className="flex items-center justify-between text-sm mb-2">
+              <span className={`px-2 py-0.5 rounded text-xs ${tx.type === 'TRANSFER' ? 'bg-purple-500/20 text-purple-400' :
+                  tx.type === 'CASH_OUT' ? 'bg-amber-500/20 text-amber-400' :
+                    tx.type === 'PAYMENT' ? 'bg-blue-500/20 text-blue-400' :
+                      'bg-indigo-500/20 text-indigo-400'
+                }`}>
+                {tx.type}
+              </span>
+              <span className="text-text-primary font-mono">${tx.amount?.toLocaleString()}</span>
+            </div>
+            <div className="flex items-center justify-between text-sm">
+              <div className="w-20 h-1.5 bg-background-tertiary rounded-full overflow-hidden">
+                <div
+                  className="h-full rounded-full"
+                  style={{
+                    width: `${Math.min(tx.risk_score || 0, 100)}%`,
+                    backgroundColor: tx.risk_score >= 90 ? '#EF4444' : tx.risk_score >= 70 ? '#F59E0B' : '#10B981'
+                  }}
+                />
+              </div>
+              <span className="text-text-muted text-xs">{formatTime(tx.created_at)}</span>
+            </div>
+          </div>
+        ))}
+      </div>
 
+      {/* Desktop Table View - existing table wrap karo */}
+      <div className="hidden lg:block overflow-x-auto">
+        {/* YEH TUMHARA EXISTING TABLE */}
+        <table className="w-full">...</table>
+      </div>
       {/* Table */}
       <div className="glass-panel rounded-xl border border-border-subtle overflow-hidden">
         {loading && !useMock ? (

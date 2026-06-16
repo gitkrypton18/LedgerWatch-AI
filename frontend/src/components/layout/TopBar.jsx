@@ -1,4 +1,4 @@
-import { Bell, Search, User } from 'lucide-react';
+import { Bell, Search, User, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
 const routeTitles = {
@@ -11,7 +11,7 @@ const routeTitles = {
     '/settings': { title: 'Settings', subtitle: 'Configuration' },
 };
 
-export default function TopBar({ sidebarCollapsed, mobileMenuOpen }) {
+export default function TopBar({ sidebarCollapsed }) {
     const [pathname, setPathname] = useState(() => window.location.pathname);
     const [searchOpen, setSearchOpen] = useState(false);
     const intervalRef = useRef(null);
@@ -66,29 +66,26 @@ export default function TopBar({ sidebarCollapsed, mobileMenuOpen }) {
 
             {/* Right: Search + Icons */}
             <div className="flex items-center gap-2 lg:gap-4">
-                {/* Mobile Search Toggle */}
-                <div className={`
-                    ${searchOpen ? 'absolute inset-x-0 top-0 h-16 px-4 bg-background-secondary/95 backdrop-blur-xl flex items-center z-50' : 'hidden lg:block'}
-                `}>
-                    <div className="relative w-full lg:w-64">
-                        <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
-                        <input
-                            type="text"
-                            placeholder="Search transactions..."
-                            className="w-full lg:w-64 bg-background-tertiary border border-border-subtle rounded-lg pl-9 pr-4 py-2 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent-info focus:ring-1 focus:ring-accent-info/20 transition-all"
-                            onBlur={() => setSearchOpen(false)}
-                            autoFocus={searchOpen}
-                        />
-                    </div>
-                    {searchOpen && (
+                {/* Mobile Search Overlay */}
+                {searchOpen && (
+                    <div className="absolute inset-x-0 top-0 h-16 px-4 bg-background-secondary/95 backdrop-blur-xl flex items-center z-50 lg:hidden">
+                        <div className="relative flex-1">
+                            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
+                            <input
+                                type="text"
+                                placeholder="Search transactions..."
+                                className="w-full bg-background-tertiary border border-border-subtle rounded-lg pl-9 pr-4 py-2 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent-info"
+                                autoFocus
+                            />
+                        </div>
                         <button
                             className="ml-2 p-2 text-text-muted"
                             onClick={() => setSearchOpen(false)}
                         >
                             <X className="w-5 h-5" />
                         </button>
-                    )}
-                </div>
+                    </div>
+                )}
 
                 {/* Mobile Search Icon */}
                 <button
@@ -97,6 +94,16 @@ export default function TopBar({ sidebarCollapsed, mobileMenuOpen }) {
                 >
                     <Search className="w-5 h-5 text-text-secondary" />
                 </button>
+
+                {/* Desktop Search */}
+                <div className="hidden lg:block relative">
+                    <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
+                    <input
+                        type="text"
+                        placeholder="Search transactions..."
+                        className="bg-background-tertiary border border-border-subtle rounded-lg pl-9 pr-4 py-2 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent-info focus:ring-1 focus:ring-accent-info/20 w-64 transition-all"
+                    />
+                </div>
 
                 <button className="relative p-2 rounded-lg hover:bg-background-tertiary transition-colors">
                     <Bell className="w-5 h-5 text-text-secondary" />
