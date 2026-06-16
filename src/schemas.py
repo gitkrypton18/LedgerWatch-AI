@@ -181,10 +181,12 @@ class OCRExtraction(BaseModel):
 
 
 class HealthResponse(BaseModel):
-    status: str = "ok"
-    version: str = "1.0.0"
-    model_loaded: bool = False
-    risk_engine_loaded: bool = False
+    model_config = ConfigDict(protected_namespaces=())  # ✅ ADD THIS LINE
+
+    status: str
+    version: str
+    model_loaded: bool
+    risk_engine_loaded: bool
     ocr_available: bool = False
     retrain_available: bool = False  # ✅ ADDED
     timestamp: str = ""

@@ -120,8 +120,8 @@ export const useTransaction = (id) => {
 
         getTransactionById(id)
             .then(result => { if (!cancelled) setData(result); })
-            .catch(err => { 
-                if (!cancelled) setError(err.userMessage || err.message); 
+            .catch(err => {
+                if (!cancelled) setError(err.userMessage || err.message);
             })
             .finally(() => { if (!cancelled) setLoading(false); });
 
@@ -167,7 +167,7 @@ export const useBatchPredict = () => {
         setLoading(true);
         setError(null);
         setProgress(0);  // ✅ Reset progress
-        
+
         try {
             // ✅ FIX: Pass progress callback
             const result = await batchPredict(file, (percent) => {
@@ -199,7 +199,7 @@ export const useOCR = () => {
         setLoading(true);
         setError(null);
         setProgress(0);
-        
+
         try {
             const result = await ocrUpload(file, (percent) => {
                 setProgress(percent);
