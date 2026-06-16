@@ -213,6 +213,20 @@ app = FastAPI(
     docs_url="/docs",  # ✅ Enable Swagger UI
     redoc_url="/redoc",  # ✅ Enable ReDoc
 )
+
+# ✅ FIX: CORS — allow_credentials=False (required for allow_origins=["*"])
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "https://ledger-watch-ai.vercel.app",
+        "https://ledgerwatch-ai.vercel.app",
+        "http://localhost:5173",
+        "http://localhost:3000",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 
@@ -221,15 +235,6 @@ async def verify_api_key(api_key: str = Security(api_key_header)):
         raise HTTPException(status_code=403, detail="Invalid API key")
     return api_key
 
-
-# ✅ FIX: CORS — allow_credentials=False (required for allow_origins=["*"])
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=False,  # ← ✅ FIX: Must be False with wildcard origins
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 # ─── Helper Functions ───────────────────────────────────────────────────────
 
