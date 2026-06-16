@@ -96,6 +96,11 @@ async def lifespan(app: FastAPI):
                 # Bulk insert — 100x faster than row-by-row
                 records = []
                 for _, row in df.iterrows():
+                    # ✅ FIX: Consistent randomization — same score for band + anomaly
+                    risk_score = random.randint(5, 98)
+                    risk_band = get_risk_band(risk_score)
+                    is_anomaly = risk_score >= 85  # Critical/High = anomaly
+                    
                     records.append(
                         {
                             "step": int(row["step"]),
@@ -115,9 +120,10 @@ async def lifespan(app: FastAPI):
                                 if "isFlaggedFraud" in row
                                 else None
                             ),
-                            "risk_score": random.randint(5, 98),
-                            "risk_band": get_risk_band(random.randint(5, 98)),
-                            "is_anomaly": random.randint(5, 98) >= 85,
+                            "risk_score": risk_score,           # ✅ Same value
+                            "risk_band": risk_band,              # ✅ Derived from same score
+                            "is_anomaly": is_anomaly,            # ✅ Consistent logic
+                            "created_at": datetime.utcnow(),   # ✅ Add timestamp
                         }
                     )
 
@@ -214,9 +220,11 @@ async def verify_api_key(api_key: str = Security(api_key_header)):
     return api_key
 
 
+# ✅ FIX: CORS — allow_credentials=False (required for allow_origins=["*"])
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
+    allow_credentials=False,  # ← ✅ FIX: Must be False with wildcard origins
     allow_methods=["*"],
     allow_headers=["*"],
 )
