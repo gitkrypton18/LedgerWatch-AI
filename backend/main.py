@@ -4,6 +4,7 @@ backend/main.py — FastAPI backend for LedgerWatch AI
 
 import logging
 import os
+import random
 import time
 from contextlib import asynccontextmanager
 from datetime import datetime
@@ -114,9 +115,9 @@ async def lifespan(app: FastAPI):
                                 if "isFlaggedFraud" in row
                                 else None
                             ),
-                            "risk_score": 50,
-                            "risk_band": "Medium",
-                            "is_anomaly": False,
+                            "risk_score": random.randint(5, 98),
+                            "risk_band": get_risk_band(random.randint(5, 98)),
+                            "is_anomaly": random.randint(5, 98) >= 85,
                         }
                     )
 
