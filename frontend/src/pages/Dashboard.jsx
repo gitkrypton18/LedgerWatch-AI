@@ -287,7 +287,7 @@ export default function Dashboard() {
             amount: formatCurrency(tx.amount),
             score: tx.risk_score || 0,
             status: tx.risk_band || "Low",
-            time: tx.time || "—",
+            time: tx.created_at ? new Date(tx.created_at).toLocaleTimeString() : "—",
         }));
 
     const trendData = useMock ? MOCK_TREND : MOCK_TREND; // API trend not available yet, use mock

@@ -9,9 +9,9 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import { useHealth } from '../hooks/useApi';
 
 const navItems = [
-
     { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { path: '/upload', label: 'Upload', icon: Upload },
     { path: '/transactions', label: 'Transactions', icon: List },
@@ -23,6 +23,9 @@ const navItems = [
 export default function Sidebar() {
     const location = useLocation();
     const [collapsed, setCollapsed] = useState(false);
+
+    // ✅ REAL API STATUS — hook use karo!
+    const { online, data, loading } = useHealth(30000);
 
     return (
         <aside
@@ -63,14 +66,20 @@ export default function Sidebar() {
                 })}
             </nav>
 
-            {/* Status */}
+            {/* Status — REAL API STATUS */}
             <div className="p-3 border-t border-border-subtle">
                 <div className={`flex items-center ${collapsed ? 'justify-center' : 'px-2'}`}>
-                    <div className="w-2 h-2 rounded-full bg-accent-success animate-pulse" />
+                    {/* ✅ Dynamic dot color based on API status */}
+                    <div className={`w-2 h-2 rounded-full ${loading ? 'bg-amber-400 animate-pulse' : online ? 'bg-emerald-400 animate-pulse' : 'bg-red-400'} flex-shrink-0`} />
                     {!collapsed && (
                         <div className="ml-2 text-xs">
-                            <p className="text-text-secondary">API Online</p>
-                            <p className="text-text-muted">v1.0.0</p>
+                            <p className={online ? 'text-emerald-400' : 'text-red-400'}>
+                                {loading ? 'Checking...' : online ? 'API Online' : 'API Offline'}
+                            </p>
+                            {/* ✅ Real version from API */}
+                            <p className="text-text-muted">
+                                {data?.version ? `v${data.version}` : 'v1.0.0'}
+                            </p>
                         </div>
                     )}
                 </div>
