@@ -497,7 +497,7 @@ export default function TransactionsPage() {
                     <td className="py-3 px-4">
                       <StatusBadge band={tx.risk_band || 'Low'} isAnomaly={tx.is_anomaly} />
                     </td>
-                    <td className="py-3 px-4">
+                    <td className="py-3 px-4 max-w-[150px] overflow-hidden">
                       <ShapMiniChart shapValues={tx.shap_values} />
                     </td>
                     {/* ✅ FIX: Time column */}

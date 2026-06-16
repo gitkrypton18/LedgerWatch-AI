@@ -119,7 +119,7 @@ export default function TopBar({ sidebarCollapsed }) {
                 </h2>
                 <span className="text-text-muted">/</span>
                 <span className="text-sm text-text-secondary">{currentRoute.subtitle}</span>
-                
+
                 {/* ✅ DEBUG: Show pathname (remove after fix) */}
                 <span className="text-[10px] text-text-muted font-mono ml-2 opacity-50">
                     [{pathname}]
