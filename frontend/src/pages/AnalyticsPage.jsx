@@ -208,9 +208,10 @@ export default function AnalyticsPage() {
     return bins;
   }, [apiTx, useMock]);
 
-  // Stats values
+  // ✅ FIX: Use API stats when available, fallback to mock
   const totalTx = statsData?.total_transactions || 6362620;
-  const anomalyRate = ((statsData?.anomalies_detected || 8213) / totalTx * 100).toFixed(3);
+  const anomaliesDetected = statsData?.anomalies_detected || 8213;
+  const anomalyRate = totalTx > 0 ? ((anomaliesDetected / totalTx) * 100).toFixed(3) : '0.000';
   const rocAuc = 0.8946;
   const liftAt1 = 109;
 
@@ -227,21 +228,29 @@ export default function AnalyticsPage() {
             Model performance metrics, feature insights, and fraud pattern analysis
           </p>
         </div>
-        <button
-          onClick={() => setUseMock(!useMock)}
-          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${useMock
+        <div className="flex items-center gap-3">
+          {/* ✅ FIX: Show error if API failed */}
+          {statsError && !useMock && (
+            <span className="text-red-400 text-xs max-w-[200px] truncate" title={statsError}>
+              {statsError}
+            </span>
+          )}
+          <button
+            onClick={() => setUseMock(!useMock)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${useMock
               ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
               : 'bg-slate-800 text-slate-400 border border-slate-700/30 hover:text-slate-200'
             }`}
-        >
-          {useMock ? (
-            <span className="flex items-center gap-1.5">
-              <WifiOff className="w-3 h-3" /> Using Mock Data
-            </span>
-          ) : (
-            'Using Live API'
-          )}
-        </button>
+          >
+            {useMock ? (
+              <span className="flex items-center gap-1.5">
+                <WifiOff className="w-3 h-3" /> Using Mock Data
+              </span>
+            ) : (
+              'Using Live API'
+            )}
+          </button>
+        </div>
       </div>
 
       {/* Loading State */}
@@ -275,7 +284,7 @@ export default function AnalyticsPage() {
           icon={Shield}
           title="Anomaly Rate"
           value={`${anomalyRate}%`}
-          subtitle={`${(statsData?.anomalies_detected || 8213).toLocaleString()} flagged`}
+          subtitle={`${anomaliesDetected.toLocaleString()} flagged`}
           trend="up"
           trendValue="Day 7 validation"
           color="emerald"
