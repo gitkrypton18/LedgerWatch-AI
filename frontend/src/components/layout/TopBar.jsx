@@ -1,5 +1,5 @@
 import { Bell, Search, User } from 'lucide-react';
-import { useLocation } from 'react-router-dom';
+import { useEffect, useState } from 'react';
 
 // ✅ FIX: Route to title mapping
 const routeTitles = {
@@ -13,10 +13,31 @@ const routeTitles = {
 };
 
 export default function TopBar({ sidebarCollapsed }) {
-    const location = useLocation();
+    // ✅ FIX: Use window.location directly + force re-render on popstate
+    const [pathname, setPathname] = useState(window.location.pathname);
+    
+    useEffect(() => {
+        const handlePopState = () => {
+            setPathname(window.location.pathname);
+        };
+        
+        window.addEventListener('popstate', handlePopState);
+        
+        // Also check periodically for SPA navigation
+        const interval = setInterval(() => {
+            if (window.location.pathname !== pathname) {
+                setPathname(window.location.pathname);
+            }
+        }, 100);
+        
+        return () => {
+            window.removeEventListener('popstate', handlePopState);
+            clearInterval(interval);
+        };
+    }, [pathname]);
     
     // ✅ FIX: Get dynamic title based on current route
-    const currentRoute = routeTitles[location.pathname] || { title: 'LedgerWatch', subtitle: 'AI' };
+    const currentRoute = routeTitles[pathname] || { title: 'LedgerWatch', subtitle: 'AI' };
 
     return (
         <header 
