@@ -1,12 +1,32 @@
 import { Bell, Search, User } from 'lucide-react';
+import { useLocation } from 'react-router-dom';
 
-export default function TopBar() {
+// ✅ FIX: Route to title mapping
+const routeTitles = {
+    '/': { title: 'Dashboard', subtitle: 'Overview' },
+    '/dashboard': { title: 'Dashboard', subtitle: 'Overview' },
+    '/upload': { title: 'Upload', subtitle: 'Batch Prediction' },
+    '/transactions': { title: 'Transactions', subtitle: 'History & Analysis' },
+    '/explain': { title: 'Explainability', subtitle: 'SHAP & Model Insights' },
+    '/analytics': { title: 'Analytics', subtitle: 'Performance Metrics' },
+    '/settings': { title: 'Settings', subtitle: 'Configuration' },
+};
+
+export default function TopBar({ sidebarCollapsed }) {
+    const location = useLocation();
+    
+    // ✅ FIX: Get dynamic title based on current route
+    const currentRoute = routeTitles[location.pathname] || { title: 'LedgerWatch', subtitle: 'AI' };
+
     return (
-        <header className="h-16 bg-background-secondary/80 backdrop-blur-xl border-b border-border-subtle fixed top-0 right-0 left-60 z-40 flex items-center justify-between px-6">
+        <header 
+            className={`h-16 bg-background-secondary/80 backdrop-blur-xl border-b border-border-subtle fixed top-0 right-0 z-40 flex items-center justify-between px-6 transition-all duration-300 ${sidebarCollapsed ? 'left-16' : 'left-60'}`}
+        >
             <div className="flex items-center gap-4">
-                <h2 className="text-lg font-semibold text-text-primary">Dashboard</h2>
+                {/* ✅ FIX: Dynamic title */}
+                <h2 className="text-lg font-semibold text-text-primary">{currentRoute.title}</h2>
                 <span className="text-text-muted">/</span>
-                <span className="text-sm text-text-secondary">Overview</span>
+                <span className="text-sm text-text-secondary">{currentRoute.subtitle}</span>
             </div>
 
             <div className="flex items-center gap-4">
