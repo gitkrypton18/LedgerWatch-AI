@@ -5,6 +5,8 @@ Converts invoice PDFs → structured transaction data using Tesseract + regex.
 Includes MOCK mode for testing without Tesseract installed.
 """
 
+# src/ocr_service.py — TOP OF FILE REPLACE KARO
+
 import io
 import json
 import logging
@@ -15,8 +17,18 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-import pytesseract
-from pdf2image import convert_from_path
+# ✅ FIX: Safe import — agar pytesseract nahi hai toh bhi app chalega
+try:
+    import pytesseract
+    from pdf2image import convert_from_path
+
+    TESSERACT_AVAILABLE = True
+
+except ImportError:
+    TESSERACT_AVAILABLE = False
+
+    pytesseract = None
+    convert_from_path = None
 from PIL import Image, ImageDraw, ImageFont
 
 # Configure logging
