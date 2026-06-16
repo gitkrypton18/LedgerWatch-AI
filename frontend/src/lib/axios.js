@@ -12,17 +12,12 @@ const api = axios.create({
     timeout: 300000,
 });
 
-// Response interceptor
 api.interceptors.response.use(
     (response) => response,
     (error) => {
         if (!error.response && (error.code === 'ERR_NETWORK' || error.message === 'Network Error')) {
-            console.error('🔴 Network Error — Possible causes:');
-            console.error('   1. Ad blocker / Brave Shields blocking the request');
-            console.error('   2. Backend is sleeping (Render free tier)');
-            console.error('   3. CORS issue');
             error.isAdBlocker = true;
-            error.userMessage = 'Connection blocked by ad blocker or Brave Shields! Please disable extensions for this site, then refresh.';
+            error.userMessage = 'Connection blocked! Please disable ad blocker or try incognito mode.';
         }
         return Promise.reject(error);
     }
@@ -64,10 +59,9 @@ export const batchPredict = async (file, onProgress = null) => {
     return data;
 };
 
-// ✅ FIXED: 'file' key for OCR (sahi hai) + NO manual Content-Type
 export const ocrUpload = async (file, onProgress = null) => {
     const formData = new FormData();
-    formData.append('file', file);  // ✅ OCR endpoint mein 'file' sahi hai
+    formData.append('file', file);
 
     const config = {
         onUploadProgress: onProgress ? (progressEvent) => {
