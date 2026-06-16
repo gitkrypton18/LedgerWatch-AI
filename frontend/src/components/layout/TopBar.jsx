@@ -11,7 +11,7 @@ const routeTitles = {
     '/settings': { title: 'Settings', subtitle: 'Configuration' },
 };
 
-export default function TopBar({ sidebarCollapsed }) {
+export default function TopBar() {
     const [pathname, setPathname] = useState(() => window.location.pathname);
     const intervalRef = useRef(null);
 
@@ -43,9 +43,7 @@ export default function TopBar({ sidebarCollapsed }) {
     const currentRoute = routeTitles[pathname] || { title: 'LedgerWatch', subtitle: 'AI' };
 
     return (
-        <header
-            className={`h-16 bg-background-secondary/80 backdrop-blur-xl border-b border-border-subtle fixed top-0 right-0 z-30 flex items-center justify-between px-6 transition-all duration-300 ${sidebarCollapsed ? 'left-16' : 'left-60'}`}
-        >
+        <header className="h-16 bg-background-secondary/80 backdrop-blur-xl border-b border-border-subtle flex items-center justify-between px-6 sticky top-0 z-30">
             <div className="flex items-center gap-4">
                 <h2 className="text-lg font-semibold text-text-primary">{currentRoute.title}</h2>
                 <span className="text-text-muted">/</span>

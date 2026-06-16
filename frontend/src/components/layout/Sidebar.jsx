@@ -21,7 +21,7 @@ const navItems = [
 
 export default function Sidebar({ collapsed, onToggle }) {
     return (
-        <div className="h-full flex flex-col">
+        <div className="h-full flex flex-col bg-background-secondary border-r border-border-subtle">
             {/* Logo */}
             <div className="h-16 flex items-center justify-between px-4 border-b border-border-subtle">
                 <div className={`flex items-center gap-3 ${collapsed ? 'justify-center w-full' : ''}`}>
