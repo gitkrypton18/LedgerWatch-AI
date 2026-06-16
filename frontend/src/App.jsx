@@ -18,7 +18,6 @@ function App() {
       <Routes>
         <Route path='/' element={<Layout />}>
           <Route index element={<Dashboard />} />
-          {/* ✅ FIX: Consistent leading slashes */}
           <Route path='/dashboard' element={<Dashboard />} />
           <Route path='/upload' element={<UploadPage />} />
           <Route path='/transactions' element={<TransactionsPage />} />
