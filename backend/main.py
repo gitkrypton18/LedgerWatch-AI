@@ -210,6 +210,8 @@ app = FastAPI(
     description="OCR-powered financial transaction anomaly detection API",
     version="1.0.0",
     lifespan=lifespan,
+    docs_url="/docs",  # ✅ Enable Swagger UI
+    redoc_url="/redoc",  # ✅ Enable ReDoc
 )
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
