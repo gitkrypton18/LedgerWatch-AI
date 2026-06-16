@@ -10,6 +10,7 @@ import {
   Save,
   Server,
   Settings,
+  ShieldAlert,
   Trash2,
   Wifi,
   XCircle
@@ -104,6 +105,7 @@ const ConnectionBadge = ({ status, message }) => {
   const configs = {
     connected: { icon: CheckCircle, color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20' },
     error: { icon: XCircle, color: 'text-red-400', bg: 'bg-red-500/10', border: 'border-red-500/20' },
+    adblocker: { icon: ShieldAlert, color: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/20' },
     checking: { icon: Loader2, color: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/20' },
     idle: { icon: Wifi, color: 'text-slate-500', bg: 'bg-slate-800/50', border: 'border-slate-700/30' },
   };
@@ -113,10 +115,30 @@ const ConnectionBadge = ({ status, message }) => {
   return (
     <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium border ${config.bg} ${config.color} ${config.border}`}>
       <Icon className={`w-3.5 h-3.5 ${status === 'checking' ? 'animate-spin' : ''}`} />
-      {message}
+      <span className="max-w-[300px] truncate">{message}</span>
     </div>
   );
 };
+
+// ─── Ad Blocker Warning ───────────────────────────────────
+const AdBlockerWarning = () => (
+  <div className="rounded-xl p-4 border border-amber-500/20 bg-amber-500/10 mb-4">
+    <div className="flex items-start gap-3">
+      <ShieldAlert className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
+      <div className="space-y-1">
+        <p className="text-amber-200 text-sm font-medium">Ad Blocker Detected</p>
+        <p className="text-amber-200/70 text-xs">
+          Your browser extension (Brave Shields, uBlock, etc.) is blocking API requests.
+        </p>
+        <div className="text-amber-200/60 text-xs space-y-0.5 mt-2">
+          <p>• Disable shields/extensions for this site</p>
+          <p>• Or use Incognito Mode (Ctrl+Shift+N)</p>
+          <p>• Then refresh the page</p>
+        </div>
+      </div>
+    </div>
+  </div>
+);
 
 // ─── Danger Zone ────────────────────────────────────────────
 const DangerZone = ({ onClearCache, onExport, onDelete }) => {
@@ -223,6 +245,7 @@ export default function SettingsPage() {
   const [saved, setSaved] = useState(false);
   const [connStatus, setConnStatus] = useState('idle');
   const [connMessage, setConnMessage] = useState('Not tested');
+  const [showAdBlockerWarning, setShowAdBlockerWarning] = useState(false);
 
   // Load settings from localStorage on mount
   useEffect(() => {
@@ -255,6 +278,7 @@ export default function SettingsPage() {
   const testConnection = async () => {
     setConnStatus('checking');
     setConnMessage('Testing connection...');
+    setShowAdBlockerWarning(false);
 
     const prevUrl = localStorage.getItem('ledgerwatch_api_url');
     localStorage.setItem('ledgerwatch_api_url', settings.apiUrl);
@@ -269,8 +293,14 @@ export default function SettingsPage() {
         setConnMessage('Unexpected response from server');
       }
     } catch (err) {
-      setConnStatus('error');
-      setConnMessage(err.message || 'Connection failed');
+      if (err.isAdBlocker || err.message?.includes('ad blocker') || err.message?.includes('Brave')) {
+        setConnStatus('adblocker');
+        setConnMessage('Blocked by ad blocker / Brave Shields');
+        setShowAdBlockerWarning(true);
+      } else {
+        setConnStatus('error');
+        setConnMessage(err.message || 'Connection failed');
+      }
     } finally {
       if (connStatus === 'error' && prevUrl) {
         localStorage.setItem('ledgerwatch_api_url', prevUrl);
@@ -326,6 +356,9 @@ export default function SettingsPage() {
           {saved ? 'Saved!' : 'Save Changes'}
         </button>
       </div>
+
+      {/* Ad Blocker Warning */}
+      {showAdBlockerWarning && <AdBlockerWarning />}
 
       {/* API Configuration */}
       <SettingsSection title="API Configuration" icon={Server}>

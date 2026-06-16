@@ -1,13 +1,34 @@
 import axios from 'axios';
+
 const API_URL = import.meta.env.VITE_API_URL || 'https://ledgerwatch-api.onrender.com';
 const API_KEY = import.meta.env.VITE_API_KEY || 'demo-key-123';
+
 const api = axios.create({
   baseURL: API_URL,
   headers: {
     'Content-Type': 'application/json',
     'X-API-Key': API_KEY,
   },
+  timeout: 15000,
 });
+
+// Response interceptor for ad-blocker detection
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (!error.response && (error.code === 'ERR_NETWORK' || error.message === 'Network Error')) {
+      console.error('🔴 Network Error — Possible causes:');
+      console.error('   1. Ad blocker / Brave Shields blocking the request');
+      console.error('   2. Backend is sleeping (Render free tier)');
+      console.error('   3. CORS issue');
+      console.error('💡 FIX: Disable ad blocker for this site or try incognito mode');
+
+      error.isAdBlocker = true;
+      error.userMessage = 'Connection blocked by ad blocker or Brave Shields! Please disable extensions for this site, then refresh.';
+    }
+    return Promise.reject(error);
+  }
+);
 
 export const checkHealth = async () => {
   const { data } = await api.get('/health');
