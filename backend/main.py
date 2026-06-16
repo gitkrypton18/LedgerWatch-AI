@@ -195,11 +195,11 @@ async def lifespan(app: FastAPI):
 
     # Initialize OCR
     try:
-        app.state.ocr = InvoiceOCR(mock_mode=True)
+        app.state.ocr = InvoiceOCR(mock_mode=False)  # ✅ Real OCR
         logger.info("OCR initialized (Tesseract mode)")
     except Exception as e:
         logger.warning(f"Tesseract unavailable: {e} — using mock mode")
-        app.state.ocr = InvoiceOCR(mock_mode=True)
+        app.state.ocr = InvoiceOCR(mock_mode=True)  # Fallback
 
     yield
     logger.info("Shutting down LedgerWatch API...")
