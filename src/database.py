@@ -11,6 +11,7 @@ Think of it as: "Here's the building, here's the key to enter,
 and here's the blueprint for all rooms."
 """
 
+import os
 from sqlalchemy import Boolean, Column, DateTime, Float, Integer, String, create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 from sqlalchemy.sql import func
@@ -22,15 +23,46 @@ from src.config import settings
 # PART 1: The Engine (The Database Connection)
 # ============================================================================
 
+# ✅ FIX: Determine persistent database path
+# Render free tier: use /opt/render/project/src/ for persistence
+# Local dev: use project root
+RENDER_DISK_PATH = "/opt/render/project/src"
+LOCAL_DB_NAME = "ledgerwatch.db"
+
+def get_database_url():
+    """
+    Returns the correct SQLite database URL based on environment.
+    
+    Priority:
+    1. settings.DATABASE_URL (from .env)
+    2. Render persistent disk path
+    3. Local project directory
+    """
+    # If explicit DATABASE_URL is set in env, use it
+    env_url = os.environ.get("DATABASE_URL")
+    if env_url:
+        return env_url
+    
+    # Check if we're on Render (persistent disk exists)
+    if os.path.exists(RENDER_DISK_PATH):
+        db_path = os.path.join(RENDER_DISK_PATH, LOCAL_DB_NAME)
+        return f"sqlite:///{db_path}"
+    
+    # Fallback: local development
+    return f"sqlite:///./{LOCAL_DB_NAME}"
+
+DATABASE_URL = get_database_url()
+print(f"📁 Database URL: {DATABASE_URL}")  # Log for debugging
+
 # SQLite needs a special setting for FastAPI later.
 # SQLite is single-threaded by default, but FastAPI uses multiple threads.
 # check_same_thread=False tells SQLite: "It's okay, we know what we're doing."
 connect_args = (
-    {"check_same_thread": False} if settings.DATABASE_URL.startswith("sqlite") else {}
+    {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
 )
 
 engine = create_engine(
-    settings.DATABASE_URL,  # Comes from .env: "sqlite:///./ledgerwatch.db"
+    DATABASE_URL,  # ✅ FIXED: Dynamic path based on environment
     connect_args=connect_args,  # The special SQLite setting above
     echo=False,  # Set to True to see raw SQL (for debugging)
 )
