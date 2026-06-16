@@ -9,7 +9,7 @@ const api = axios.create({
     'Content-Type': 'application/json',
     'X-API-Key': API_KEY,
   },
-  timeout: 15000,
+  timeout: 60000, // 60 seconds timeout
 });
 
 // Response interceptor for ad-blocker detection
