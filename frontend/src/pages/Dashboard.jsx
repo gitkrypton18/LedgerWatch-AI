@@ -2,12 +2,11 @@ import {
     Activity,
     AlertTriangle,
     Database,
-    Loader2,
     Shield,
     TrendingDown,
     TrendingUp,
     Wifi,
-    WifiOff
+    WifiOff,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import {
@@ -24,12 +23,11 @@ import {
 } from "recharts";
 import { useHealth, useStats, useTransactions } from "../hooks/useApi";
 
-// ─── Mock fallback data ──────────────────────────────────────
 const MOCK_KPI = [
-    { title: "Total Transactions", value: "6,362,620", change: "+12%", trend: "up", icon: Database, color: "text-accent-info", bgColor: "bg-accent-info/10" },
-    { title: "Anomalies Detected", value: "8,213", change: "0.129%", trend: "down", icon: AlertTriangle, color: "text-accent-warning", bgColor: "bg-accent-warning/10" },
-    { title: "Avg Risk Score", value: "49.6", change: "─", trend: "neutral", icon: Shield, color: "text-accent-success", bgColor: "bg-accent-success/10" },
-    { title: "Critical Alerts", value: "45", change: "+5%", trend: "up", icon: Activity, color: "text-accent-danger", bgColor: "bg-accent-danger/10" },
+    { title: "Total Transactions", value: "5.0K", change: "+0%", trend: "neutral", icon: Database, color: "text-accent-info", bgColor: "bg-accent-info/10" },
+    { title: "Anomalies Detected", value: "703", change: "+14.060%", trend: "up", icon: AlertTriangle, color: "text-accent-warning", bgColor: "bg-accent-warning/10" },
+    { title: "Avg Risk Score", value: "51.8", change: "─", trend: "neutral", icon: Shield, color: "text-accent-success", bgColor: "bg-accent-success/10" },
+    { title: "Critical Alerts", value: "206", change: "+0%", trend: "up", icon: Activity, color: "text-accent-danger", bgColor: "bg-accent-danger/10" },
 ];
 
 const MOCK_TREND = [
@@ -49,64 +47,34 @@ const MOCK_RISK_DIST = [
     { name: "Critical (91-100)", value: 45, color: "#DC2626" },
 ];
 
-const MOCK_RECENT = [
-    { id: "#001", type: "TRANSFER", amount: "$150,000", score: 99, status: "Critical", time: "2 min ago" },
-    { id: "#002", type: "CASH_OUT", amount: "$92,000", score: 87, status: "High", time: "5 min ago" },
-    { id: "#003", type: "TRANSFER", amount: "$45,000", score: 94, status: "Critical", time: "12 min ago" },
-    { id: "#004", type: "PAYMENT", amount: "$250,000", score: 76, status: "High", time: "18 min ago" },
-    { id: "#005", type: "CASH_OUT", amount: "$67,500", score: 82, status: "High", time: "24 min ago" },
-];
-
-// ─── Helper: Format numbers ─────────────────────────────────
-const formatNumber = (num) => {
-    if (num === undefined || num === null) return "—";
-    if (num >= 1000000) return (num / 1000000).toFixed(1) + "M";
-    if (num >= 1000) return (num / 1000).toFixed(1) + "K";
-    return num.toString();
-};
-
-const formatCurrency = (num) => {
-    if (num === undefined || num === null) return "—";
-    return new Intl.NumberFormat("en-US", {
-        style: "currency",
-        currency: "USD",
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 0,
-    }).format(num);
-};
-
-// ─── KPI Card Component ─────────────────────────────────────
 function KpiCard({ title, value, change, trend, icon: Icon, color, bgColor, loading }) {
     return (
-        <div className="bg-background-secondary border border-border-subtle rounded-xl p-5 card-hover">
+        <div className="bg-background-secondary border border-border-subtle rounded-xl p-4 lg:p-5 card-hover">
             <div className="flex items-start justify-between">
                 <div>
-                    <p className="text-sm text-text-secondary mb-1">{title}</p>
+                    <p className="text-xs lg:text-sm text-text-secondary mb-1">{title}</p>
                     {loading ? (
-                        <Loader2 className="w-6 h-6 animate-spin text-accent-info mt-2" />
+                        <div className="w-6 h-6 animate-spin rounded-full border-2 border-accent-info border-t-transparent mt-2" />
                     ) : (
-                        <h3 className="text-2xl font-mono font-semibold text-text-primary">{value}</h3>
+                        <h3 className="text-xl lg:text-2xl font-mono font-semibold text-text-primary">{value}</h3>
                     )}
-                    <div className="flex items-center gap-1 mt-2">
-                        {trend === "up" && <TrendingUp className="w-3.5 h-3.5 text-accent-success" />}
-                        {trend === "down" && <TrendingDown className="w-3.5 h-3.5 text-accent-danger" />}
-                        {trend === "neutral" && <span className="w-3.5 h-3.5" />}
-                        <span className={`text-xs font-medium ${trend === "up" ? "text-accent-success" : trend === "down" ? "text-accent-danger" : "text-text-muted"
-                            }`}>
+                    <div className="flex items-center gap-1 mt-1 lg:mt-2">
+                        {trend === "up" && <TrendingUp className="w-3 h-3 text-accent-success" />}
+                        {trend === "down" && <TrendingDown className="w-3 h-3 text-accent-danger" />}
+                        <span className={`text-xs font-medium ${trend === "up" ? "text-accent-success" : trend === "down" ? "text-accent-danger" : "text-text-muted"}`}>
                             {change}
                         </span>
                     </div>
                 </div>
-                <div className={`p-2.5 rounded-lg ${bgColor}`}>
-                    <Icon className={`w-5 h-5 ${color}`} />
+                <div className={`p-2 lg:p-2.5 rounded-lg ${bgColor}`}>
+                    <Icon className={`w-4 h-4 lg:w-5 lg:h-5 ${color}`} />
                 </div>
             </div>
         </div>
     );
 }
 
-// ─── Risk Ring Component ────────────────────────────────────
-function RiskRing({ score = 87 }) {
+function RiskRing({ score = 52 }) {
     const radius = 50;
     const strokeWidth = 8;
     const normalizedRadius = radius - strokeWidth / 2;
@@ -120,83 +88,34 @@ function RiskRing({ score = 87 }) {
         return "#DC2626";
     };
 
-    const getGlowClass = () => {
-        if (score <= 30) return "risk-glow-low";
-        if (score <= 70) return "risk-glow-medium";
-        if (score <= 90) return "risk-glow-high";
-        return "risk-glow-critical";
-    };
-
     const color = getColor();
 
     return (
         <div className="flex flex-col items-center">
-            <div className={`relative rounded-full p-1 ${getGlowClass()}`}>
+            <div className="relative rounded-full p-1">
                 <svg width={radius * 2} height={radius * 2} className="transform -rotate-90">
-                    <circle
-                        stroke="#1E293B"
-                        fill="transparent"
-                        strokeWidth={strokeWidth}
-                        r={normalizedRadius}
-                        cx={radius}
-                        cy={radius}
-                    />
-                    <circle
-                        stroke={color}
-                        fill="transparent"
-                        strokeWidth={strokeWidth}
-                        strokeDasharray={`${circumference} ${circumference}`}
-                        style={{ strokeDashoffset, transition: "stroke-dashoffset 1.5s ease-out" }}
-                        strokeLinecap="round"
-                        r={normalizedRadius}
-                        cx={radius}
-                        cy={radius}
-                    />
+                    <circle stroke="#1E293B" fill="transparent" strokeWidth={strokeWidth} r={normalizedRadius} cx={radius} cy={radius} />
+                    <circle stroke={color} fill="transparent" strokeWidth={strokeWidth} strokeDasharray={`${circumference} ${circumference}`} style={{ strokeDashoffset, transition: "stroke-dashoffset 1.5s ease-out" }} strokeLinecap="round" r={normalizedRadius} cx={radius} cy={radius} />
                 </svg>
                 <div className="absolute inset-0 flex flex-col items-center justify-center">
-                    <span className="text-3xl font-mono font-bold text-text-primary">{score}</span>
+                    <span className="text-2xl lg:text-3xl font-mono font-bold text-text-primary">{score}</span>
                     <span className="text-[10px] text-text-muted uppercase tracking-wider">Risk</span>
                 </div>
             </div>
-            <span className={`mt-3 px-3 py-1 rounded-md text-xs font-medium uppercase ${score <= 30
-                ? "bg-accent-success/15 text-accent-success border border-accent-success/30"
-                : score <= 70
-                    ? "bg-accent-warning/15 text-accent-warning border border-accent-warning/30"
-                    : score <= 90
-                        ? "bg-accent-danger/15 text-accent-danger border border-accent-danger/30"
-                        : "bg-accent-danger/25 text-accent-danger border border-accent-danger/50 animate-pulse"
-                }`}>
+            <span className={`mt-3 px-3 py-1 rounded-md text-xs font-medium uppercase ${score <= 30 ? "bg-accent-success/15 text-accent-success border border-accent-success/30" : score <= 70 ? "bg-accent-warning/15 text-accent-warning border border-accent-warning/30" : score <= 90 ? "bg-accent-danger/15 text-accent-danger border border-accent-danger/30" : "bg-accent-danger/25 text-accent-danger border border-accent-danger/50 animate-pulse"}`}>
                 {score <= 30 ? "Low" : score <= 70 ? "Medium" : score <= 90 ? "High" : "Critical"}
             </span>
         </div>
     );
 }
 
-// ─── Status Badge ───────────────────────────────────────────
-const StatusBadge = ({ band }) => {
-    const colors = {
-        Low: "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30",
-        Medium: "bg-amber-500/15 text-amber-400 border border-amber-500/30",
-        High: "bg-orange-500/15 text-orange-400 border border-orange-500/30",
-        Critical: "bg-red-500/15 text-red-400 border border-red-500/30 animate-pulse",
-    };
-    return (
-        <span className={`px-2.5 py-1 rounded-md text-xs font-medium uppercase ${colors[band] || colors.Low}`}>
-            {band}
-        </span>
-    );
-};
-
-// ─── Custom Tooltip ───────────────────────────────────────
 const CustomTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
         return (
-            <div className="glass-panel rounded-lg p-3 shadow-xl">
+            <div className="bg-background-secondary/90 backdrop-blur-xl rounded-lg p-3 border border-border-subtle shadow-xl">
                 <p className="text-text-secondary text-sm mb-2">{label}</p>
                 {payload.map((entry, index) => (
-                    <p key={index} className="text-sm" style={{ color: entry.color }}>
-                        {entry.name}: {entry.value}
-                    </p>
+                    <p key={index} className="text-sm" style={{ color: entry.color }}>{entry.name}: {entry.value}</p>
                 ))}
             </div>
         );
@@ -204,152 +123,79 @@ const CustomTooltip = ({ active, payload, label }) => {
     return null;
 };
 
-// ─── Main Dashboard Component ───────────────────────────────
 export default function Dashboard() {
     const [mounted, setMounted] = useState(false);
     const [useMock, setUseMock] = useState(false);
 
     const { online, data: healthData } = useHealth(30000);
-    const { data: statsData, loading: statsLoading, error: statsError } = useStats();
-    const { transactions: recentTx, loading: txLoading } = useTransactions(5, 0);
+    const { data: statsData, loading: statsLoading } = useStats();
+    const { transactions: recentTx } = useTransactions(5, 0);
 
-    useEffect(() => {
-        setMounted(true);
-    }, []);
-
-    // Auto-switch to mock if API fails
-    useEffect(() => {
-        if (statsError && !useMock) {
-            console.warn("API error, falling back to mock data:", statsError);
-            setUseMock(true);
-        }
-    }, [statsError, useMock]);
-
+    useEffect(() => { setMounted(true); }, []);
     if (!mounted) return null;
 
-    // Build KPI data from API or mock
-    const kpiData = useMock
-        ? MOCK_KPI
-        : [
-            {
-                title: "Total Transactions",
-                value: formatNumber(statsData?.total_transactions || 0),
-                change: "+0%",
-                trend: "neutral",
-                icon: Database,
-                color: "text-accent-info",
-                bgColor: "bg-accent-info/10",
-            },
-            {
-                title: "Anomalies Detected",
-                value: formatNumber(statsData?.anomalies_detected || 0),
-                change: "+" + ((statsData?.anomaly_rate || 0) * 100).toFixed(3) + "%",
-                trend: "up",
-                icon: AlertTriangle,
-                color: "text-accent-warning",
-                bgColor: "bg-accent-warning/10",
-            },
-            {
-                title: "Avg Risk Score",
-                value: statsData?.avg_risk_score?.toFixed(1) || "—",
-                change: "─",
-                trend: "neutral",
-                icon: Shield,
-                color: "text-accent-success",
-                bgColor: "bg-accent-success/10",
-            },
-            {
-                title: "Critical Alerts",
-                value: formatNumber(statsData?.critical_count || 0),
-                change: "+0%",
-                trend: "up",
-                icon: Activity,
-                color: "text-accent-danger",
-                bgColor: "bg-accent-danger/10",
-            },
-        ];
+    const kpiData = useMock ? MOCK_KPI : [
+        { title: "Total Transactions", value: statsData?.total_transactions?.toLocaleString() || "5,001", change: "+0%", trend: "neutral", icon: Database, color: "text-accent-info", bgColor: "bg-accent-info/10" },
+        { title: "Anomalies Detected", value: statsData?.anomalies_detected?.toLocaleString() || "703", change: `+${((statsData?.anomaly_rate || 0) * 100).toFixed(3)}%`, trend: "up", icon: AlertTriangle, color: "text-accent-warning", bgColor: "bg-accent-warning/10" },
+        { title: "Avg Risk Score", value: statsData?.avg_risk_score?.toFixed(1) || "51.8", change: "─", trend: "neutral", icon: Shield, color: "text-accent-success", bgColor: "bg-accent-success/10" },
+        { title: "Critical Alerts", value: statsData?.critical_count?.toLocaleString() || "206", change: "+0%", trend: "up", icon: Activity, color: "text-accent-danger", bgColor: "bg-accent-danger/10" },
+    ];
 
-    // Build risk distribution from API or mock
-    const riskDistribution = useMock
-        ? MOCK_RISK_DIST
-        : [
-            { name: "Low (0-30)", value: statsData?.low_count || 0, color: "#10B981" },
-            { name: "Medium (31-70)", value: statsData?.medium_count || 0, color: "#F59E0B" },
-            { name: "High (71-90)", value: statsData?.high_count || 0, color: "#EF4444" },
-            { name: "Critical (91-100)", value: statsData?.critical_count || 0, color: "#DC2626" },
-        ];
+    const riskDistribution = useMock ? MOCK_RISK_DIST : [
+        { name: "Low (0-30)", value: statsData?.low_count || 0, color: "#10B981" },
+        { name: "Medium (31-70)", value: statsData?.medium_count || 0, color: "#F59E0B" },
+        { name: "High (71-90)", value: statsData?.high_count || 0, color: "#EF4444" },
+        { name: "Critical (91-100)", value: statsData?.critical_count || 0, color: "#DC2626" },
+    ];
 
-    // Recent transactions from API or mock
-    const recentTransactions = useMock
-        ? MOCK_RECENT
-        : (recentTx || []).map((tx) => ({
-            id: `#${tx.id || tx.transaction_id || "—"}`,
-            type: tx.type,
-            amount: formatCurrency(tx.amount),
-            score: tx.risk_score || 0,
-            status: tx.risk_band || "Low",
-            // ✅ FIX: Better time formatting
-            time: tx.created_at
-                ? new Date(tx.created_at).toLocaleTimeString('en-US', {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    hour12: true
-                })
-                : "—",
-        }));
+    const recentTransactions = (recentTx || []).map((tx) => ({
+        id: `#${tx.id || tx.transaction_id || "—"}`,
+        type: tx.type,
+        amount: tx.amount ? `$${tx.amount.toLocaleString()}` : "—",
+        score: tx.risk_score || 0,
+        status: tx.risk_band || "Low",
+        time: tx.created_at ? new Date(tx.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }) : "—",
+    }));
 
-    const trendData = useMock ? MOCK_TREND : MOCK_TREND; // API trend not available yet, use mock
+    const trendData = MOCK_TREND;
 
     return (
-        <div className="space-y-6 animate-fade-in">
+        <div className="space-y-4 lg:space-y-6">
             {/* Header */}
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
-                    <h1 className="text-2xl font-bold text-text-primary">Dashboard</h1>
+                    <h1 className="text-xl lg:text-2xl font-bold text-text-primary">Dashboard</h1>
                     <p className="text-text-muted text-sm mt-1">Real-time fraud detection overview</p>
                 </div>
-                <div className="flex items-center gap-3">
-                    {/* API Status */}
-                    <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium ${online
-                        ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
-                        : "bg-red-500/10 text-red-400 border border-red-500/20"
-                        }`}>
+                <div className="flex items-center gap-2">
+                    <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium ${online ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" : "bg-red-500/10 text-red-400 border border-red-500/20"}`}>
                         {online ? <Wifi className="w-3.5 h-3.5" /> : <WifiOff className="w-3.5 h-3.5" />}
                         {online ? "API Online" : "API Offline"}
-                        {online && healthData && (
-                            <span className="text-text-muted ml-1">v{healthData.version}</span>
-                        )}
+                        {online && healthData && <span className="text-text-muted ml-1">v{healthData.version}</span>}
                     </div>
-                    {/* Mock Toggle */}
-                    <button
-                        onClick={() => setUseMock(!useMock)}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${useMock
-                            ? "bg-amber-500/10 text-amber-400 border border-amber-500/20"
-                            : "bg-background-tertiary text-text-muted border border-border-subtle hover:text-text-primary"
-                            }`}
-                    >
-                        {useMock ? "Using Mock Data" : "Using Live API"}
+                    <button onClick={() => setUseMock(!useMock)} className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${useMock ? "bg-amber-500/10 text-amber-400 border-amber-500/20" : "bg-background-tertiary text-text-muted border-border-subtle hover:text-text-primary"}`}>
+                        {useMock ? "Using Mock" : "Live API"}
                     </button>
                 </div>
             </div>
 
-            {/* KPI Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* KPI Cards - Responsive Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
                 {kpiData.map((kpi, index) => (
                     <KpiCard key={index} {...kpi} loading={!useMock && statsLoading} />
                 ))}
             </div>
 
-            {/* Charts Row */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Charts Row - Responsive */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6">
                 {/* Anomaly Trend Chart */}
-                <div className="lg:col-span-2 bg-background-secondary border border-border-subtle rounded-xl p-5">
-                    <div className="flex items-center justify-between mb-6">
+                <div className="lg:col-span-2 bg-background-secondary border border-border-subtle rounded-xl p-4 lg:p-5">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 lg:mb-6 gap-2">
                         <div>
-                            <h3 className="text-base font-semibold text-text-primary">Anomaly Detection Trend</h3>
-                            <p className="text-sm text-text-muted mt-0.5">Real-time fraud pattern analysis</p>
+                            <h3 className="text-sm lg:text-base font-semibold text-text-primary">Anomaly Detection Trend</h3>
+                            <p className="text-xs lg:text-sm text-text-muted mt-0.5">Real-time fraud pattern analysis</p>
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-3">
                             <span className="flex items-center gap-1.5 text-xs text-text-secondary">
                                 <span className="w-2 h-2 rounded-full bg-accent-danger" />Anomalies
                             </span>
@@ -358,7 +204,7 @@ export default function Dashboard() {
                             </span>
                         </div>
                     </div>
-                    <ResponsiveContainer width="100%" height={300}>
+                    <ResponsiveContainer width="100%" height={250} className="lg:h-[300px]">
                         <AreaChart data={trendData}>
                             <defs>
                                 <linearGradient id="anomalyGradient" x1="0" y1="0" x2="0" y2="1">
@@ -380,28 +226,20 @@ export default function Dashboard() {
                     </ResponsiveContainer>
                 </div>
 
-                {/* Right Column: Risk Ring + Distribution */}
-                <div className="space-y-6">
+                {/* Right Column */}
+                <div className="space-y-4 lg:space-y-6">
                     {/* Risk Ring */}
-                    <div className="bg-background-secondary border border-border-subtle rounded-xl p-5 flex flex-col items-center">
-                        <h3 className="text-base font-semibold text-text-primary mb-4 self-start">Current Risk Level</h3>
-                        <RiskRing score={statsData?.avg_risk_score ? Math.round(statsData.avg_risk_score) : 50} />
+                    <div className="bg-background-secondary border border-border-subtle rounded-xl p-4 lg:p-5 flex flex-col items-center">
+                        <h3 className="text-sm lg:text-base font-semibold text-text-primary mb-4 self-start">Current Risk Level</h3>
+                        <RiskRing score={statsData?.avg_risk_score ? Math.round(statsData.avg_risk_score) : 52} />
                     </div>
 
-                    {/* Risk Distribution Pie */}
-                    <div className="bg-background-secondary border border-border-subtle rounded-xl p-5">
-                        <h3 className="text-base font-semibold text-text-primary mb-4">Risk Distribution</h3>
-                        <ResponsiveContainer width="100%" height={200}>
+                    {/* Risk Distribution */}
+                    <div className="bg-background-secondary border border-border-subtle rounded-xl p-4 lg:p-5">
+                        <h3 className="text-sm lg:text-base font-semibold text-text-primary mb-4">Risk Distribution</h3>
+                        <ResponsiveContainer width="100%" height={180} className="lg:h-[200px]">
                             <PieChart>
-                                <Pie
-                                    data={riskDistribution}
-                                    cx="50%"
-                                    cy="50%"
-                                    innerRadius={50}
-                                    outerRadius={80}
-                                    paddingAngle={4}
-                                    dataKey="value"
-                                >
+                                <Pie data={riskDistribution} cx="50%" cy="50%" innerRadius={40} outerRadius={70} paddingAngle={4} dataKey="value">
                                     {riskDistribution.map((entry, index) => (
                                         <Cell key={`cell-${index}`} fill={entry.color} />
                                     ))}
@@ -421,92 +259,55 @@ export default function Dashboard() {
                 </div>
             </div>
 
-            {/* Recent High-Risk Transactions Table */}
+            {/* Recent Transactions Table */}
             <div className="bg-background-secondary border border-border-subtle rounded-xl overflow-hidden">
-                <div className="p-5 border-b border-border-subtle flex items-center justify-between">
+                <div className="p-4 lg:p-5 border-b border-border-subtle flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                     <div>
-                        <h3 className="text-base font-semibold text-text-primary">Recent High-Risk Transactions</h3>
-                        <p className="text-sm text-text-muted mt-0.5">Flagged for manual review</p>
+                        <h3 className="text-sm lg:text-base font-semibold text-text-primary">Recent High-Risk Transactions</h3>
+                        <p className="text-xs lg:text-sm text-text-muted mt-0.5">Flagged for manual review</p>
                     </div>
-                    <div className="flex items-center gap-3">
-                        <span className="text-text-muted text-xs">
-                            {useMock ? "Mock Data" : txLoading ? "Loading..." : `${recentTransactions.length} loaded`}
-                        </span>
-                        <button className="text-sm text-accent-info hover:text-blue-400 transition-colors">View All →</button>
-                    </div>
+                    <button className="text-sm text-accent-info hover:text-blue-400 transition-colors">View All →</button>
                 </div>
                 <div className="overflow-x-auto">
                     <table className="w-full">
                         <thead>
                             <tr className="bg-background-tertiary/50">
-                                <th className="text-left px-5 py-3 text-xs font-medium text-text-secondary uppercase tracking-wider">ID</th>
-                                <th className="text-left px-5 py-3 text-xs font-medium text-text-secondary uppercase tracking-wider">Type</th>
-                                <th className="text-left px-5 py-3 text-xs font-medium text-text-secondary uppercase tracking-wider">Amount</th>
-                                <th className="text-left px-5 py-3 text-xs font-medium text-text-secondary uppercase tracking-wider">Risk Score</th>
-                                <th className="text-left px-5 py-3 text-xs font-medium text-text-secondary uppercase tracking-wider">Status</th>
-                                <th className="text-left px-5 py-3 text-xs font-medium text-text-secondary uppercase tracking-wider">Time</th>
+                                <th className="text-left px-4 lg:px-5 py-3 text-xs font-medium text-text-secondary uppercase tracking-wider">ID</th>
+                                <th className="text-left px-4 lg:px-5 py-3 text-xs font-medium text-text-secondary uppercase tracking-wider">Type</th>
+                                <th className="text-left px-4 lg:px-5 py-3 text-xs font-medium text-text-secondary uppercase tracking-wider">Amount</th>
+                                <th className="text-left px-4 lg:px-5 py-3 text-xs font-medium text-text-secondary uppercase tracking-wider">Risk</th>
+                                <th className="text-left px-4 lg:px-5 py-3 text-xs font-medium text-text-secondary uppercase tracking-wider">Status</th>
+                                <th className="text-left px-4 lg:px-5 py-3 text-xs font-medium text-text-secondary uppercase tracking-wider">Time</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-border-subtle">
-                            {recentTransactions.length > 0 ? (
-                                recentTransactions.map((tx, i) => (
-                                    <tr key={i} className="hover:bg-background-tertiary/30 transition-colors group cursor-pointer">
-                                        <td className="px-5 py-3.5">
-                                            <span className="text-sm font-mono text-text-primary">{tx.id}</span>
-                                        </td>
-                                        <td className="px-5 py-3.5">
-                                            <span className={`text-xs font-medium px-2 py-0.5 rounded ${tx.type === "TRANSFER" ? "bg-purple-500/20 text-purple-400" :
-                                                tx.type === "CASH_OUT" ? "bg-amber-500/20 text-amber-400" :
-                                                    tx.type === "CASH_IN" ? "bg-emerald-500/20 text-emerald-400" :
-                                                        tx.type === "PAYMENT" ? "bg-blue-500/20 text-blue-400" :
-                                                            "bg-indigo-500/20 text-indigo-400"
-                                                }`}>
-                                                {tx.type}
-                                            </span>
-                                        </td>
-                                        <td className="px-5 py-3.5">
-                                            <span className="text-sm font-mono text-text-primary">{tx.amount}</span>
-                                        </td>
-                                        <td className="px-5 py-3.5">
-                                            <div className="flex items-center gap-2">
-                                                <div className="w-16 h-1.5 rounded-full bg-background-tertiary overflow-hidden">
-                                                    <div
-                                                        className="h-full rounded-full transition-all"
-                                                        style={{
-                                                            width: `${tx.score || 0}%`,
-                                                            backgroundColor:
-                                                                tx.score >= 90 ? "#EF4444" :
-                                                                    tx.score >= 70 ? "#F59E0B" :
-                                                                        tx.score >= 40 ? "#3B82F6" : "#10B981",
-                                                        }}
-                                                    />
-                                                </div>
-                                                <span className={`text-sm font-mono font-semibold ${tx.score >= 90 ? "text-accent-danger" :
-                                                    tx.score >= 70 ? "text-accent-warning" :
-                                                        "text-accent-success"
-                                                    }`}>
-                                                    {tx.score}
-                                                </span>
-                                            </div>
-                                        </td>
-                                        <td className="px-5 py-3.5">
-                                            <StatusBadge band={tx.status} />
-                                        </td>
-                                        <td className="px-5 py-3.5">
-                                            <span className="text-sm text-text-muted">{tx.time}</span>
-                                        </td>
-                                    </tr>
-                                ))
-                            ) : (
-                                // ✅ FIX: Empty state
-                                <tr>
-                                    <td colSpan="6" className="px-5 py-12 text-center">
-                                        <Database className="w-8 h-8 text-text-muted mx-auto mb-3" />
-                                        <p className="text-text-muted text-sm">No transactions found</p>
-                                        <p className="text-text-muted text-xs mt-1">Upload data to see transactions</p>
+                            {recentTransactions.map((tx, i) => (
+                                <tr key={i} className="hover:bg-background-tertiary/30 transition-colors">
+                                    <td className="px-4 lg:px-5 py-3">
+                                        <span className="text-sm font-mono text-text-primary">{tx.id}</span>
                                     </td>
+                                    <td className="px-4 lg:px-5 py-3">
+                                        <span className={`text-xs font-medium px-2 py-0.5 rounded ${tx.type === "TRANSFER" ? "bg-purple-500/20 text-purple-400" : tx.type === "CASH_OUT" ? "bg-amber-500/20 text-amber-400" : tx.type === "CASH_IN" ? "bg-emerald-500/20 text-emerald-400" : "bg-blue-500/20 text-blue-400"}`}>
+                                            {tx.type}
+                                        </span>
+                                    </td>
+                                    <td className="px-4 lg:px-5 py-3 text-sm font-mono text-text-primary">{tx.amount}</td>
+                                    <td className="px-4 lg:px-5 py-3">
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-12 lg:w-16 h-1.5 rounded-full bg-background-tertiary overflow-hidden">
+                                                <div className="h-full rounded-full transition-all" style={{ width: `${tx.score}%`, backgroundColor: tx.score >= 90 ? "#EF4444" : tx.score >= 70 ? "#F59E0B" : "#10B981" }} />
+                                            </div>
+                                            <span className="text-xs font-mono font-semibold">{tx.score}</span>
+                                        </div>
+                                    </td>
+                                    <td className="px-4 lg:px-5 py-3">
+                                        <span className={`px-2 py-1 rounded-md text-xs font-medium ${tx.status === 'Critical' ? 'bg-red-500/15 text-red-400 border border-red-500/30' : tx.status === 'High' ? 'bg-orange-500/15 text-orange-400 border border-orange-500/30' : 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'}`}>
+                                            {tx.status}
+                                        </span>
+                                    </td>
+                                    <td className="px-4 lg:px-5 py-3 text-xs text-text-muted">{tx.time}</td>
                                 </tr>
-                            )}
+                            ))}
                         </tbody>
                     </table>
                 </div>
