@@ -76,6 +76,7 @@ export default function TopBar({ sidebarCollapsed }) {
                                 placeholder="Search transactions..."
                                 className="w-full bg-background-tertiary border border-border-subtle rounded-lg pl-9 pr-4 py-2 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent-info"
                                 autoFocus
+                                onBlur={() => setTimeout(() => setSearchOpen(false), 200)}
                             />
                         </div>
                         <button

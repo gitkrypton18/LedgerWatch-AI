@@ -14,7 +14,7 @@ export default function Layout() {
     }, [location.pathname]);
 
     return (
-        <div className="min-h-screen bg-background-primary">
+        <div className="min-h-screen bg-background-primary relative">
             {/* Mobile Hamburger */}
             <button
                 className="lg:hidden fixed top-4 left-4 z-[60] p-2.5 bg-background-secondary rounded-xl border border-border-subtle shadow-lg"
@@ -51,13 +51,11 @@ export default function Layout() {
 
             {/* Main Content */}
             <div className={`
-                flex flex-col min-h-screen
+                min-h-screen transition-all duration-300
                 ${sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-60'}
             `}>
                 <TopBar sidebarCollapsed={sidebarCollapsed} />
-
-                {/* ✅ FIX: pt-16 hatao, h-full add karo */}
-                <main className="flex-1 p-4 lg:p-6 overflow-y-auto">
+                <main className="pt-16 p-4 lg:p-6 min-h-screen">
                     <Outlet />
                 </main>
             </div>

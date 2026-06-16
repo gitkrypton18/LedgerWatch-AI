@@ -7,99 +7,79 @@ import {
     List,
     Settings,
     Upload,
-    Zap
 } from 'lucide-react';
-import { Link, useLocation } from 'react-router-dom';
-import { useHealth } from "../../hooks/useApi";
+import { NavLink } from 'react-router-dom';
 
 const navItems = [
-    { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { path: '/upload', label: 'Upload', icon: Upload },
-    { path: '/transactions', label: 'Transactions', icon: List },
-    { path: '/explain', label: 'Explainability', icon: Brain },
-    { path: '/analytics', label: 'Analytics', icon: BarChart3 },
-    { path: '/settings', label: 'Settings', icon: Settings },
+    { path: '/', icon: LayoutDashboard, label: 'Dashboard' },
+    { path: '/upload', icon: Upload, label: 'Upload' },
+    { path: '/transactions', icon: List, label: 'Transactions' },
+    { path: '/explain', icon: Brain, label: 'Explainability' },
+    { path: '/analytics', icon: BarChart3, label: 'Analytics' },
+    { path: '/settings', icon: Settings, label: 'Settings' },
 ];
 
-// ✅ FIX: Accept props from Layout
 export default function Sidebar({ collapsed, onToggle }) {
-    const location = useLocation();
-
-    // ✅ REAL API STATUS — hook use karo!
-    const { online, data, loading } = useHealth(30000);
-
     return (
-        <aside
-            className={`fixed left-0 top-0 h-screen bg-background-secondary border-r border-border-subtle transition-all duration-300 z-50 flex flex-col ${collapsed ? 'w-16' : 'w-60'
-                }`}
-        >
-            {/* Logo + Toggle Button */}
-            <div className="h-16 flex items-center px-4 border-b border-border-subtle justify-between">
-                <div className="flex items-center overflow-hidden">
-                    <Zap className="w-7 h-7 text-accent-success flex-shrink-0" />
+        <div className="h-full flex flex-col">
+            {/* Logo */}
+            <div className="h-16 flex items-center justify-between px-4 border-b border-border-subtle">
+                <div className={`flex items-center gap-3 ${collapsed ? 'justify-center w-full' : ''}`}>
+                    <div className="w-8 h-8 rounded-lg bg-accent-info/20 flex items-center justify-center flex-shrink-0">
+                        <svg className="w-5 h-5 text-accent-info" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+                        </svg>
+                    </div>
                     {!collapsed && (
-                        <div className="ml-3 overflow-hidden">
-                            <h1 className="text-lg font-bold bg-gradient-to-r from-accent-success to-accent-info bg-clip-text text-transparent whitespace-nowrap">
-                                LedgerWatch
-                            </h1>
-                            <p className="text-[10px] text-text-muted -mt-1 tracking-wider">AI</p>
+                        <div>
+                            <h1 className="text-lg font-bold text-text-primary leading-tight">LedgerWatch</h1>
+                            <p className="text-[10px] text-text-muted uppercase tracking-wider">AI</p>
                         </div>
                     )}
                 </div>
-
-                {/* ✅ NEW: Toggle button */}
                 <button
                     onClick={onToggle}
-                    className="p-1 rounded-lg hover:bg-background-tertiary text-text-muted transition-colors flex-shrink-0"
-                    title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+                    className="hidden lg:flex p-1.5 rounded-lg hover:bg-background-tertiary transition-colors"
                 >
                     {collapsed ? (
-                        <ChevronRight className="w-4 h-4" />
+                        <ChevronRight className="w-4 h-4 text-text-muted" />
                     ) : (
-                        <ChevronLeft className="w-4 h-4" />
+                        <ChevronLeft className="w-4 h-4 text-text-muted" />
                     )}
                 </button>
             </div>
 
             {/* Navigation */}
-            <nav className="flex-1 py-4 px-2 space-y-1">
-                {navItems.map((item) => {
-                    const Icon = item.icon;
-                    const isActive = location.pathname === item.path;
-                    return (
-                        <Link
-                            key={item.path}
-                            to={item.path}
-                            className={`flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 group ${isActive
-                                ? 'bg-background-tertiary border-l-[3px] border-accent-info text-accent-info'
-                                : 'text-text-secondary hover:bg-background-tertiary/50 hover:text-text-primary border-l-[3px] border-transparent'
-                                }`}
-                        >
-                            <Icon className={`w-5 h-5 flex-shrink-0 ${isActive ? 'text-accent-info' : 'text-text-secondary group-hover:text-text-primary'}`} />
-                            {!collapsed && <span className="ml-3 text-sm font-medium whitespace-nowrap">{item.label}</span>}
-                        </Link>
-                    );
-                })}
+            <nav className="flex-1 py-4 px-3 space-y-1 overflow-y-auto">
+                {navItems.map((item) => (
+                    <NavLink
+                        key={item.path}
+                        to={item.path}
+                        className={({ isActive }) =>
+                            `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${isActive
+                                ? 'bg-accent-info/10 text-accent-info border border-accent-info/20'
+                                : 'text-text-secondary hover:bg-background-tertiary hover:text-text-primary'
+                            } ${collapsed ? 'justify-center' : ''}`
+                        }
+                    >
+                        <item.icon className="w-5 h-5 flex-shrink-0" />
+                        {!collapsed && <span>{item.label}</span>}
+                    </NavLink>
+                ))}
             </nav>
 
-            {/* Status — REAL API STATUS */}
-            <div className="p-3 border-t border-border-subtle">
-                <div className={`flex items-center ${collapsed ? 'justify-center' : 'px-2'}`}>
-                    {/* ✅ Dynamic dot color based on API status */}
-                    <div className={`w-2 h-2 rounded-full ${loading ? 'bg-amber-400 animate-pulse' : online ? 'bg-emerald-400 animate-pulse' : 'bg-red-400'} flex-shrink-0`} />
+            {/* Bottom Status */}
+            <div className="p-4 border-t border-border-subtle">
+                <div className={`flex items-center gap-2 ${collapsed ? 'justify-center' : ''}`}>
+                    <span className="w-2 h-2 rounded-full bg-accent-success animate-pulse" />
                     {!collapsed && (
-                        <div className="ml-2 text-xs">
-                            <p className={online ? 'text-emerald-400' : 'text-red-400'}>
-                                {loading ? 'Checking...' : online ? 'API Online' : 'API Offline'}
-                            </p>
-                            {/* ✅ Real version from API */}
-                            <p className="text-text-muted">
-                                {data?.version ? `v${data.version}` : 'v1.0.0'}
-                            </p>
+                        <div>
+                            <p className="text-xs text-accent-success font-medium">API Online</p>
+                            <p className="text-[10px] text-text-muted">v1.0.0</p>
                         </div>
                     )}
                 </div>
             </div>
-        </aside>
+        </div>
     );
 }
