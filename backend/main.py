@@ -462,13 +462,15 @@ async def predict(
     return PredictionResult(**result)
 
 
+# ✅ FIX: batch_predict — accepts both single file and multiple files
 @app.post(
     "/batch-predict",
     response_model=BatchPredictionResponse,
     dependencies=[Depends(verify_api_key)],
 )
 async def batch_predict(
-    files: list[UploadFile] = File(...),  # ✅ FIX: Accept multiple files
+    files: list[UploadFile] = File(default=[]),  # ✅ Optional list
+    file: UploadFile = File(None),  # ✅ Single file fallback
     explain: bool = Query(default=False),
     db: Session = Depends(get_db),
 ):
@@ -476,21 +478,30 @@ async def batch_predict(
     if app.state.model is None or app.state.risk_engine is None:
         raise HTTPException(status_code=503, detail="Model or risk engine not loaded")
 
+    # ✅ FIX: Combine both parameters
+    all_files = list(files) if files else []
+    if file:
+        all_files.append(file)
+
+    if not all_files:
+        raise HTTPException(status_code=400, detail="No files provided")
+
     all_results = []
     anomalies_detected = 0
     total_processed = 0
 
-    for file in files:
-        ext = file.filename.lower().split(".")[-1]
+    # ✅ FIX: Use 'f' instead of 'file' to avoid shadowing
+    for f in all_files:
+        ext = f.filename.lower().split(".")[-1]
 
         # ═══════════════════════════════════════════════════════════════
         # ✅ FIX: Handle image/PDF files via OCR
         # ═══════════════════════════════════════════════════════════════
         if ext in ["png", "jpg", "jpeg", "pdf", "tiff", "tif"]:
-            logger.info(f"Processing OCR file: {file.filename}")
+            logger.info(f"Processing OCR file: {f.filename}")
 
             try:
-                ocr_result = await process_ocr_file(file, app.state.ocr)
+                ocr_result = await process_ocr_file(f, app.state.ocr)
                 logger.info(f"OCR extracted: {ocr_result}")
 
                 # Create transaction from OCR data
@@ -549,7 +560,7 @@ async def batch_predict(
                 )
 
             except Exception as e:
-                logger.error(f"OCR processing failed for {file.filename}: {e}")
+                logger.error(f"OCR processing failed for {f.filename}: {e}")
                 import traceback
 
                 logger.error(traceback.format_exc())
@@ -559,14 +570,14 @@ async def batch_predict(
         # CSV Processing (existing code)
         # ═══════════════════════════════════════════════════════════════
         elif ext == "csv":
-            logger.info(f"Processing CSV file: {file.filename}")
+            logger.info(f"Processing CSV file: {f.filename}")
 
-            if not file.filename.endswith(".csv"):
+            if not f.filename.endswith(".csv"):
                 raise HTTPException(status_code=400, detail="Only CSV files accepted")
 
             # Read file
             MAX_BATCH_SIZE = 500 * 1024 * 1024
-            contents = await file.read(MAX_BATCH_SIZE + 1)
+            contents = await f.read(MAX_BATCH_SIZE + 1)
             if len(contents) > MAX_BATCH_SIZE:
                 raise HTTPException(
                     status_code=413, detail="File too large. Max 500MB."
