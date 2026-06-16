@@ -100,7 +100,7 @@ async def lifespan(app: FastAPI):
                     risk_score = random.randint(5, 98)
                     risk_band = get_risk_band(risk_score)
                     is_anomaly = risk_score >= 85  # Critical/High = anomaly
-                    
+
                     records.append(
                         {
                             "step": int(row["step"]),
@@ -120,10 +120,10 @@ async def lifespan(app: FastAPI):
                                 if "isFlaggedFraud" in row
                                 else None
                             ),
-                            "risk_score": risk_score,           # ✅ Same value
-                            "risk_band": risk_band,              # ✅ Derived from same score
-                            "is_anomaly": is_anomaly,            # ✅ Consistent logic
-                            "created_at": datetime.utcnow(),   # ✅ Add timestamp
+                            "risk_score": risk_score,  # ✅ Same value
+                            "risk_band": risk_band,  # ✅ Derived from same score
+                            "is_anomaly": is_anomaly,  # ✅ Consistent logic
+                            "created_at": datetime.utcnow(),  # ✅ Add timestamp
                         }
                     )
 
@@ -346,6 +346,23 @@ def predict_single(
 
 
 # ─── Endpoints ───────────────────────────────────────────────────────────────
+
+
+@app.get("/docs")
+async def docs_redirect():
+    """Redirect to API documentation."""
+    return {
+        "message": "API Docs",
+        "endpoints": [
+            "/health",
+            "/predict",
+            "/batch-predict",
+            "/transactions",
+            "/stats",
+            "/ocr",
+            "/retrain",
+        ],
+    }
 
 
 @app.api_route("/", methods=["GET", "HEAD"])
