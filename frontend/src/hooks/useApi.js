@@ -14,6 +14,7 @@ export const useHealth = (pollInterval = 30000) => {
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [isBlocked, setIsBlocked] = useState(false);
 
     const check = useCallback(async () => {
         try {
@@ -21,9 +22,12 @@ export const useHealth = (pollInterval = 30000) => {
             setOnline(result?.status === 'ok');
             setData(result);
             setError(null);
+            setIsBlocked(false);
         } catch (err) {
             setOnline(false);
             setError(err.message);
+            setIsBlocked(err.isAdBlocker || false);
+            setData(null);
         } finally {
             setLoading(false);
         }
@@ -35,9 +39,8 @@ export const useHealth = (pollInterval = 30000) => {
         return () => clearInterval(interval);
     }, [check, pollInterval]);
 
-    return { online, data, loading, error, check };
+    return { online, data, loading, error, isBlocked, check };
 };
-
 // ─── useStats ─────────────────────────────────────────────────
 export const useStats = () => {
     const [data, setData] = useState(null);
