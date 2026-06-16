@@ -407,19 +407,17 @@ async def batch_predict(
     explain: bool = Query(default=False),
     db: Session = Depends(get_db),
 ):
-    """Bulk prediction from uploaded CSV."""
     if app.state.model is None or app.state.risk_engine is None:
         raise HTTPException(status_code=503, detail="Model or risk engine not loaded")
 
     if not file.filename.endswith(".csv"):
         raise HTTPException(status_code=400, detail="Only CSV files accepted")
 
+    # Read file
     MAX_BATCH_SIZE = 500 * 1024 * 1024
     contents = await file.read(MAX_BATCH_SIZE + 1)
     if len(contents) > MAX_BATCH_SIZE:
         raise HTTPException(status_code=413, detail="File too large. Max 500MB.")
-
-    start = time.time()
 
     try:
         df = pd.read_csv(StringIO(contents.decode("utf-8")))
@@ -441,70 +439,87 @@ async def batch_predict(
     if missing:
         raise HTTPException(status_code=400, detail=f"Missing columns: {missing}")
 
-    # Batch prediction
-    features = engineer_features_from_df(df)
-    feature_cols = get_feature_columns(features)
-    X = features[feature_cols]
-    X_aligned = align_features(X, app.state.expected_features)
+    # ═══════════════════════════════════════════════════════════════
+    # CHUNKED PROCESSING — Process in batches of 1000 rows
+    # ═══════════════════════════════════════════════════════════════
+    CHUNK_SIZE = 1000
+    total_rows = len(df)
+    all_results = []
+    anomalies_detected = 0
 
-    anomaly_scores = app.state.model.score_samples(X_aligned)
-    raw_predictions = app.state.model.predict(X_aligned)
+    logger.info(f"Processing {total_rows} rows in chunks of {CHUNK_SIZE}")
 
-    n = len(df)
+    for chunk_start in range(0, total_rows, CHUNK_SIZE):
+        chunk_end = min(chunk_start + CHUNK_SIZE, total_rows)
+        chunk_df = df.iloc[chunk_start:chunk_end]
 
-    sorted_indices = np.argsort(anomaly_scores)
-    risk_scores = [0] * n
-    for rank, idx in enumerate(sorted_indices):
-        risk_scores[idx] = int(100 * (1 - rank / max(n - 1, 1)))
+        logger.info(f"Processing chunk {chunk_start}-{chunk_end}...")
 
-    risk_bands = [get_risk_band(s) for s in risk_scores]
+        # Process chunk
+        features = engineer_features_from_df(chunk_df)
+        feature_cols = get_feature_columns(features)
+        X = features[feature_cols]
+        X_aligned = align_features(X, app.state.expected_features)
 
-    anomaly_threshold_idx = int(n * 0.05)
-    is_anomalies = [False] * n
-    for idx in sorted_indices[:anomaly_threshold_idx]:
-        is_anomalies[idx] = True
+        anomaly_scores = app.state.model.score_samples(X_aligned)
+        raw_predictions = app.state.model.predict(X_aligned)
 
-    results = []
-    for i in range(len(df)):
-        results.append(
-            PredictionResult(
-                transaction_id=i,
-                anomaly_score=float(anomaly_scores[i]),
-                risk_score=risk_scores[i],
-                risk_band=risk_bands[i],
-                is_anomaly=is_anomalies[i],
-                shap_values=None,
-                top_features=None,
+        n = len(chunk_df)
+        sorted_indices = np.argsort(anomaly_scores)
+        risk_scores = [0] * n
+        for rank, idx in enumerate(sorted_indices):
+            risk_scores[idx] = int(100 * (1 - rank / max(n - 1, 1)))
+
+        risk_bands = [get_risk_band(s) for s in risk_scores]
+
+        anomaly_threshold_idx = int(n * 0.05)
+        is_anomalies = [False] * n
+        for idx in sorted_indices[:anomaly_threshold_idx]:
+            is_anomalies[idx] = True
+
+        # Build results for chunk
+        for i in range(n):
+            all_results.append(
+                PredictionResult(
+                    transaction_id=chunk_start + i,
+                    anomaly_score=float(anomaly_scores[i]),
+                    risk_score=risk_scores[i],
+                    risk_band=risk_bands[i],
+                    is_anomaly=is_anomalies[i],
+                    shap_values=None,
+                    top_features=None,
+                )
             )
-        )
+            if is_anomalies[i]:
+                anomalies_detected += 1
 
-    anomalies_detected = sum(1 for r in results if r.is_anomaly)
+        # Save chunk to DB
+        for i, (_, row) in enumerate(chunk_df.iterrows()):
+            db_tx = DBTransaction(
+                step=int(row["step"]),
+                type=str(row["type"]),
+                amount=float(row["amount"]),
+                nameOrig=str(row["nameOrig"]),
+                oldbalanceOrg=float(row["oldbalanceOrg"]),
+                newbalanceOrig=float(row["newbalanceOrig"]),
+                nameDest=str(row["nameDest"]),
+                oldbalanceDest=float(row["oldbalanceDest"]),
+                newbalanceDest=float(row["newbalanceDest"]),
+                is_anomaly=is_anomalies[i],
+                risk_band=risk_bands[i],
+                risk_score=risk_scores[i],
+                isFraud=None,
+                isFlaggedFraud=None,
+            )
+            db.add(db_tx)
 
-    for i, row in df.iterrows():
-        db_tx = DBTransaction(
-            step=int(row["step"]),
-            type=str(row["type"]),
-            amount=float(row["amount"]),
-            nameOrig=str(row["nameOrig"]),
-            oldbalanceOrg=float(row["oldbalanceOrg"]),
-            newbalanceOrig=float(row["newbalanceOrig"]),
-            nameDest=str(row["nameDest"]),
-            oldbalanceDest=float(row["oldbalanceDest"]),
-            newbalanceDest=float(row["newbalanceDest"]),
-            is_anomaly=is_anomalies[i],
-            risk_band=risk_bands[i],
-            risk_score=risk_scores[i],
-            isFraud=None,
-            isFlaggedFraud=None,
-        )
-        db.add(db_tx)
-
-    db.commit()
+        db.commit()
+        logger.info(f"Chunk {chunk_start}-{chunk_end} complete")
 
     return BatchPredictionResponse(
-        total_processed=len(df),
+        total_processed=total_rows,
         anomalies_detected=anomalies_detected,
-        results=results,
+        results=all_results,
     )
 
 
