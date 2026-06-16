@@ -10,11 +10,17 @@ services:
         value: 3.11.0
       - key: API_KEY
         value: demo-key-123
+      # ✅ FIX: Render persistent disk path for database
       - key: DATABASE_URL
-        value: sqlite:///./ledgerwatch.db
+        value: sqlite:////opt/render/project/src/ledgerwatch.db
       - key: MODEL_PATH
-        value: saved_models/isolation_forest_v1.0.0.joblib  # ✅ FIXED
+        value: saved_models/isolation_forest_v1.0.0.joblib
       - key: RISK_ENGINE_PATH
-        value: saved_models/risk_engine_v1.0.0.joblib      # ✅ ADDED
+        value: saved_models/risk_engine_v1.0.0.joblib
+    # ✅ FIX: Add persistent disk for database storage
+    disk:
+      name: ledgerwatch-data
+      mountPath: /opt/render/project/src
+      sizeGB: 1
     healthCheckPath: /health
     autoDeploy: true
