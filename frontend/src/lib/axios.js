@@ -50,21 +50,37 @@ export const predict = async (transactionData, explain = true) => {
   return data;
 };
 
-export const batchPredict = async (file) => {
+// ✅ FIX: batchPredict with progress callback
+export const batchPredict = async (file, onProgress = null) => {
   const formData = new FormData();
   formData.append('file', file);
-  const { data } = await api.post('/batch-predict', formData, {
+  
+  const config = {
     headers: { 'Content-Type': 'multipart/form-data' },
-  });
+    onUploadProgress: onProgress ? (progressEvent) => {
+      const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+      onProgress(percent);
+    } : undefined,
+  };
+  
+  const { data } = await api.post('/batch-predict', formData, config);
   return data;
 };
 
-export const ocrUpload = async (file) => {
+// ✅ FIX: ocrUpload with progress callback
+export const ocrUpload = async (file, onProgress = null) => {
   const formData = new FormData();
   formData.append('file', file);
-  const { data } = await api.post('/ocr', formData, {
+  
+  const config = {
     headers: { 'Content-Type': 'multipart/form-data' },
-  });
+    onUploadProgress: onProgress ? (progressEvent) => {
+      const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+      onProgress(percent);
+    } : undefined,
+  };
+  
+  const { data } = await api.post('/ocr', formData, config);
   return data;
 };
 
