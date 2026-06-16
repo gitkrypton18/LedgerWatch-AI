@@ -30,7 +30,7 @@ const MOCK_KPI = [
     { title: "Total Transactions", value: "6,362,620", change: "+12%", trend: "up", icon: Database, color: "text-accent-info", bgColor: "bg-accent-info/10" },
     { title: "Anomalies Detected", value: "8,213", change: "0.129%", trend: "down", icon: AlertTriangle, color: "text-accent-warning", bgColor: "bg-accent-warning/10" },
     { title: "Avg Risk Score", value: "49.6", change: "─", trend: "neutral", icon: Shield, color: "text-accent-success", bgColor: "bg-accent-success/10" },
-    { title: "Fraud Amount", value: "$1.2M", change: "+5%", trend: "up", icon: DollarSign, color: "text-accent-danger", bgColor: "bg-accent-danger/10" },
+    { title: "Critical Alerts", value: "45", change: "+5%", trend: "up", icon: Activity, color: "text-accent-danger", bgColor: "bg-accent-danger/10" },
 ];
 
 const MOCK_TREND = [
@@ -261,7 +261,7 @@ export default function Dashboard() {
             },
             {
                 title: "Critical Alerts",
-                value: formatNumber(statsData?.critical_count || 0),  // ✅ FIXED
+                value: formatNumber(statsData?.critical_count || 0),
                 change: "+0%",
                 trend: "up",
                 icon: Activity,
@@ -269,6 +269,7 @@ export default function Dashboard() {
                 bgColor: "bg-accent-danger/10",
             },
         ];
+
     // Build risk distribution from API or mock
     const riskDistribution = useMock
         ? MOCK_RISK_DIST
@@ -278,6 +279,7 @@ export default function Dashboard() {
             { name: "High (71-90)", value: statsData?.high_count || 0, color: "#EF4444" },
             { name: "Critical (91-100)", value: statsData?.critical_count || 0, color: "#DC2626" },
         ];
+
     // Recent transactions from API or mock
     const recentTransactions = useMock
         ? MOCK_RECENT
@@ -287,7 +289,14 @@ export default function Dashboard() {
             amount: formatCurrency(tx.amount),
             score: tx.risk_score || 0,
             status: tx.risk_band || "Low",
-            time: tx.created_at ? new Date(tx.created_at).toLocaleTimeString() : "—",
+            // ✅ FIX: Better time formatting
+            time: tx.created_at 
+                ? new Date(tx.created_at).toLocaleTimeString('en-US', { 
+                    hour: '2-digit', 
+                    minute: '2-digit',
+                    hour12: true 
+                  }) 
+                : "—",
         }));
 
     const trendData = useMock ? MOCK_TREND : MOCK_TREND; // API trend not available yet, use mock
@@ -377,7 +386,7 @@ export default function Dashboard() {
                     {/* Risk Ring */}
                     <div className="bg-background-secondary border border-border-subtle rounded-xl p-5 flex flex-col items-center">
                         <h3 className="text-base font-semibold text-text-primary mb-4 self-start">Current Risk Level</h3>
-                        <RiskRing score={statsData?.avg_risk_score ? Math.round(statsData.avg_risk_score) : 87} />
+                        <RiskRing score={statsData?.avg_risk_score ? Math.round(statsData.avg_risk_score) : 50} />
                     </div>
 
                     {/* Risk Distribution Pie */}
@@ -440,54 +449,65 @@ export default function Dashboard() {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-border-subtle">
-                            {recentTransactions.map((tx, i) => (
-                                <tr key={i} className="hover:bg-background-tertiary/30 transition-colors group cursor-pointer">
-                                    <td className="px-5 py-3.5">
-                                        <span className="text-sm font-mono text-text-primary">{tx.id}</span>
-                                    </td>
-                                    <td className="px-5 py-3.5">
-                                        <span className={`text-xs font-medium px-2 py-0.5 rounded ${tx.type === "TRANSFER" ? "bg-purple-500/20 text-purple-400" :
-                                            tx.type === "CASH_OUT" ? "bg-amber-500/20 text-amber-400" :
-                                                tx.type === "CASH_IN" ? "bg-emerald-500/20 text-emerald-400" :
-                                                    tx.type === "PAYMENT" ? "bg-blue-500/20 text-blue-400" :
-                                                        "bg-indigo-500/20 text-indigo-400"
-                                            }`}>
-                                            {tx.type}
-                                        </span>
-                                    </td>
-                                    <td className="px-5 py-3.5">
-                                        <span className="text-sm font-mono text-text-primary">{tx.amount}</span>
-                                    </td>
-                                    <td className="px-5 py-3.5">
-                                        <div className="flex items-center gap-2">
-                                            <div className="w-16 h-1.5 rounded-full bg-background-tertiary overflow-hidden">
-                                                <div
-                                                    className="h-full rounded-full transition-all"
-                                                    style={{
-                                                        width: `${tx.score || 0}%`,
-                                                        backgroundColor:
-                                                            tx.score >= 90 ? "#EF4444" :
-                                                                tx.score >= 70 ? "#F59E0B" :
-                                                                    tx.score >= 40 ? "#3B82F6" : "#10B981",
-                                                    }}
-                                                />
-                                            </div>
-                                            <span className={`text-sm font-mono font-semibold ${tx.score >= 90 ? "text-accent-danger" :
-                                                tx.score >= 70 ? "text-accent-warning" :
-                                                    "text-accent-success"
+                            {recentTransactions.length > 0 ? (
+                                recentTransactions.map((tx, i) => (
+                                    <tr key={i} className="hover:bg-background-tertiary/30 transition-colors group cursor-pointer">
+                                        <td className="px-5 py-3.5">
+                                            <span className="text-sm font-mono text-text-primary">{tx.id}</span>
+                                        </td>
+                                        <td className="px-5 py-3.5">
+                                            <span className={`text-xs font-medium px-2 py-0.5 rounded ${tx.type === "TRANSFER" ? "bg-purple-500/20 text-purple-400" :
+                                                tx.type === "CASH_OUT" ? "bg-amber-500/20 text-amber-400" :
+                                                    tx.type === "CASH_IN" ? "bg-emerald-500/20 text-emerald-400" :
+                                                        tx.type === "PAYMENT" ? "bg-blue-500/20 text-blue-400" :
+                                                            "bg-indigo-500/20 text-indigo-400"
                                                 }`}>
-                                                {tx.score}
+                                                {tx.type}
                                             </span>
-                                        </div>
-                                    </td>
-                                    <td className="px-5 py-3.5">
-                                        <StatusBadge band={tx.status} />
-                                    </td>
-                                    <td className="px-5 py-3.5">
-                                        <span className="text-sm text-text-muted">{tx.time}</span>
+                                        </td>
+                                        <td className="px-5 py-3.5">
+                                            <span className="text-sm font-mono text-text-primary">{tx.amount}</span>
+                                        </td>
+                                        <td className="px-5 py-3.5">
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-16 h-1.5 rounded-full bg-background-tertiary overflow-hidden">
+                                                    <div
+                                                        className="h-full rounded-full transition-all"
+                                                        style={{
+                                                            width: `${tx.score || 0}%`,
+                                                            backgroundColor:
+                                                                tx.score >= 90 ? "#EF4444" :
+                                                                    tx.score >= 70 ? "#F59E0B" :
+                                                                        tx.score >= 40 ? "#3B82F6" : "#10B981",
+                                                        }}
+                                                    />
+                                                </div>
+                                                <span className={`text-sm font-mono font-semibold ${tx.score >= 90 ? "text-accent-danger" :
+                                                    tx.score >= 70 ? "text-accent-warning" :
+                                                        "text-accent-success"
+                                                    }`}>
+                                                    {tx.score}
+                                                </span>
+                                            </div>
+                                        </td>
+                                        <td className="px-5 py-3.5">
+                                            <StatusBadge band={tx.status} />
+                                        </td>
+                                        <td className="px-5 py-3.5">
+                                            <span className="text-sm text-text-muted">{tx.time}</span>
+                                        </td>
+                                    </tr>
+                                ))
+                            ) : (
+                                // ✅ FIX: Empty state
+                                <tr>
+                                    <td colSpan="6" className="px-5 py-12 text-center">
+                                        <Database className="w-8 h-8 text-text-muted mx-auto mb-3" />
+                                        <p className="text-text-muted text-sm">No transactions found</p>
+                                        <p className="text-text-muted text-xs mt-1">Upload data to see transactions</p>
                                     </td>
                                 </tr>
-                            ))}
+                            )}
                         </tbody>
                     </table>
                 </div>
