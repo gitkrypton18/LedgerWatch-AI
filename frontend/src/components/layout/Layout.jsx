@@ -9,14 +9,13 @@ export default function Layout() {
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const location = useLocation();
 
-    // Close mobile sidebar on route change
     useEffect(() => {
         setMobileMenuOpen(false);
     }, [location.pathname]);
 
     return (
-        <div className="min-h-screen bg-background-primary relative">
-            {/* Mobile Hamburger Button */}
+        <div className="min-h-screen bg-background-primary">
+            {/* Mobile Hamburger */}
             <button
                 className="lg:hidden fixed top-4 left-4 z-[60] p-2.5 bg-background-secondary rounded-xl border border-border-subtle shadow-lg"
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
@@ -42,7 +41,7 @@ export default function Layout() {
                 />
             </aside>
 
-            {/* Mobile Overlay */}
+            {/* Overlay */}
             {mobileMenuOpen && (
                 <div
                     className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 lg:hidden"
@@ -52,11 +51,13 @@ export default function Layout() {
 
             {/* Main Content */}
             <div className={`
-                min-h-screen transition-all duration-300
+                flex flex-col min-h-screen
                 ${sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-60'}
             `}>
                 <TopBar sidebarCollapsed={sidebarCollapsed} />
-                <main className="pt-20 lg:pt-16 px-4 lg:px-6 pb-6 min-h-screen">
+
+                {/* ✅ FIX: pt-16 hatao, h-full add karo */}
+                <main className="flex-1 p-4 lg:p-6 overflow-y-auto">
                     <Outlet />
                 </main>
             </div>
