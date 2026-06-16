@@ -195,7 +195,7 @@ async def lifespan(app: FastAPI):
 
     # Initialize OCR
     try:
-        app.state.ocr = InvoiceOCR(mock_mode=False)
+        app.state.ocr = InvoiceOCR(mock_mode=True)
         logger.info("OCR initialized (Tesseract mode)")
     except Exception as e:
         logger.warning(f"Tesseract unavailable: {e} — using mock mode")

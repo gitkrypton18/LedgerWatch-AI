@@ -3,9 +3,7 @@ services:
     name: ledgerwatch-api
     runtime: python
     plan: free
-    buildCommand: |
-      apt-get update && apt-get install -y tesseract-ocr libtesseract-dev
-      pip install -r requirements.txt
+    buildCommand: pip install -r requirements.txt
     startCommand: uvicorn backend.main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: PYTHON_VERSION
@@ -13,14 +11,17 @@ services:
       - key: API_KEY
         value: demo-key-123
       - key: DATABASE_URL
-        value: sqlite:////opt/render/project/src/data/ledgerwatch.db
+        fromDatabase:
+          name: ledgerwatch-db
+          property: connectionString
       - key: MODEL_PATH
         value: saved_models/isolation_forest_v1.0.0.joblib
       - key: RISK_ENGINE_PATH
         value: saved_models/risk_engine_v1.0.0.joblib
-    disk:
-      name: ledgerwatch-data
-      mountPath: /opt/render/project/src/data
-      sizeGB: 1
     healthCheckPath: /health
     autoDeploy: true
+
+databases:
+  - name: ledgerwatch-db
+    plan: free
+    ipAllowList: []
