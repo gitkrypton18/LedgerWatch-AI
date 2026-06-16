@@ -1,7 +1,7 @@
 import { Bell, Search, User } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
-// ✅ FIX: Route to title mapping
+// ─── Route to title mapping ─────────────────────────────────
 const routeTitles = {
     '/': { title: 'Dashboard', subtitle: 'Overview' },
     '/dashboard': { title: 'Dashboard', subtitle: 'Overview' },
@@ -13,38 +13,45 @@ const routeTitles = {
 };
 
 export default function TopBar({ sidebarCollapsed }) {
-    // ✅ FIX: Use window.location directly + force re-render on popstate
+    // ✅ FIX: Track pathname with multiple detection methods
     const [pathname, setPathname] = useState(window.location.pathname);
-    
+    const intervalRef = useRef(null);
+
     useEffect(() => {
+        // Method 1: popstate event (browser back/forward)
         const handlePopState = () => {
             setPathname(window.location.pathname);
         };
-        
+
+        // Method 2: MutationObserver (detects DOM changes from React Router)
+        const observer = new MutationObserver(() => {
+            const currentPath = window.location.pathname;
+            setPathname(prev => prev !== currentPath ? currentPath : prev);
+        });
+
+        // Method 3: Periodic check as fallback
+        intervalRef.current = setInterval(() => {
+            const currentPath = window.location.pathname;
+            setPathname(prev => prev !== currentPath ? currentPath : prev);
+        }, 50);
+
         window.addEventListener('popstate', handlePopState);
-        
-        // Also check periodically for SPA navigation
-        const interval = setInterval(() => {
-            if (window.location.pathname !== pathname) {
-                setPathname(window.location.pathname);
-            }
-        }, 100);
-        
+        observer.observe(document.body, { childList: true, subtree: true });
+
         return () => {
             window.removeEventListener('popstate', handlePopState);
-            clearInterval(interval);
+            observer.disconnect();
+            if (intervalRef.current) clearInterval(intervalRef.current);
         };
-    }, [pathname]);
-    
-    // ✅ FIX: Get dynamic title based on current route
+    }, []);
+
     const currentRoute = routeTitles[pathname] || { title: 'LedgerWatch', subtitle: 'AI' };
 
     return (
-        <header 
+        <header
             className={`h-16 bg-background-secondary/80 backdrop-blur-xl border-b border-border-subtle fixed top-0 right-0 z-40 flex items-center justify-between px-6 transition-all duration-300 ${sidebarCollapsed ? 'left-16' : 'left-60'}`}
         >
             <div className="flex items-center gap-4">
-                {/* ✅ FIX: Dynamic title */}
                 <h2 className="text-lg font-semibold text-text-primary">{currentRoute.title}</h2>
                 <span className="text-text-muted">/</span>
                 <span className="text-sm text-text-secondary">{currentRoute.subtitle}</span>
