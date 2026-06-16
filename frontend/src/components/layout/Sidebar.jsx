@@ -10,7 +10,7 @@ import {
     Zap
 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
-import { useHealth } from '../hooks/useApi';
+import { useHealth } from "../../hooks/useApi";
 
 const navItems = [
     { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -24,7 +24,7 @@ const navItems = [
 // ✅ FIX: Accept props from Layout
 export default function Sidebar({ collapsed, onToggle }) {
     const location = useLocation();
-    
+
     // ✅ REAL API STATUS — hook use karo!
     const { online, data, loading } = useHealth(30000);
 
@@ -46,7 +46,7 @@ export default function Sidebar({ collapsed, onToggle }) {
                         </div>
                     )}
                 </div>
-                
+
                 {/* ✅ NEW: Toggle button */}
                 <button
                     onClick={onToggle}
