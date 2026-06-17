@@ -69,7 +69,7 @@ function isImageOrPDF(file) {
 /* ─── Stat Card ─── */
 function StatCard({ icon: Icon, label, value, trend }) {
     return (
-        <div className="bg-[#111827]/80 border border-slate-800/60 rounded-xl p-5 backdrop-blur-sm">
+        <div className="bg-[#111827]/80 border border-slate-800/60 rounded-xl p-4 lg:p-5 backdrop-blur-sm">
             <div className="flex items-center justify-between mb-3">
                 <div className="p-2 bg-[#1a2332] rounded-lg">
                     <Icon className="w-5 h-5 text-cyan-400" />
@@ -81,7 +81,7 @@ function StatCard({ icon: Icon, label, value, trend }) {
                 )}
             </div>
             <p className="text-slate-400 text-sm font-medium">{label}</p>
-            <p className="text-2xl font-bold text-slate-100 mt-1 font-mono">{value}</p>
+            <p className="text-xl lg:text-2xl font-bold text-slate-100 mt-1 font-mono">{value}</p>
         </div>
     );
 }
@@ -122,14 +122,14 @@ function FileItem({ file, onRemove, onRetry }) {
     const isUploading = file.status === 'uploading';
 
     return (
-        <div className={`group flex items-center gap-4 p-4 rounded-xl transition-all duration-200 ${isError
-                ? 'bg-red-500/5 border border-red-500/20'
-                : isComplete
-                    ? 'bg-emerald-500/5 border border-emerald-500/20'
-                    : 'bg-[#111827]/60 border border-slate-800/50 hover:border-slate-700/60'
+        <div className={`group flex items-center gap-3 lg:gap-4 p-3 lg:p-4 rounded-xl transition-all duration-200 ${isError
+            ? 'bg-red-500/5 border border-red-500/20'
+            : isComplete
+                ? 'bg-emerald-500/5 border border-emerald-500/20'
+                : 'bg-[#111827]/60 border border-slate-800/50 hover:border-slate-700/60'
             }`}>
-            <div className={`p-3 bg-[#1a2332] rounded-lg ${meta.color}`}>
-                <Icon className="w-6 h-6" />
+            <div className={`p-2 lg:p-3 bg-[#1a2332] rounded-lg ${meta.color} flex-shrink-0`}>
+                <Icon className="w-5 h-5 lg:w-6 lg:h-6" />
             </div>
             <div className="flex-1 min-w-0">
                 <p className="text-slate-200 font-medium text-sm truncate">{file.name}</p>
@@ -164,7 +164,7 @@ function FileItem({ file, onRemove, onRetry }) {
                 )}
             </div>
 
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1 flex-shrink-0">
                 {isComplete && <CheckCircle2 className="w-5 h-5 text-emerald-400" />}
                 {isError && (
                     <button
@@ -194,16 +194,14 @@ export default function UploadPage() {
     const [files, setFiles] = useState([]);
     const [isDragOver, setIsDragOver] = useState(false);
     const [globalError, setGlobalError] = useState(null);
-    const [recentUploads, setRecentUploads] = useState([]); // ✅ FIX: Dynamic recent uploads
+    const [recentUploads, setRecentUploads] = useState([]);
     const fileInputRef = useRef(null);
 
-    // ✅ FIX: Use progress from hooks
     const { upload: batchUpload, loading: batchLoading, progress: batchProgress } = useBatchPredict();
     const { upload: ocrUpload, loading: ocrLoading, progress: ocrProgress } = useOCR();
 
     const isLoading = batchLoading || ocrLoading;
 
-    // ✅ FIX: Load recent uploads from localStorage on mount
     useEffect(() => {
         const stored = localStorage.getItem('ledgerwatch_recent_uploads');
         if (stored) {
@@ -215,7 +213,6 @@ export default function UploadPage() {
         }
     }, []);
 
-    // ✅ FIX: Save recent uploads to localStorage
     const saveRecentUpload = (fileName, size, status, result) => {
         const newUpload = {
             name: fileName,
@@ -226,7 +223,7 @@ export default function UploadPage() {
             timestamp: Date.now(),
         };
         setRecentUploads(prev => {
-            const updated = [newUpload, ...prev.slice(0, 9)]; // Keep last 10
+            const updated = [newUpload, ...prev.slice(0, 9)];
             localStorage.setItem('ledgerwatch_recent_uploads', JSON.stringify(updated));
             return updated;
         });
@@ -304,7 +301,6 @@ export default function UploadPage() {
         setGlobalError(null);
     };
 
-    /* ─── Process Single File (Real API) ─── */
     const processFile = async (fileObj) => {
         const { file, id } = fileObj;
         const useOCR = isImageOrPDF(file);
@@ -316,10 +312,8 @@ export default function UploadPage() {
         try {
             let result;
             if (useOCR) {
-                // ✅ FIX: Use real OCR progress
                 result = await ocrUpload(file);
             } else {
-                // ✅ FIX: Use real batch progress
                 result = await batchUpload(file);
             }
 
@@ -331,9 +325,7 @@ export default function UploadPage() {
                 )
             );
 
-            // ✅ FIX: Save to recent uploads
             saveRecentUpload(file.name, file.size, 'success', result);
-
             return result;
         } catch (err) {
             setFiles((prev) =>
@@ -347,7 +339,6 @@ export default function UploadPage() {
         }
     };
 
-    /* ─── Process All Pending ─── */
     const processAll = async () => {
         const pending = files.filter((f) => f.status === 'pending');
         if (pending.length === 0) return;
@@ -363,12 +354,11 @@ export default function UploadPage() {
         }
     };
 
-    // ✅ FIX: Update progress from hooks
     useEffect(() => {
         if (batchLoading && batchProgress > 0) {
-            setFiles(prev => prev.map(f => 
-                f.status === 'uploading' && !isImageOrPDF(f.file) 
-                    ? { ...f, progress: batchProgress } 
+            setFiles(prev => prev.map(f =>
+                f.status === 'uploading' && !isImageOrPDF(f.file)
+                    ? { ...f, progress: batchProgress }
                     : f
             ));
         }
@@ -376,9 +366,9 @@ export default function UploadPage() {
 
     useEffect(() => {
         if (ocrLoading && ocrProgress > 0) {
-            setFiles(prev => prev.map(f => 
-                f.status === 'uploading' && isImageOrPDF(f.file) 
-                    ? { ...f, progress: ocrProgress } 
+            setFiles(prev => prev.map(f =>
+                f.status === 'uploading' && isImageOrPDF(f.file)
+                    ? { ...f, progress: ocrProgress }
                     : f
             ));
         }
@@ -394,24 +384,24 @@ export default function UploadPage() {
         : 0;
 
     return (
-        <div className="space-y-8 animate-in fade-in duration-500">
+        <div className="space-y-6 lg:space-y-8 animate-in fade-in duration-500">
             {/* Header */}
-            <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="text-3xl font-bold text-slate-100 tracking-tight">Data Ingestion</h1>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="min-w-0">
+                    <h1 className="text-2xl lg:text-3xl font-bold text-slate-100 tracking-tight truncate">Data Ingestion</h1>
                     <p className="text-slate-400 mt-1.5 text-sm">
                         Upload transaction datasets or invoice images for fraud detection analysis.
                         Supports CSV, JSON, Parquet, PNG, JPG, and PDF.
                     </p>
                 </div>
-                <div className="flex items-center gap-2 px-4 py-2 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
+                <div className="flex items-center gap-2 px-4 py-2 bg-emerald-500/10 border border-emerald-500/20 rounded-lg flex-shrink-0">
                     <ShieldCheck className="w-4 h-4 text-emerald-400" />
                     <span className="text-emerald-400 text-sm font-medium">Secure Upload</span>
                 </div>
             </div>
 
             {/* Stats Row */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
                 <StatCard icon={Database} label="Total Files" value={files.length.toString()} trend="+12%" />
                 <StatCard icon={CheckCircle2} label="Processed" value={successCount.toString()} />
                 <StatCard icon={Upload} label="Pending" value={pendingCount.toString()} />
@@ -419,9 +409,9 @@ export default function UploadPage() {
             </div>
 
             {/* Main Upload Area */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="upload-layout grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6">
                 {/* Left: Drop Zone + File List */}
-                <div className="lg:col-span-2 space-y-6">
+                <div className="lg:col-span-2 space-y-4 lg:space-y-6">
                     {/* Drop Zone */}
                     <div
                         onDragOver={handleDragOver}
@@ -429,9 +419,9 @@ export default function UploadPage() {
                         onDrop={handleDrop}
                         onClick={() => fileInputRef.current?.click()}
                         className={`
-                            relative group cursor-pointer border-2 border-dashed rounded-2xl p-10
+                            upload-dropzone relative group cursor-pointer border-2 border-dashed rounded-2xl p-6 lg:p-10
                             flex flex-col items-center justify-center text-center
-                            transition-all duration-300 ease-out min-h-[320px]
+                            transition-all duration-300 ease-out min-h-[240px] lg:min-h-[320px]
                             ${isDragOver
                                 ? 'border-cyan-400 bg-cyan-400/5 scale-[1.01]'
                                 : 'border-slate-700 bg-[#111827]/40 hover:border-slate-500 hover:bg-[#111827]/60'
@@ -448,35 +438,35 @@ export default function UploadPage() {
                         />
 
                         <div className={`
-                            p-5 rounded-2xl mb-5 transition-all duration-300
+                            p-4 lg:p-5 rounded-2xl mb-4 lg:mb-5 transition-all duration-300
                             ${isDragOver ? 'bg-cyan-400/15' : 'bg-[#1a2332] group-hover:bg-[#1e293b]'}
                         `}>
                             <Upload className={`
-                                w-10 h-10 transition-colors duration-300
+                                w-8 h-8 lg:w-10 lg:h-10 transition-colors duration-300
                                 ${isDragOver ? 'text-cyan-400' : 'text-slate-400 group-hover:text-cyan-400'}
                             `} />
                         </div>
 
-                        <h3 className="text-lg font-semibold text-slate-200 mb-2">
+                        <h3 className="text-base lg:text-lg font-semibold text-slate-200 mb-2">
                             {isDragOver ? 'Drop files here' : 'Drag & drop your files'}
                         </h3>
                         <p className="text-slate-500 text-sm max-w-sm">
                             or <span className="text-cyan-400 font-medium">click to browse</span> from your computer
                         </p>
 
-                        <div className="flex items-center gap-3 mt-6 flex-wrap justify-center">
+                        <div className="flex items-center gap-2 lg:gap-3 mt-4 lg:mt-6 flex-wrap justify-center">
                             {Object.entries(ACCEPTED_TYPES).map(([type, meta]) => {
                                 const Icon = meta.icon;
                                 return (
-                                    <div key={type} className="flex items-center gap-1.5 px-3 py-1.5 bg-[#1a2332] rounded-lg border border-slate-800">
-                                        <Icon className={`w-3.5 h-3.5 ${meta.color}`} />
-                                        <span className="text-xs text-slate-400 font-mono">{meta.label}</span>
+                                    <div key={type} className="flex items-center gap-1.5 px-2 lg:px-3 py-1 lg:py-1.5 bg-[#1a2332] rounded-lg border border-slate-800">
+                                        <Icon className={`w-3 h-3 lg:w-3.5 lg:h-3.5 ${meta.color}`} />
+                                        <span className="text-[10px] lg:text-xs text-slate-400 font-mono">{meta.label}</span>
                                     </div>
                                 );
                             })}
                         </div>
 
-                        <p className="text-slate-600 text-xs mt-4 font-mono">
+                        <p className="text-slate-600 text-xs mt-3 lg:mt-4 font-mono">
                             Max {formatBytes(MAX_FILE_SIZE)} per file · Up to {MAX_FILES} files
                         </p>
                     </div>
@@ -512,7 +502,7 @@ export default function UploadPage() {
                                 </div>
                             </div>
 
-                            <div className="space-y-2 max-h-[400px] overflow-y-auto pr-1 custom-scrollbar">
+                            <div className="space-y-2 max-h-[300px] lg:max-h-[400px] overflow-y-auto pr-1 custom-scrollbar">
                                 {files.map((file) => (
                                     <FileItem
                                         key={file.id}
@@ -528,7 +518,7 @@ export default function UploadPage() {
                                 <button
                                     onClick={processAll}
                                     disabled={isLoading || pendingCount === 0}
-                                    className="w-full flex items-center justify-center gap-2 py-3.5 bg-cyan-500 hover:bg-cyan-400 disabled:bg-slate-700 text-slate-950 font-semibold rounded-xl transition-all duration-200 disabled:cursor-not-allowed"
+                                    className="w-full flex items-center justify-center gap-2 py-3 lg:py-3.5 bg-cyan-500 hover:bg-cyan-400 disabled:bg-slate-700 text-slate-950 font-semibold rounded-xl transition-all duration-200 disabled:cursor-not-allowed"
                                 >
                                     {isLoading ? (
                                         <>
@@ -549,46 +539,46 @@ export default function UploadPage() {
                 </div>
 
                 {/* Right: Info Panel */}
-                <div className="space-y-6">
+                <div className="space-y-4 lg:space-y-6">
                     {/* Upload Guide */}
-                    <div className="bg-[#111827]/60 border border-slate-800/50 rounded-xl p-6">
+                    <div className="bg-[#111827]/60 border border-slate-800/50 rounded-xl p-4 lg:p-6">
                         <h3 className="text-sm font-semibold text-slate-200 mb-4 flex items-center gap-2">
                             <Database className="w-4 h-4 text-cyan-400" />
                             Format Guide
                         </h3>
                         <div className="space-y-4">
                             <div className="flex items-start gap-3">
-                                <div className="p-1.5 bg-emerald-500/10 rounded-lg mt-0.5">
+                                <div className="p-1.5 bg-emerald-500/10 rounded-lg mt-0.5 flex-shrink-0">
                                     <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
                                 </div>
-                                <div>
+                                <div className="min-w-0">
                                     <p className="text-sm font-medium text-slate-300">CSV</p>
                                     <p className="text-xs text-slate-500 mt-0.5">Comma-separated with headers. Max 500MB.</p>
                                 </div>
                             </div>
                             <div className="flex items-start gap-3">
-                                <div className="p-1.5 bg-amber-500/10 rounded-lg mt-0.5">
+                                <div className="p-1.5 bg-amber-500/10 rounded-lg mt-0.5 flex-shrink-0">
                                     <FileJson className="w-4 h-4 text-amber-400" />
                                 </div>
-                                <div>
+                                <div className="min-w-0">
                                     <p className="text-sm font-medium text-slate-300">JSON</p>
                                     <p className="text-xs text-slate-500 mt-0.5">Array of transaction objects. Max 500MB.</p>
                                 </div>
                             </div>
                             <div className="flex items-start gap-3">
-                                <div className="p-1.5 bg-violet-500/10 rounded-lg mt-0.5">
+                                <div className="p-1.5 bg-violet-500/10 rounded-lg mt-0.5 flex-shrink-0">
                                     <Database className="w-4 h-4 text-violet-400" />
                                 </div>
-                                <div>
+                                <div className="min-w-0">
                                     <p className="text-sm font-medium text-slate-300">Parquet</p>
                                     <p className="text-xs text-slate-500 mt-0.5">Columnar format for large datasets. Max 500MB.</p>
                                 </div>
                             </div>
                             <div className="flex items-start gap-3">
-                                <div className="p-1.5 bg-pink-500/10 rounded-lg mt-0.5">
+                                <div className="p-1.5 bg-pink-500/10 rounded-lg mt-0.5 flex-shrink-0">
                                     <FileImage className="w-4 h-4 text-pink-400" />
                                 </div>
-                                <div>
+                                <div className="min-w-0">
                                     <p className="text-sm font-medium text-slate-300">Images / PDF</p>
                                     <p className="text-xs text-slate-500 mt-0.5">OCR extraction for amount, date, vendor. Max 500MB.</p>
                                 </div>
@@ -597,7 +587,7 @@ export default function UploadPage() {
                     </div>
 
                     {/* Required Columns */}
-                    <div className="bg-[#111827]/60 border border-slate-800/50 rounded-xl p-6">
+                    <div className="bg-[#111827]/60 border border-slate-800/50 rounded-xl p-4 lg:p-6">
                         <h3 className="text-sm font-semibold text-slate-200 mb-4 flex items-center gap-2">
                             <ShieldCheck className="w-4 h-4 text-cyan-400" />
                             Required Schema
@@ -612,8 +602,8 @@ export default function UploadPage() {
                         </div>
                     </div>
 
-                    {/* Recent Uploads — ✅ DYNAMIC */}
-                    <div className="bg-[#111827]/60 border border-slate-800/50 rounded-xl p-6">
+                    {/* Recent Uploads */}
+                    <div className="bg-[#111827]/60 border border-slate-800/50 rounded-xl p-4 lg:p-6">
                         <h3 className="text-sm font-semibold text-slate-200 mb-4 flex items-center gap-2">
                             <Clock className="w-4 h-4 text-cyan-400" />
                             Recent Uploads
