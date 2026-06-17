@@ -1,22 +1,39 @@
 """
-backend/main.py — FastAPI backend for LedgerWatch AI
+backend/main.py — Production-grade FastAPI backend for LedgerWatch AI
+Supports: JSON, CSV, Parquet, OCR (PNG/JPG/TIFF/WebP/BMP/GIF), PDF
+Version: 2.0.0
 """
 
+import io
 import json
 import logging
 import os
 import random
+import tempfile
 import time
+import traceback
 from contextlib import asynccontextmanager
 from datetime import datetime
-from io import StringIO
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import joblib
 import numpy as np
 import pandas as pd
 import shap
-from fastapi import Depends, FastAPI, File, HTTPException, Query, Security, UploadFile
+from fastapi import (
+    BackgroundTasks,
+    Depends,
+    FastAPI,
+    File,
+    HTTPException,
+    Query,
+    Security,
+    UploadFile,
+    status,
+)
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.security import APIKeyHeader
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -37,7 +54,6 @@ from src.schemas import (
     TransactionRead,
 )
 
-# NOTE: src/retrain.py must exist before starting server
 try:
     from src.retrain import retrain_model
 
@@ -47,116 +63,140 @@ except ImportError as e:
     logging.warning(f"Retraining module not available: {e}")
 
 logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s"
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
 )
 logger = logging.getLogger(__name__)
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# PRODUCTION CONFIGURATION
+# ═══════════════════════════════════════════════════════════════════════════════
 
-# ─── Lifespan: Load models on startup ────────────────────────────────────────
+MAX_FILE_SIZE = 500 * 1024 * 1024
+CHUNK_SIZE = 1000
+OCR_MAX_FILE_SIZE = 50 * 1024 * 1024
+
+SUPPORTED_IMAGE_EXTS = {"png", "jpg", "jpeg", "tiff", "tif", "bmp", "gif", "webp"}
+SUPPORTED_DOC_EXTS = {"pdf"}
+SUPPORTED_DATA_EXTS = {"csv", "json", "jsonl", "parquet", "pq", "parq"}
+SUPPORTED_ALL_EXTS = SUPPORTED_IMAGE_EXTS | SUPPORTED_DOC_EXTS | SUPPORTED_DATA_EXTS
+
+REQUIRED_COLUMNS = {
+    "step",
+    "type",
+    "amount",
+    "nameOrig",
+    "oldbalanceOrg",
+    "newbalanceOrig",
+    "nameDest",
+    "oldbalanceDest",
+    "newbalanceDest",
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# LIFESPAN: Startup / Shutdown
+# ═══════════════════════════════════════════════════════════════════════════════
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Load ML models on startup, clean up on shutdown."""
-    logger.info("Starting LedgerWatch API...")
+    logger.info("Starting LedgerWatch API v2.0.0...")
     logger.info(f"Working directory: {os.getcwd()}")
     logger.info(f"Root files: {os.listdir('.')}")
 
-    # Create database tables if they don't exist (critical for fresh deploys)
     Base.metadata.create_all(bind=engine)
+    await _seed_database_if_empty()
+    await _load_model(app)
+    await _load_risk_engine(app)
+    await _init_shap(app)
+    await _init_ocr(app)
+    yield
+    logger.info("Shutting down LedgerWatch API...")
 
-    # ═══════════════════════════════════════════════════════════════════════
-    # AUTO-SEED: Load sample data if database is empty (fresh deploy)
-    # MAX 5000 rows for fast cold start on Render free tier
-    # ═══════════════════════════════════════════════════════════════════════
+
+async def _seed_database_if_empty():
+    db = SessionLocal()
     try:
-        db = SessionLocal()
         count = db.query(func.count(DBTransaction.id)).scalar()
+        if count > 0:
+            logger.info(f"DB has {count} rows — skip seed")
+            return
 
-        if count == 0:
-            logger.info("Database empty — seeding sample data (max 5000 rows)...")
+        logger.info("DB empty — seeding sample data...")
+        possible_paths = [
+            "data/sample.csv",
+            "../data/sample.csv",
+            "/opt/render/project/src/data/sample.csv",
+            "tessmall.csv",
+            "data/tessmall.csv",
+        ]
 
-            possible_paths = [
-                "data/sample.csv",
-                "../data/sample.csv",
-                "/opt/render/project/src/data/sample.csv",
-            ]
+        sample_path = None
+        for path in possible_paths:
+            abs_path = os.path.abspath(path)
+            if os.path.exists(abs_path):
+                sample_path = abs_path
+                break
 
-            sample_path = None
-            for path in possible_paths:
-                abs_path = os.path.abspath(path)
-                if os.path.exists(abs_path):
-                    sample_path = abs_path
-                    break
+        if not sample_path:
+            logger.warning("sample.csv not found — starting empty")
+            return
 
-            if sample_path:
-                df = pd.read_csv(sample_path)
-                df = df.head(5000)  # ← LIMIT FOR FAST STARTUP
-                total_rows = len(df)
+        df = pd.read_csv(sample_path).head(5000)
+        total_rows = len(df)
+        records = []
+        for _, row in df.iterrows():
+            risk_score = random.randint(5, 98)
+            risk_band = get_risk_band(risk_score)
+            is_anomaly = risk_score >= 85
+            records.append(
+                {
+                    "step": int(row["step"]),
+                    "type": str(row["type"]),
+                    "amount": float(row["amount"]),
+                    "nameOrig": str(row["nameOrig"]),
+                    "oldbalanceOrg": float(row["oldbalanceOrg"]),
+                    "newbalanceOrig": float(row["newbalanceOrig"]),
+                    "nameDest": str(row["nameDest"]),
+                    "oldbalanceDest": float(row["oldbalanceDest"]),
+                    "newbalanceDest": float(row["newbalanceDest"]),
+                    "isFraud": int(row.get("isFraud", 0)) if "isFraud" in row else None,
+                    "isFlaggedFraud": (
+                        int(row.get("isFlaggedFraud", 0))
+                        if "isFlaggedFraud" in row
+                        else None
+                    ),
+                    "risk_score": risk_score,
+                    "risk_band": risk_band,
+                    "is_anomaly": is_anomaly,
+                    "created_at": datetime.utcnow(),
+                }
+            )
 
-                # Bulk insert — 100x faster than row-by-row
-                records = []
-                for _, row in df.iterrows():
-                    # ✅ FIX: Consistent randomization — same score for band + anomaly
-                    risk_score = random.randint(5, 98)
-                    risk_band = get_risk_band(risk_score)
-                    is_anomaly = risk_score >= 85  # Critical/High = anomaly
-
-                    records.append(
-                        {
-                            "step": int(row["step"]),
-                            "type": str(row["type"]),
-                            "amount": float(row["amount"]),
-                            "nameOrig": str(row["nameOrig"]),
-                            "oldbalanceOrg": float(row["oldbalanceOrg"]),
-                            "newbalanceOrig": float(row["newbalanceOrig"]),
-                            "nameDest": str(row["nameDest"]),
-                            "oldbalanceDest": float(row["oldbalanceDest"]),
-                            "newbalanceDest": float(row["newbalanceDest"]),
-                            "isFraud": (
-                                int(row.get("isFraud", 0)) if "isFraud" in row else None
-                            ),
-                            "isFlaggedFraud": (
-                                int(row.get("isFlaggedFraud", 0))
-                                if "isFlaggedFraud" in row
-                                else None
-                            ),
-                            "risk_score": risk_score,  # ✅ Same value
-                            "risk_band": risk_band,  # ✅ Derived from same score
-                            "is_anomaly": is_anomaly,  # ✅ Consistent logic
-                            "created_at": datetime.utcnow(),  # ✅ Add timestamp
-                        }
-                    )
-
-                db.bulk_insert_mappings(DBTransaction, records)
-                db.commit()
-                logger.info(f"✅ Seeded {total_rows} transactions from sample.csv")
-            else:
-                logger.warning("⚠️ sample.csv not found — starting with empty DB")
-
-        else:
-            logger.info(f"Database already has {count} transactions — skipping seed")
-
+        db.bulk_insert_mappings(DBTransaction, records)
+        db.commit()
+        logger.info(f"Seeded {total_rows} transactions from {sample_path}")
+    except Exception as e:
+        logger.error(f"Auto-seed failed: {e}")
+        logger.error(traceback.format_exc())
+        db.rollback()
+    finally:
         db.close()
 
-    except Exception as e:
-        logger.error(f"❌ Auto-seed failed: {e}")
-        import traceback
 
-        logger.error(traceback.format_exc())
-        try:
-            db.rollback()
-            db.close()
-        except:
-            pass
-    # ═══════════════════════════════════════════════════════════════════════
-
-    # Load Isolation Forest model
+async def _load_model(app: FastAPI):
     model_path = settings.MODEL_PATH
     logger.info(f"Model path: {os.path.abspath(model_path)}")
     logger.info(f"Model exists: {os.path.exists(model_path)}")
 
-    if os.path.exists(model_path):
+    if not os.path.exists(model_path):
+        logger.warning(f"Model not found: {model_path}")
+        app.state.model = None
+        app.state.model_metadata = {}
+        app.state.expected_features = []
+        return
+
+    try:
         model_data = joblib.load(model_path)
         if isinstance(model_data, dict) and "model" in model_data:
             app.state.model = model_data["model"]
@@ -165,57 +205,76 @@ async def lifespan(app: FastAPI):
             }
             app.state.expected_features = model_data.get("feature_names", [])
             logger.info(
-                f"Model loaded from dict: {model_path}, features: {len(app.state.expected_features)}"
+                f"Model loaded (dict format): {len(app.state.expected_features)} features"
             )
         else:
             app.state.model = model_data
             app.state.model_metadata = {}
             app.state.expected_features = []
-            logger.info(f"Model loaded directly: {model_path}")
-    else:
-        logger.warning(f"Model not found: {model_path}")
+            logger.info("Model loaded (direct format)")
+    except Exception as e:
+        logger.error(f"Model load failed: {e}")
         app.state.model = None
+        app.state.model_metadata = {}
+        app.state.expected_features = []
 
-    # Load Risk Engine
+
+async def _load_risk_engine(app: FastAPI):
     risk_path = settings.RISK_ENGINE_PATH
     if os.path.exists(risk_path):
-        app.state.risk_engine = RiskEngine.load(risk_path)
-        logger.info(f"Risk engine loaded: {risk_path}")
+        try:
+            app.state.risk_engine = RiskEngine.load(risk_path)
+            logger.info("Risk engine loaded")
+        except Exception as e:
+            logger.error(f"Risk engine load failed: {e}")
+            app.state.risk_engine = None
     else:
         logger.warning(f"Risk engine not found: {risk_path}")
         app.state.risk_engine = None
 
-    # Cache SHAP TreeExplainer
+
+async def _init_shap(app: FastAPI):
     if app.state.model is not None:
-        app.state.explainer = shap.TreeExplainer(
-            app.state.model, feature_perturbation="interventional"
-        )
-        logger.info("SHAP TreeExplainer cached")
+        try:
+            app.state.explainer = shap.TreeExplainer(
+                app.state.model, feature_perturbation="interventional"
+            )
+            logger.info("SHAP TreeExplainer ready")
+        except Exception as e:
+            logger.warning(f"SHAP init failed: {e}")
+            app.state.explainer = None
     else:
         app.state.explainer = None
 
-    # Initialize OCR
+
+async def _init_ocr(app: FastAPI):
     try:
-        app.state.ocr = InvoiceOCR(mock_mode=True)  # ✅ Mock mode
-        logger.info("OCR initialized (Mock mode)")
+        app.state.ocr = InvoiceOCR(mock_mode=False)
+        logger.info("OCR initialized (EasyOCR real mode)")
     except Exception as e:
-        logger.warning(f"OCR init failed: {e}")
-        app.state.ocr = InvoiceOCR(mock_mode=True)
+        logger.warning(f"EasyOCR real mode failed: {e}")
+        try:
+            app.state.ocr = InvoiceOCR(mock_mode=True)
+            logger.info("OCR initialized (Mock mode)")
+        except Exception as e2:
+            logger.error(f"OCR init completely failed: {e2}")
+            app.state.ocr = None
 
-    yield
-    logger.info("Shutting down LedgerWatch API...")
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# FASTAPI APP
+# ═══════════════════════════════════════════════════════════════════════════════
 
 app = FastAPI(
     title="LedgerWatch AI",
-    description="OCR-powered financial transaction anomaly detection API",
-    version="1.0.0",
+    description="Production-grade OCR-powered financial transaction anomaly detection API. "
+    "Supports JSON, CSV, Parquet, OCR (images), and PDF uploads.",
+    version="2.0.0",
     lifespan=lifespan,
-    docs_url="/docs",  # ✅ Enable Swagger UI
-    redoc_url="/redoc",  # ✅ Enable ReDoc
+    docs_url="/docs",
+    redoc_url="/redoc",
 )
 
-# ✅ FIX: CORS — allow_credentials=False (required for allow_origins=["*"])
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -228,6 +287,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 
@@ -237,11 +297,24 @@ async def verify_api_key(api_key: str = Security(api_key_header)):
     return api_key
 
 
-# ─── Helper Functions ───────────────────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════════════════════
+# HELPER FUNCTIONS
+# ═══════════════════════════════════════════════════════════════════════════════
 
 
-def get_feature_columns(df: pd.DataFrame):
-    """Return feature columns used by the model (exclude raw + metadata)."""
+def get_risk_band(score: int) -> str:
+    if score >= 95:
+        return "Critical"
+    elif score >= 85:
+        return "High"
+    elif score >= 60:
+        return "Elevated"
+    elif score >= 30:
+        return "Medium"
+    return "Low"
+
+
+def get_feature_columns(df: pd.DataFrame) -> List[str]:
     raw_cols = {
         "step",
         "type",
@@ -259,68 +332,41 @@ def get_feature_columns(df: pd.DataFrame):
 
 
 def engineer_features_from_df(df: pd.DataFrame) -> pd.DataFrame:
-    """Wrapper: engineer features from an in-memory DataFrame via temp CSV."""
-    import tempfile
-    from pathlib import Path
-
     with tempfile.NamedTemporaryFile(
         mode="w", suffix=".csv", delete=False, newline=""
     ) as tmp:
         df.to_csv(tmp.name, index=False)
         tmp_path = tmp.name
-
     try:
         features = engineer_all_features(input_path=Path(tmp_path), save=False)
-        features = features.fillna(0.0)
-        return features
+        return features.fillna(0.0)
     finally:
         os.unlink(tmp_path)
 
 
-def align_features(X: pd.DataFrame, expected_features: list) -> pd.DataFrame:
-    """Align feature DataFrame to match model's expected columns."""
+def align_features(X: pd.DataFrame, expected_features: List[str]) -> pd.DataFrame:
     for col in expected_features:
         if col not in X.columns:
             X[col] = 0.0
     return X[expected_features]
 
 
-def get_risk_band(score: int) -> str:
-    """Map risk score to human-readable band."""
-    if score >= 95:
-        return "Critical"
-    elif score >= 85:
-        return "High"
-    elif score >= 60:
-        return "Elevated"
-    elif score >= 30:
-        return "Medium"
-    else:
-        return "Low"
-
-
 def predict_single(
     df: pd.DataFrame,
     model,
     risk_engine,
-    expected_features: list,
+    expected_features: List[str],
     explainer=None,
     explain: bool = False,
-):
-    """Run prediction pipeline on a single-row DataFrame."""
+) -> Dict[str, Any]:
     start = time.time()
-
-    features = engineer_features_from_df(df)
-    features = features.fillna(0.0)
-
+    features = engineer_features_from_df(df).fillna(0.0)
     feature_cols = get_feature_columns(features)
     X = features[feature_cols]
-
     X_aligned = align_features(X, expected_features)
 
     anomaly_score = float(model.score_samples(X_aligned)[0])
     is_anomaly = model.predict(X_aligned)[0] == -1
-
     risk_score = int(risk_engine.transform([-anomaly_score])[0])
     risk_band = get_risk_band(risk_score)
 
@@ -340,8 +386,6 @@ def predict_single(
         except Exception as e:
             logger.warning(f"SHAP failed: {e}")
 
-    elapsed = (time.time() - start) * 1000
-
     return {
         "transaction_id": 0,
         "anomaly_score": anomaly_score,
@@ -350,26 +394,224 @@ def predict_single(
         "is_anomaly": is_anomaly,
         "shap_values": shap_vals,
         "top_features": top_feats,
+        "processing_time_ms": round((time.time() - start) * 1000, 2),
     }
 
 
-# ─── NEW: OCR Helper Function ───────────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════════════════════
+# FILE PARSERS
+# ═══════════════════════════════════════════════════════════════════════════════
 
 
-async def process_ocr_file(file: UploadFile, ocr: InvoiceOCR) -> dict:
-    """Process OCR file and extract transaction data."""
-    import tempfile
+async def _read_upload_file(file: UploadFile, max_size: int = MAX_FILE_SIZE) -> bytes:
+    contents = await file.read(max_size + 1)
+    if len(contents) > max_size:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"File too large. Max {max_size // (1024*1024)}MB allowed.",
+        )
+    return contents
 
-    ext = file.filename.lower().split(".")[-1]
+
+def _get_file_extension(filename: str) -> str:
+    return filename.lower().split(".")[-1] if "." in filename else ""
+
+
+def _validate_extension(ext: str) -> None:
+    if ext not in SUPPORTED_ALL_EXTS:
+        raise HTTPException(
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            detail=f"Unsupported file type: .{ext}. Supported: {sorted(SUPPORTED_ALL_EXTS)}",
+        )
+
+
+async def parse_json_file(contents: bytes) -> pd.DataFrame:
+    try:
+        text = contents.decode("utf-8").strip()
+    except UnicodeDecodeError:
+        raise HTTPException(status_code=400, detail="File must be UTF-8 encoded")
+
+    if not text:
+        raise HTTPException(status_code=400, detail="Empty file")
+
+    if "\n" in text and text.startswith("{"):
+        records = []
+        for line in text.split("\n"):
+            line = line.strip()
+            if line:
+                try:
+                    records.append(json.loads(line))
+                except json.JSONDecodeError as e:
+                    raise HTTPException(
+                        status_code=400, detail=f"Invalid JSONL line: {e}"
+                    )
+        if not records:
+            raise HTTPException(status_code=400, detail="No valid JSON lines found")
+        return pd.DataFrame(records)
+
+    try:
+        parsed = json.loads(text)
+    except json.JSONDecodeError as e:
+        raise HTTPException(status_code=400, detail=f"Invalid JSON: {e}")
+
+    if isinstance(parsed, dict):
+        if "transactions" in parsed:
+            data = parsed["transactions"]
+        elif "data" in parsed:
+            data = parsed["data"]
+        else:
+            data = [parsed]
+    elif isinstance(parsed, list):
+        data = parsed
+    else:
+        raise HTTPException(
+            status_code=400,
+            detail="JSON must be array or object with 'transactions'/'data' key",
+        )
+
+    if not data:
+        raise HTTPException(status_code=400, detail="Empty JSON data")
+    return pd.DataFrame(data)
+
+
+async def parse_csv_file(contents: bytes) -> pd.DataFrame:
+    try:
+        text = contents.decode("utf-8")
+    except UnicodeDecodeError:
+        raise HTTPException(status_code=400, detail="File must be UTF-8 encoded")
+    try:
+        df = pd.read_csv(io.StringIO(text))
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid CSV: {e}")
+    if df.empty:
+        raise HTTPException(status_code=400, detail="Empty CSV file")
+    return df
+
+
+async def parse_parquet_file(contents: bytes) -> pd.DataFrame:
+    try:
+        df = pd.read_parquet(io.BytesIO(contents))
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid Parquet file: {e}")
+    if df.empty:
+        raise HTTPException(status_code=400, detail="Empty Parquet file")
+    return df
+
+
+def validate_required_columns(df: pd.DataFrame) -> None:
+    missing = REQUIRED_COLUMNS - set(df.columns)
+    if missing:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Missing required columns: {sorted(missing)}",
+        )
+
+
+def process_dataframe_batch(
+    df: pd.DataFrame,
+    model,
+    risk_engine,
+    expected_features: List[str],
+    db: Session,
+    chunk_size: int = CHUNK_SIZE,
+) -> Tuple[List[PredictionResult], int]:
+    total_rows = len(df)
+    all_results: List[PredictionResult] = []
+    anomalies_detected = 0
+
+    logger.info(f"Processing {total_rows} rows in chunks of {chunk_size}")
+
+    for chunk_start in range(0, total_rows, chunk_size):
+        chunk_end = min(chunk_start + chunk_size, total_rows)
+        chunk_df = df.iloc[chunk_start:chunk_end].copy()
+        chunk_len = len(chunk_df)
+
+        logger.info(f"Processing chunk {chunk_start}-{chunk_end} ({chunk_len} rows)...")
+
+        features = engineer_features_from_df(chunk_df)
+        feature_cols = get_feature_columns(features)
+        X = features[feature_cols]
+        X_aligned = align_features(X, expected_features)
+
+        anomaly_scores = model.score_samples(X_aligned)
+        raw_predictions = model.predict(X_aligned)
+
+        n = chunk_len
+        sorted_indices = np.argsort(anomaly_scores)
+        risk_scores = [0] * n
+        for rank, idx in enumerate(sorted_indices):
+            risk_scores[idx] = int(100 * (1 - rank / max(n - 1, 1)))
+
+        risk_bands = [get_risk_band(s) for s in risk_scores]
+
+        anomaly_threshold_idx = int(n * 0.05)
+        is_anomalies = [False] * n
+        for idx in sorted_indices[:anomaly_threshold_idx]:
+            is_anomalies[idx] = True
+
+        for i in range(n):
+            all_results.append(
+                PredictionResult(
+                    transaction_id=chunk_start + i,
+                    anomaly_score=float(anomaly_scores[i]),
+                    risk_score=risk_scores[i],
+                    risk_band=risk_bands[i],
+                    is_anomaly=is_anomalies[i],
+                    shap_values=None,
+                    top_features=None,
+                )
+            )
+            if is_anomalies[i]:
+                anomalies_detected += 1
+
+        for i, (_, row) in enumerate(chunk_df.iterrows()):
+            db_tx = DBTransaction(
+                step=int(row.get("step", 0)),
+                type=str(row.get("type", "UNKNOWN")),
+                amount=float(row.get("amount", 0.0)),
+                nameOrig=str(row.get("nameOrig", "")),
+                oldbalanceOrg=float(row.get("oldbalanceOrg", 0.0)),
+                newbalanceOrig=float(row.get("newbalanceOrig", 0.0)),
+                nameDest=str(row.get("nameDest", "")),
+                oldbalanceDest=float(row.get("oldbalanceDest", 0.0)),
+                newbalanceDest=float(row.get("newbalanceDest", 0.0)),
+                isFraud=int(row.get("isFraud", 0)) if "isFraud" in row else None,
+                isFlaggedFraud=(
+                    int(row.get("isFlaggedFraud", 0))
+                    if "isFlaggedFraud" in row
+                    else None
+                ),
+                is_anomaly=is_anomalies[i],
+                risk_band=risk_bands[i],
+                risk_score=risk_scores[i],
+                created_at=datetime.utcnow(),
+            )
+            db.add(db_tx)
+
+        db.commit()
+        logger.info(
+            f"Chunk {chunk_start}-{chunk_end} complete ({chunk_len} rows saved)"
+        )
+
+    return all_results, anomalies_detected
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# OCR HELPERS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+async def process_ocr_file(file: UploadFile, ocr: InvoiceOCR) -> Dict[str, Any]:
+    ext = _get_file_extension(file.filename)
+    contents = await _read_upload_file(file, max_size=OCR_MAX_FILE_SIZE)
 
     with tempfile.NamedTemporaryFile(delete=False, suffix=f".{ext}") as tmp:
-        contents = await file.read()
         tmp.write(contents)
         tmp_path = tmp.name
 
     try:
         if ext == "pdf":
-            result = ocr.parse_invoice(tmp_path)
+            result = ocr.parse_pdf(tmp_path)
         else:
             result = ocr.parse_image(tmp_path)
 
@@ -377,51 +619,111 @@ async def process_ocr_file(file: UploadFile, ocr: InvoiceOCR) -> dict:
             "amount": result.amount,
             "date": result.date,
             "vendor": result.vendor,
-            "type": "PAYMENT",  # Default type from invoice
+            "type": result.transaction_type or "PAYMENT",
             "raw_text": result.raw_text,
             "confidence": result.confidence,
+            "metadata": result.metadata,
         }
     finally:
         os.unlink(tmp_path)
 
 
-# ─── Endpoints ───────────────────────────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════════════════════
+# API ENDPOINTS
+# ═══════════════════════════════════════════════════════════════════════════════
 
 
-@app.get("/docs")
+@app.get("/docs-info")
 async def docs_redirect():
-    """Redirect to API documentation."""
     return {
-        "message": "API Docs",
+        "message": "LedgerWatch AI API v2.0.0",
         "endpoints": [
-            "/health",
-            "/predict",
-            "/batch-predict",
-            "/transactions",
-            "/stats",
-            "/ocr",
-            "/retrain",
+            {
+                "path": "/health",
+                "method": "GET",
+                "auth": False,
+                "description": "Health check",
+            },
+            {
+                "path": "/predict",
+                "method": "POST",
+                "auth": True,
+                "description": "Single transaction prediction",
+            },
+            {
+                "path": "/batch-predict",
+                "method": "POST",
+                "auth": True,
+                "description": "Batch prediction (CSV/JSON/Parquet/OCR/PDF)",
+            },
+            {
+                "path": "/transactions",
+                "method": "GET",
+                "auth": True,
+                "description": "List transactions",
+            },
+            {
+                "path": "/transactions/{id}",
+                "method": "GET",
+                "auth": True,
+                "description": "Get single transaction",
+            },
+            {
+                "path": "/transactions/{id}/feedback",
+                "method": "PATCH",
+                "auth": True,
+                "description": "Add feedback",
+            },
+            {
+                "path": "/stats",
+                "method": "GET",
+                "auth": True,
+                "description": "Dashboard stats",
+            },
+            {
+                "path": "/feedback-stats",
+                "method": "GET",
+                "auth": True,
+                "description": "Feedback statistics",
+            },
+            {
+                "path": "/ocr",
+                "method": "POST",
+                "auth": True,
+                "description": "OCR parse invoice/receipt",
+            },
+            {
+                "path": "/retrain",
+                "method": "POST",
+                "auth": True,
+                "description": "Retrain model",
+            },
         ],
+        "supported_formats": sorted(SUPPORTED_ALL_EXTS),
     }
 
 
 @app.api_route("/", methods=["GET", "HEAD"])
 async def root():
-    """Instant response for uptime monitoring (no DB, no auth)."""
-    return {"status": "ok", "message": "LedgerWatch API is running"}
+    return {
+        "status": "ok",
+        "message": "LedgerWatch AI API is running",
+        "version": "2.0.0",
+        "timestamp": datetime.utcnow().isoformat(),
+    }
 
 
 @app.get("/health", response_model=HealthResponse)
 async def health_check():
-    """Service health check. No API key required."""
+    ocr_mock = getattr(app.state.ocr, "mock_mode", True) if app.state.ocr else True
     return HealthResponse(
         status="ok",
-        version="1.0.0",
+        version="2.0.0",
         model_loaded=app.state.model is not None,
         risk_engine_loaded=app.state.risk_engine is not None,
-        ocr_available=not getattr(app.state.ocr, "mock_mode", True),
+        ocr_available=not ocr_mock,
         retrain_available=RETRAIN_AVAILABLE,
-        timestamp=pd.Timestamp.now().isoformat(),
+        timestamp=datetime.utcnow().isoformat(),
     )
 
 
@@ -433,7 +735,6 @@ async def predict(
     explain: bool = Query(default=True),
     db: Session = Depends(get_db),
 ):
-    """Predict fraud risk for a single transaction."""
     if app.state.model is None or app.state.risk_engine is None:
         raise HTTPException(status_code=503, detail="Model or risk engine not loaded")
 
@@ -463,423 +764,239 @@ async def predict(
     return PredictionResult(**result)
 
 
-# ✅ FIX: batch_predict — accepts both single file and multiple files
 @app.post(
     "/batch-predict",
     response_model=BatchPredictionResponse,
     dependencies=[Depends(verify_api_key)],
 )
 async def batch_predict(
-    file: UploadFile = File(...),  # ✅ Single file, required
-    explain: bool = Query(default=False),
+    file: UploadFile = File(
+        ..., description="Upload CSV, JSON, JSONL, Parquet, or image/PDF for OCR"
+    ),
+    explain: bool = Query(
+        default=False, description="Enable SHAP explanations (slower)"
+    ),
     db: Session = Depends(get_db),
 ):
-    """Batch predict — supports CSV, JSON, JSONL, and image/PDF files via OCR."""
     if app.state.model is None or app.state.risk_engine is None:
         raise HTTPException(status_code=503, detail="Model or risk engine not loaded")
 
-    all_files = [file]  # ✅ Single file ko list mein daalo
+    ext = _get_file_extension(file.filename)
+    _validate_extension(ext)
 
-    all_results = []
+    all_results: List[PredictionResult] = []
     anomalies_detected = 0
     total_processed = 0
+    processing_method = "unknown"
 
-    for f in all_files:
-        ext = f.filename.lower().split(".")[-1]
-        content_type = (f.content_type or "").lower()
+    # IMAGE / PDF — OCR PATH
+    if ext in SUPPORTED_IMAGE_EXTS or ext in SUPPORTED_DOC_EXTS:
+        processing_method = "ocr"
+        logger.info(f"Processing OCR file: {file.filename} (type: {ext})")
 
-        # ═══════════════════════════════════════════════════════════════
-        # ✅ FIX: Handle image/PDF files via OCR
-        # ═══════════════════════════════════════════════════════════════
-        if ext in ["png", "jpg", "jpeg", "pdf", "tiff", "tif"]:
-            logger.info(f"Processing OCR file: {f.filename}")
+        if app.state.ocr is None:
+            raise HTTPException(status_code=503, detail="OCR service not available")
 
-            try:
-                ocr_result = await process_ocr_file(f, app.state.ocr)
-                logger.info(f"OCR extracted: {ocr_result}")
+        try:
+            ocr_result = await process_ocr_file(file, app.state.ocr)
+            logger.info(
+                f"OCR extracted: amount={ocr_result.get('amount')}, vendor={ocr_result.get('vendor')}"
+            )
 
-                # Create transaction from OCR data
-                tx_data = {
-                    "step": 1,
-                    "type": ocr_result.get("type", "PAYMENT"),
-                    "amount": ocr_result.get("amount", 0.0),
-                    "nameOrig": ocr_result.get("vendor", "Unknown")[
-                        :50
-                    ],  # Limit length
-                    "oldbalanceOrg": 0.0,
-                    "newbalanceOrig": 0.0,
-                    "nameDest": "OCR_Extracted",
-                    "oldbalanceDest": 0.0,
-                    "newbalanceDest": 0.0,
-                }
-
-                df = pd.DataFrame([tx_data])
-                result = predict_single(
-                    df,
-                    app.state.model,
-                    app.state.risk_engine,
-                    app.state.expected_features,
-                    explainer=app.state.explainer,
-                    explain=explain,
-                )
-
-                # Save to DB
-                db_tx = DBTransaction(
-                    step=tx_data["step"],
-                    type=tx_data["type"],
-                    amount=tx_data["amount"],
-                    nameOrig=tx_data["nameOrig"],
-                    oldbalanceOrg=tx_data["oldbalanceOrg"],
-                    newbalanceOrig=tx_data["newbalanceOrig"],
-                    nameDest=tx_data["nameDest"],
-                    oldbalanceDest=tx_data["oldbalanceDest"],
-                    newbalanceDest=tx_data["newbalanceDest"],
-                    is_anomaly=result["is_anomaly"],
-                    risk_band=result["risk_band"],
-                    risk_score=result["risk_score"],
-                    created_at=datetime.utcnow(),
-                )
-                db.add(db_tx)
-                db.commit()
-                db.refresh(db_tx)
-                result["transaction_id"] = db_tx.id
-
-                all_results.append(PredictionResult(**result))
-                total_processed += 1
-                if result["is_anomaly"]:
-                    anomalies_detected += 1
-
-                logger.info(
-                    f"OCR transaction saved: ID={db_tx.id}, Amount={tx_data['amount']}"
-                )
-
-            except Exception as e:
-                logger.error(f"OCR processing failed for {f.filename}: {e}")
-                import traceback
-
-                logger.error(traceback.format_exc())
-                continue
-
-        # ═══════════════════════════════════════════════════════════════
-        # ✅ FIX: JSON Processing (NEW)
-        # ═══════════════════════════════════════════════════════════════
-        elif ext in ["json", "jsonl"] or "json" in content_type:
-            logger.info(f"Processing JSON file: {f.filename}")
-
-            # Read file contents
-            MAX_BATCH_SIZE = 500 * 1024 * 1024
-            contents = await f.read(MAX_BATCH_SIZE + 1)
-            if len(contents) > MAX_BATCH_SIZE:
-                raise HTTPException(
-                    status_code=413, detail="File too large. Max 500MB."
-                )
-
-            try:
-                text = contents.decode("utf-8")
-
-                # Handle JSONL (JSON Lines) format
-                if (
-                    ext == "jsonl"
-                    or "\n" in text.strip()
-                    and text.strip().startswith("{")
-                ):
-                    data = []
-                    for line in text.strip().split("\n"):
-                        line = line.strip()
-                        if line:
-                            data.append(json.loads(line))
-                else:
-                    # Standard JSON array or object
-                    parsed = json.loads(text)
-                    if isinstance(parsed, dict) and "transactions" in parsed:
-                        data = parsed["transactions"]
-                    elif isinstance(parsed, list):
-                        data = parsed
-                    else:
-                        raise HTTPException(
-                            status_code=400,
-                            detail="JSON must be an array or object with 'transactions' key",
-                        )
-
-                df = pd.DataFrame(data)
-                logger.info(f"JSON loaded: {len(df)} rows, columns: {list(df.columns)}")
-
-            except json.JSONDecodeError as e:
-                raise HTTPException(status_code=400, detail=f"Invalid JSON: {e}")
-            except Exception as e:
-                raise HTTPException(status_code=400, detail=f"JSON parsing error: {e}")
-
-            # Validate required columns
-            required = {
-                "step",
-                "type",
-                "amount",
-                "nameOrig",
-                "oldbalanceOrg",
-                "newbalanceOrig",
-                "nameDest",
-                "oldbalanceDest",
-                "newbalanceDest",
+            tx_data = {
+                "step": 1,
+                "type": ocr_result.get("type", "PAYMENT"),
+                "amount": ocr_result.get("amount") or 0.0,
+                "nameOrig": (ocr_result.get("vendor") or "OCR_Unknown")[:50],
+                "oldbalanceOrg": 0.0,
+                "newbalanceOrig": 0.0,
+                "nameDest": "OCR_Extracted",
+                "oldbalanceDest": 0.0,
+                "newbalanceDest": 0.0,
             }
-            missing = required - set(df.columns)
-            if missing:
-                raise HTTPException(
-                    status_code=400, detail=f"Missing columns: {missing}"
-                )
 
-            # Process same as CSV
-            CHUNK_SIZE = 1000
-            total_rows = len(df)
+            df = pd.DataFrame([tx_data])
+            result = predict_single(
+                df,
+                app.state.model,
+                app.state.risk_engine,
+                app.state.expected_features,
+                explainer=app.state.explainer,
+                explain=explain,
+            )
 
-            logger.info(f"Processing {total_rows} JSON rows in chunks of {CHUNK_SIZE}")
+            db_tx = DBTransaction(
+                step=tx_data["step"],
+                type=tx_data["type"],
+                amount=tx_data["amount"],
+                nameOrig=tx_data["nameOrig"],
+                oldbalanceOrg=tx_data["oldbalanceOrg"],
+                newbalanceOrig=tx_data["newbalanceOrig"],
+                nameDest=tx_data["nameDest"],
+                oldbalanceDest=tx_data["oldbalanceDest"],
+                newbalanceDest=tx_data["newbalanceDest"],
+                is_anomaly=result["is_anomaly"],
+                risk_band=result["risk_band"],
+                risk_score=result["risk_score"],
+                created_at=datetime.utcnow(),
+            )
+            db.add(db_tx)
+            db.commit()
+            db.refresh(db_tx)
+            result["transaction_id"] = db_tx.id
 
-            for chunk_start in range(0, total_rows, CHUNK_SIZE):
-                chunk_end = min(chunk_start + CHUNK_SIZE, total_rows)
-                chunk_df = df.iloc[chunk_start:chunk_end]
+            all_results.append(PredictionResult(**result))
+            total_processed += 1
+            if result["is_anomaly"]:
+                anomalies_detected += 1
 
-                logger.info(f"Processing chunk {chunk_start}-{chunk_end}...")
+            logger.info(
+                f"OCR transaction saved: ID={db_tx.id}, Amount={tx_data['amount']}"
+            )
 
-                # Process chunk
-                features = engineer_features_from_df(chunk_df)
-                feature_cols = get_feature_columns(features)
-                X = features[feature_cols]
-                X_aligned = align_features(X, app.state.expected_features)
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"OCR processing failed for {file.filename}: {e}")
+            logger.error(traceback.format_exc())
+            raise HTTPException(
+                status_code=500, detail=f"OCR processing failed: {str(e)}"
+            )
 
-                anomaly_scores = app.state.model.score_samples(X_aligned)
-                raw_predictions = app.state.model.predict(X_aligned)
+    # JSON / JSONL
+    elif ext in {"json", "jsonl"}:
+        processing_method = "json"
+        logger.info(f"Processing JSON file: {file.filename}")
+        contents = await _read_upload_file(file)
+        df = await parse_json_file(contents)
+        validate_required_columns(df)
+        all_results, anomalies_detected = process_dataframe_batch(
+            df,
+            app.state.model,
+            app.state.risk_engine,
+            app.state.expected_features,
+            db,
+            CHUNK_SIZE,
+        )
+        total_processed = len(df)
 
-                n = len(chunk_df)
-                sorted_indices = np.argsort(anomaly_scores)
-                risk_scores = [0] * n
-                for rank, idx in enumerate(sorted_indices):
-                    risk_scores[idx] = int(100 * (1 - rank / max(n - 1, 1)))
+    # PARQUET
+    elif ext in {"parquet", "pq", "parq"}:
+        processing_method = "parquet"
+        logger.info(f"Processing Parquet file: {file.filename}")
+        contents = await _read_upload_file(file)
+        df = await parse_parquet_file(contents)
+        validate_required_columns(df)
+        all_results, anomalies_detected = process_dataframe_batch(
+            df,
+            app.state.model,
+            app.state.risk_engine,
+            app.state.expected_features,
+            db,
+            CHUNK_SIZE,
+        )
+        total_processed = len(df)
 
-                risk_bands = [get_risk_band(s) for s in risk_scores]
+    # CSV
+    elif ext == "csv":
+        processing_method = "csv"
+        logger.info(f"Processing CSV file: {file.filename}")
+        contents = await _read_upload_file(file)
+        df = await parse_csv_file(contents)
+        validate_required_columns(df)
+        all_results, anomalies_detected = process_dataframe_batch(
+            df,
+            app.state.model,
+            app.state.risk_engine,
+            app.state.expected_features,
+            db,
+            CHUNK_SIZE,
+        )
+        total_processed = len(df)
 
-                anomaly_threshold_idx = int(n * 0.05)
-                is_anomalies = [False] * n
-                for idx in sorted_indices[:anomaly_threshold_idx]:
-                    is_anomalies[idx] = True
+    else:
+        raise HTTPException(status_code=415, detail=f"Unsupported file type: .{ext}")
 
-                # Build results for chunk
-                for i in range(n):
-                    all_results.append(
-                        PredictionResult(
-                            transaction_id=chunk_start + i,
-                            anomaly_score=float(anomaly_scores[i]),
-                            risk_score=risk_scores[i],
-                            risk_band=risk_bands[i],
-                            is_anomaly=is_anomalies[i],
-                            shap_values=None,
-                            top_features=None,
-                        )
-                    )
-                    if is_anomalies[i]:
-                        anomalies_detected += 1
-
-                # Save chunk to DB
-                for i, (_, row) in enumerate(chunk_df.iterrows()):
-                    db_tx = DBTransaction(
-                        step=int(row["step"]),
-                        type=str(row["type"]),
-                        amount=float(row["amount"]),
-                        nameOrig=str(row["nameOrig"]),
-                        oldbalanceOrg=float(row["oldbalanceOrg"]),
-                        newbalanceOrig=float(row["newbalanceOrig"]),
-                        nameDest=str(row["nameDest"]),
-                        oldbalanceDest=float(row["oldbalanceDest"]),
-                        newbalanceDest=float(row["newbalanceDest"]),
-                        is_anomaly=is_anomalies[i],
-                        risk_band=risk_bands[i],
-                        risk_score=risk_scores[i],
-                        isFraud=None,
-                        isFlaggedFraud=None,
-                        created_at=datetime.utcnow(),
-                    )
-                    db.add(db_tx)
-
-                db.commit()
-                logger.info(f"Chunk {chunk_start}-{chunk_end} complete")
-
-            total_processed += total_rows
-
-        # ═══════════════════════════════════════════════════════════════
-        # CSV Processing (existing code - unchanged)
-        # ═══════════════════════════════════════════════════════════════
-        elif ext == "csv":
-            logger.info(f"Processing CSV file: {f.filename}")
-
-            if not f.filename.endswith(".csv"):
-                raise HTTPException(status_code=400, detail="Only CSV files accepted")
-
-            # Read file
-            MAX_BATCH_SIZE = 500 * 1024 * 1024
-            contents = await f.read(MAX_BATCH_SIZE + 1)
-            if len(contents) > MAX_BATCH_SIZE:
-                raise HTTPException(
-                    status_code=413, detail="File too large. Max 500MB."
-                )
-
-            try:
-                df = pd.read_csv(StringIO(contents.decode("utf-8")))
-            except Exception as e:
-                raise HTTPException(status_code=400, detail=f"Invalid CSV: {e}")
-
-            required = {
-                "step",
-                "type",
-                "amount",
-                "nameOrig",
-                "oldbalanceOrg",
-                "newbalanceOrig",
-                "nameDest",
-                "oldbalanceDest",
-                "newbalanceDest",
-            }
-            missing = required - set(df.columns)
-            if missing:
-                raise HTTPException(
-                    status_code=400, detail=f"Missing columns: {missing}"
-                )
-
-            # ═══════════════════════════════════════════════════════════════
-            # CHUNKED PROCESSING — Process in batches of 1000 rows
-            # ═══════════════════════════════════════════════════════════════
-            CHUNK_SIZE = 1000
-            total_rows = len(df)
-
-            logger.info(f"Processing {total_rows} rows in chunks of {CHUNK_SIZE}")
-
-            for chunk_start in range(0, total_rows, CHUNK_SIZE):
-                chunk_end = min(chunk_start + CHUNK_SIZE, total_rows)
-                chunk_df = df.iloc[chunk_start:chunk_end]
-
-                logger.info(f"Processing chunk {chunk_start}-{chunk_end}...")
-
-                # Process chunk
-                features = engineer_features_from_df(chunk_df)
-                feature_cols = get_feature_columns(features)
-                X = features[feature_cols]
-                X_aligned = align_features(X, app.state.expected_features)
-
-                anomaly_scores = app.state.model.score_samples(X_aligned)
-                raw_predictions = app.state.model.predict(X_aligned)
-
-                n = len(chunk_df)
-                sorted_indices = np.argsort(anomaly_scores)
-                risk_scores = [0] * n
-                for rank, idx in enumerate(sorted_indices):
-                    risk_scores[idx] = int(100 * (1 - rank / max(n - 1, 1)))
-
-                risk_bands = [get_risk_band(s) for s in risk_scores]
-
-                anomaly_threshold_idx = int(n * 0.05)
-                is_anomalies = [False] * n
-                for idx in sorted_indices[:anomaly_threshold_idx]:
-                    is_anomalies[idx] = True
-
-                # Build results for chunk
-                for i in range(n):
-                    all_results.append(
-                        PredictionResult(
-                            transaction_id=chunk_start + i,
-                            anomaly_score=float(anomaly_scores[i]),
-                            risk_score=risk_scores[i],
-                            risk_band=risk_bands[i],
-                            is_anomaly=is_anomalies[i],
-                            shap_values=None,
-                            top_features=None,
-                        )
-                    )
-                    if is_anomalies[i]:
-                        anomalies_detected += 1
-
-                # Save chunk to DB
-                for i, (_, row) in enumerate(chunk_df.iterrows()):
-                    db_tx = DBTransaction(
-                        step=int(row["step"]),
-                        type=str(row["type"]),
-                        amount=float(row["amount"]),
-                        nameOrig=str(row["nameOrig"]),
-                        oldbalanceOrg=float(row["oldbalanceOrg"]),
-                        newbalanceOrig=float(row["newbalanceOrig"]),
-                        nameDest=str(row["nameDest"]),
-                        oldbalanceDest=float(row["oldbalanceDest"]),
-                        newbalanceDest=float(row["newbalanceDest"]),
-                        is_anomaly=is_anomalies[i],
-                        risk_band=risk_bands[i],
-                        risk_score=risk_scores[i],
-                        isFraud=None,
-                        isFlaggedFraud=None,
-                        created_at=datetime.utcnow(),
-                    )
-                    db.add(db_tx)
-
-                db.commit()
-                logger.info(f"Chunk {chunk_start}-{chunk_end} complete")
-
-            total_processed += total_rows
-
-        else:
-            logger.warning(f"Unsupported file type: {ext}")
-            continue
+    logger.info(
+        f"Batch complete: method={processing_method}, "
+        f"processed={total_processed}, anomalies={anomalies_detected}"
+    )
 
     return BatchPredictionResponse(
         total_processed=total_processed,
         anomalies_detected=anomalies_detected,
         results=all_results,
+        processing_method=processing_method,
     )
 
 
 @app.post("/ocr", dependencies=[Depends(verify_api_key)])
-async def ocr_parse(file: UploadFile = File(...)):
-    """Parse invoice PDF or image into structured data."""
-    ocr = app.state.ocr
+async def ocr_parse(
+    file: UploadFile = File(..., description="Invoice/receipt image or PDF"),
+):
+    if app.state.ocr is None:
+        raise HTTPException(status_code=503, detail="OCR service not available")
 
-    ext = file.filename.lower().split(".")[-1]
-    if ext not in ["pdf", "png", "jpg", "jpeg", "tiff", "tif"]:
-        raise HTTPException(status_code=400, detail=f"Unsupported file type: {ext}")
-
-    import tempfile
-
-    with tempfile.NamedTemporaryFile(delete=False, suffix=f".{ext}") as tmp:
-        contents = await file.read()
-        tmp.write(contents)
-        tmp_path = tmp.name
+    ext = _get_file_extension(file.filename)
+    if ext not in SUPPORTED_IMAGE_EXTS and ext not in SUPPORTED_DOC_EXTS:
+        raise HTTPException(
+            status_code=415,
+            detail=f"Unsupported file type: .{ext}. Supported images: {sorted(SUPPORTED_IMAGE_EXTS)} | PDF: {sorted(SUPPORTED_DOC_EXTS)}",
+        )
 
     try:
-        if ext == "pdf":
-            result = ocr.parse_invoice(tmp_path)
-        else:
-            result = ocr.parse_image(tmp_path)
-
+        ocr_result = await process_ocr_file(file, app.state.ocr)
         return {
-            "raw_text": result.raw_text[:500],
-            "amount": result.amount,
-            "date": result.date,
-            "vendor": result.vendor,
-            "confidence": result.confidence,
-            "validation_errors": result.metadata.get("fields_missing", []),
+            "status": "success",
+            "filename": file.filename,
+            "extracted": {
+                "amount": ocr_result.get("amount"),
+                "date": ocr_result.get("date"),
+                "vendor": ocr_result.get("vendor"),
+                "type": ocr_result.get("type"),
+                "confidence": ocr_result.get("confidence"),
+            },
+            "raw_text_preview": (ocr_result.get("raw_text") or "")[:500],
+            "metadata": ocr_result.get("metadata", {}),
+            "mock_mode": getattr(app.state.ocr, "mock_mode", True),
         }
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"OCR failed: {e}")
-        raise HTTPException(status_code=500, detail=f"OCR processing failed: {e}")
-    finally:
-        os.unlink(tmp_path)
+        logger.error(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=f"OCR processing failed: {str(e)}")
 
 
 @app.get("/transactions", dependencies=[Depends(verify_api_key)])
 async def get_transactions(
     limit: int = Query(default=100, ge=1, le=1000),
     offset: int = Query(default=0, ge=0),
+    risk_band: Optional[str] = Query(default=None, description="Filter by risk band"),
+    is_anomaly: Optional[bool] = Query(
+        default=None, description="Filter by anomaly status"
+    ),
     db: Session = Depends(get_db),
 ):
-    """Query transaction history."""
-    txs = db.query(DBTransaction).offset(offset).limit(limit).all()
-    total_count = db.query(func.count(DBTransaction.id)).scalar()
+    query = db.query(DBTransaction)
+    if risk_band:
+        query = query.filter(DBTransaction.risk_band == risk_band)
+    if is_anomaly is not None:
+        query = query.filter(DBTransaction.is_anomaly == is_anomaly)
+
+    txs = (
+        query.order_by(DBTransaction.created_at.desc())
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
+    total_count = query.count()
+
     return {
         "transactions": [TransactionRead.model_validate(tx) for tx in txs],
-        "count": total_count or 0,
+        "count": total_count,
+        "limit": limit,
+        "offset": offset,
     }
 
 
@@ -888,7 +1005,6 @@ async def get_transaction(
     transaction_id: int,
     db: Session = Depends(get_db),
 ):
-    """Get a single transaction by ID."""
     tx = db.query(DBTransaction).filter(DBTransaction.id == transaction_id).first()
     if not tx:
         raise HTTPException(status_code=404, detail="Transaction not found")
@@ -901,11 +1017,10 @@ async def get_transaction(
 async def add_feedback(
     transaction_id: int,
     feedback_correct: bool,
-    feedback_notes: str = None,
+    feedback_notes: Optional[str] = None,
     reviewed_by: str = "analyst",
     db: Session = Depends(get_db),
 ):
-    """Add analyst feedback on a prediction for future retraining."""
     tx = db.query(DBTransaction).filter(DBTransaction.id == transaction_id).first()
     if not tx:
         raise HTTPException(status_code=404, detail="Transaction not found")
@@ -914,7 +1029,6 @@ async def add_feedback(
     tx.feedback_notes = feedback_notes
     tx.reviewed_at = datetime.utcnow()
     tx.reviewed_by = reviewed_by
-
     db.commit()
     db.refresh(tx)
 
@@ -922,30 +1036,30 @@ async def add_feedback(
         "transaction_id": transaction_id,
         "feedback_correct": feedback_correct,
         "feedback_notes": feedback_notes,
-        "reviewed_at": tx.reviewed_at.isoformat(),
+        "reviewed_at": tx.reviewed_at.isoformat() if tx.reviewed_at else None,
+        "reviewed_by": reviewed_by,
         "message": "Feedback recorded for future retraining",
     }
 
 
 @app.get("/feedback-stats", dependencies=[Depends(verify_api_key)])
 async def get_feedback_stats(db: Session = Depends(get_db)):
-    """Get feedback statistics for model improvement tracking."""
-    total = db.query(func.count(DBTransaction.id)).scalar()
+    total = db.query(func.count(DBTransaction.id)).scalar() or 0
     reviewed = (
         db.query(func.count(DBTransaction.id))
         .filter(DBTransaction.feedback_correct != None)
         .scalar()
-    )
+    ) or 0
     correct = (
         db.query(func.count(DBTransaction.id))
         .filter(DBTransaction.feedback_correct == True)
         .scalar()
-    )
+    ) or 0
     incorrect = (
         db.query(func.count(DBTransaction.id))
         .filter(DBTransaction.feedback_correct == False)
         .scalar()
-    )
+    ) or 0
 
     return {
         "total_transactions": total,
@@ -962,15 +1076,11 @@ async def get_feedback_stats(db: Session = Depends(get_db)):
 
 @app.post("/retrain", dependencies=[Depends(verify_api_key)])
 async def retrain(
-    contamination: float = Query(default=None),
-    n_estimators: int = Query(default=None),
+    contamination: Optional[float] = Query(default=None),
+    n_estimators: Optional[int] = Query(default=None),
     dry_run: bool = Query(default=False),
     db: Session = Depends(get_db),
 ):
-    """
-    Retrain model on all accumulated DB data.
-    Returns new version info and validation metrics.
-    """
     if not RETRAIN_AVAILABLE:
         raise HTTPException(
             status_code=503,
@@ -978,7 +1088,6 @@ async def retrain(
         )
 
     logger.info("Starting model retraining...")
-
     try:
         model, risk_engine, version = retrain_model(
             contamination=contamination,
@@ -989,12 +1098,14 @@ async def retrain(
         if not dry_run:
             app.state.model = model
             app.state.risk_engine = risk_engine
-
             if app.state.model is not None:
-                app.state.explainer = shap.TreeExplainer(
-                    app.state.model, feature_perturbation="interventional"
-                )
-
+                try:
+                    app.state.explainer = shap.TreeExplainer(
+                        app.state.model, feature_perturbation="interventional"
+                    )
+                except Exception as e:
+                    logger.warning(f"SHAP re-init failed: {e}")
+                    app.state.explainer = None
             logger.info(f"Hot-swapped to new model version: {version}")
 
         return {
@@ -1007,87 +1118,55 @@ async def retrain(
             "retrain_available": RETRAIN_AVAILABLE,
             "timestamp": datetime.utcnow().isoformat(),
         }
-
     except Exception as e:
         logger.error(f"Retraining failed: {e}")
+        logger.error(traceback.format_exc())
         raise HTTPException(status_code=500, detail=f"Retraining failed: {str(e)}")
 
 
 @app.get("/stats", dependencies=[Depends(verify_api_key)])
 async def get_stats(db: Session = Depends(get_db)):
-    """Dashboard statistics with feature importance."""
     if app.state.model is None or app.state.risk_engine is None:
         raise HTTPException(status_code=503, detail="Model not loaded")
 
-    # ─── Transaction Counts ─────────────────────────────────────────────
-    try:
-        total = db.query(func.count(DBTransaction.id)).scalar()
-    except Exception:
-        total = 0
-
-    try:
-        anomalies = (
-            db.query(func.count(DBTransaction.id))
-            .filter(DBTransaction.is_anomaly == True)
-            .scalar()
-        )
-    except Exception:
-        anomalies = 0
-
-    try:
-        critical = (
-            db.query(func.count(DBTransaction.id))
-            .filter(DBTransaction.risk_band == "Critical")
-            .scalar()
-        )
-    except Exception:
-        critical = 0
-
-    try:
-        high = (
-            db.query(func.count(DBTransaction.id))
-            .filter(DBTransaction.risk_band == "High")
-            .scalar()
-        )
-    except Exception:
-        high = 0
-
-    try:
-        elevated = (
-            db.query(func.count(DBTransaction.id))
-            .filter(DBTransaction.risk_band == "Elevated")
-            .scalar()
-        )
-    except Exception:
-        elevated = 0
-
-    try:
-        medium = (
-            db.query(func.count(DBTransaction.id))
-            .filter(DBTransaction.risk_band == "Medium")
-            .scalar()
-        )
-    except Exception:
-        medium = 0
-
-    try:
-        low = (
-            db.query(func.count(DBTransaction.id))
-            .filter(DBTransaction.risk_band == "Low")
-            .scalar()
-        )
-    except Exception:
-        low = 0
+    total = db.query(func.count(DBTransaction.id)).scalar() or 0
+    anomalies = (
+        db.query(func.count(DBTransaction.id))
+        .filter(DBTransaction.is_anomaly == True)
+        .scalar()
+    ) or 0
+    critical = (
+        db.query(func.count(DBTransaction.id))
+        .filter(DBTransaction.risk_band == "Critical")
+        .scalar()
+    ) or 0
+    high = (
+        db.query(func.count(DBTransaction.id))
+        .filter(DBTransaction.risk_band == "High")
+        .scalar()
+    ) or 0
+    elevated = (
+        db.query(func.count(DBTransaction.id))
+        .filter(DBTransaction.risk_band == "Elevated")
+        .scalar()
+    ) or 0
+    medium = (
+        db.query(func.count(DBTransaction.id))
+        .filter(DBTransaction.risk_band == "Medium")
+        .scalar()
+    ) or 0
+    low = (
+        db.query(func.count(DBTransaction.id))
+        .filter(DBTransaction.risk_band == "Low")
+        .scalar()
+    ) or 0
 
     try:
         avg_risk = db.query(func.avg(DBTransaction.risk_score)).scalar()
     except Exception:
         avg_risk = 0.0
 
-    # ─── Feature Importance ─────────────────────────────────────────────
     feature_importance = []
-
-    # USE CASE 1: Real model extraction (Isolation Forest)
     try:
         if hasattr(app.state.model, "feature_importances_"):
             importances = app.state.model.feature_importances_
@@ -1121,9 +1200,7 @@ async def get_stats(db: Session = Depends(get_db)):
             feature_importance = feature_importance[:10]
     except Exception as e:
         logger.warning(f"Real feature importance failed: {e}")
-        # Fall through to mock data
 
-    # USE CASE 2: Mock data fallback (if model extraction fails)
     if not feature_importance:
         feature_importance = [
             {"feature": "amount", "importance": 0.245},
@@ -1138,20 +1215,56 @@ async def get_stats(db: Session = Depends(get_db)):
             {"feature": "hour_of_step", "importance": 0.004},
         ]
 
-    # ─── Response ───────────────────────────────────────────────────────
     return {
-        "total_transactions": total or 0,
-        "anomalies_detected": anomalies or 0,
-        "critical_count": critical or 0,
-        "high_count": high or 0,
-        "elevated_count": elevated or 0,
-        "medium_count": medium or 0,
-        "low_count": low or 0,
+        "total_transactions": total,
+        "anomalies_detected": anomalies,
+        "critical_count": critical,
+        "high_count": high,
+        "elevated_count": elevated,
+        "medium_count": medium,
+        "low_count": low,
         "anomaly_rate": round(anomalies / total, 4) if total else 0.0,
         "avg_risk_score": round(float(avg_risk), 1) if avg_risk else 0.0,
-        "feature_importance": feature_importance,  # ✅ ALWAYS PRESENT
+        "feature_importance": feature_importance,
     }
 
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ERROR HANDLERS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request, exc):
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "error": True,
+            "status_code": exc.status_code,
+            "detail": exc.detail,
+            "timestamp": datetime.utcnow().isoformat(),
+        },
+    )
+
+
+@app.exception_handler(Exception)
+async def general_exception_handler(request, exc):
+    logger.error(f"Unhandled exception: {exc}")
+    logger.error(traceback.format_exc())
+    return JSONResponse(
+        status_code=500,
+        content={
+            "error": True,
+            "status_code": 500,
+            "detail": "Internal server error",
+            "timestamp": datetime.utcnow().isoformat(),
+        },
+    )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# MAIN
+# ═══════════════════════════════════════════════════════════════════════════════
 
 if __name__ == "__main__":
     import uvicorn
