@@ -2,12 +2,10 @@ services:
   - type: web
     name: ledgerwatch-api
     runtime: python
-    plan: standard  # ✅ REQUIRED: 512MB RAM for EasyOCR (free tier = 512MB but swap-heavy)
+    plan: standard  # 512MB RAM for EasyOCR
     buildCommand: |
-      # ✅ Install system deps for EasyOCR + pdf2image (NO tesseract needed!)
       apt-get update && apt-get install -y libgl1-mesa-glx libglib2.0-0 poppler-utils
       pip install -r requirements.txt
-      # ✅ Pre-download EasyOCR model weights to avoid cold-start delay
       python -c "import easyocr; easyocr.Reader(['en'], gpu=False)"
     startCommand: uvicorn backend.main:app --host 0.0.0.0 --port $PORT
     envVars:
@@ -23,10 +21,6 @@ services:
         value: saved_models/isolation_forest.joblib
       - key: RISK_ENGINE_PATH
         value: saved_models/risk_engine.joblib
-      - key: OCR_MOCK_MODE
-        value: "false"
-      - key: OCR_GPU
-        value: "false"
     healthCheckPath: /health
     autoDeploy: true
 
