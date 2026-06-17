@@ -272,7 +272,7 @@ export default function Dashboard() {
                     </div>
                     <button className="text-sm text-accent-info hover:text-blue-400 transition-colors flex-shrink-0">View All →</button>
                 </div>
-                <div className="table-scroll-wrapper overflow-x-auto">
+                <div className="overflow-x-auto">
                     <table className="w-full min-w-[700px]">
                         <thead>
                             <tr className="bg-background-tertiary/50">
