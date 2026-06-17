@@ -5,12 +5,13 @@ import TopBar from './TopBar';
 
 export default function Layout() {
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-    const [isMobile, setIsMobile] = useState(false);
+    const [isMobile, setIsMobile] = useState(true); // ✅ Default true for safety
 
-    // Mobile detection
     useEffect(() => {
         const checkMobile = () => {
-            setIsMobile(window.innerWidth < 768);
+            const mobile = window.innerWidth < 768;
+            console.log('Mobile check:', mobile, 'Width:', window.innerWidth); // Debug
+            setIsMobile(mobile);
         };
 
         checkMobile();
@@ -35,24 +36,27 @@ export default function Layout() {
     }, []);
 
     return (
-        <div className="layout-wrapper min-h-screen bg-background-primary flex">
-            {/*
-              SIDEBAR
-              Desktop: Flex item with width transition
-              Mobile: Hidden (replaced by top nav in Sidebar component)
-            */}
-            <aside
-                className={`sidebar-desktop h-screen flex-shrink-0 transition-all duration-300 ${sidebarCollapsed ? 'w-16' : 'w-60'} hidden md:block`}
-            >
+        <div className="min-h-screen bg-background-primary flex flex-col md:flex-row">
+            {/* ✅ MOBILE: Always render Sidebar, it handles mobile internally */}
+            <div className="md:hidden fixed top-0 left-0 right-0 z-[100]">
+                <Sidebar
+                    isMobile={true}
+                    collapsed={false}
+                    onToggle={() => { }}
+                />
+            </div>
+
+            {/* DESKTOP: Sidebar */}
+            <div className={`hidden md:block h-screen flex-shrink-0 transition-all duration-300 ${sidebarCollapsed ? 'w-16' : 'w-60'}`}>
                 <Sidebar
                     collapsed={sidebarCollapsed}
                     onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
-                    isMobile={isMobile}
+                    isMobile={false}
                 />
-            </aside>
+            </div>
 
-            {/* MAIN CONTENT AREA */}
-            <div className="main-content-area flex-1 flex flex-col min-h-screen w-full">
+            {/* Main Content - Add margin-top for mobile */}
+            <div className="flex-1 flex flex-col min-h-screen w-full mt-14 md:mt-0">
                 <TopBar isMobile={isMobile} />
                 <main className="flex-1 p-4 md:p-6 overflow-y-auto overflow-x-hidden">
                     <Outlet />
