@@ -17,7 +17,12 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install dependencies
+      - name: Install system dependencies for EasyOCR
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgl1-mesa-glx libglib2.0-0 poppler-utils
+
+      - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
@@ -25,6 +30,10 @@ jobs:
 
       - name: Run backend tests
         run: pytest tests/test_api.py -v --cov=backend --cov-report=xml
+        env:
+          API_KEY: test-key
+          DATABASE_URL: sqlite:///./test.db
+          OCR_MOCK_MODE: true  # Use mock mode in CI (no GPU, faster)
 
       - name: Upload coverage
         uses: codecov/codecov-action@v3

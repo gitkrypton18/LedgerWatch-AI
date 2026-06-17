@@ -1,6 +1,5 @@
 """
 src/config.py — LedgerWatch AI configuration
-
 Pydantic-settings with .env loading. All paths validated at startup.
 """
 
@@ -14,17 +13,17 @@ class Settings(BaseSettings):
     """Application settings loaded from .env file."""
 
     # ─── Paths ────────────────────────────────────────────────────────────────
-    MODEL_PATH: str = "saved_models/isolation_forest_v1.0.0.joblib"
-    RISK_ENGINE_PATH: str = "saved_models/risk_engine_v1.0.0.joblib"
-    
-    # ✅ FIX: DATABASE_URL — no default, let database.py handle path logic
-    # Or use env var if explicitly set
-    DATABASE_URL: str = os.environ.get("DATABASE_URL", "")
-    
+    MODEL_PATH: str = "saved_models/isolation_forest.joblib"
+    RISK_ENGINE_PATH: str = "saved_models/risk_engine.joblib"
+
+    # Database: Render provides DATABASE_URL env var automatically
+    # Fallback to SQLite for local development
+    DATABASE_URL: str = os.environ.get("DATABASE_URL", "sqlite:///./ledgerwatch.db")
+
     DATA_DIR: str = "data"
     PROCESSED_DIR: str = "data/processed"
 
-    # ─── Training Hyperparameters (used by src/train.py) ─────────────────────
+    # ─── Training Hyperparameters ─────────────────────────────────────────────
     TEST_SIZE: float = 0.2
     RANDOM_STATE: int = 42
     N_ESTIMATORS: int = 200
@@ -37,7 +36,10 @@ class Settings(BaseSettings):
     API_KEY: str = "demo-key-123"
 
     # ─── CORS ───────────────────────────────────────────────────────────────
-    CORS_ORIGINS: str = "http://localhost:5173,https://ledgerwatch-ai.vercel.app"
+    CORS_ORIGINS: str = (
+        "http://localhost:5173,https://ledgerwatch-ai.vercel.app,https://ledger-watch-ai.vercel.app"
+    )
+
     # ─── Logging ─────────────────────────────────────────────────────────────
     LOG_LEVEL: str = "INFO"
 
@@ -47,6 +49,11 @@ class Settings(BaseSettings):
 
     # ─── Model Hyperparameters ───────────────────────────────────────────────
     CONTAMINATION: float = 0.0013
+
+    # ─── OCR Configuration ────────────────────────────────────────────────────
+    OCR_MOCK_MODE: bool = False
+    OCR_GPU: bool = False
+    OCR_LANGUAGES: str = "en"
 
     class Config:
         env_file = ".env"
@@ -58,7 +65,6 @@ class Settings(BaseSettings):
         for path_str in [self.MODEL_PATH, self.RISK_ENGINE_PATH]:
             path = Path(path_str)
             if not path.exists():
-                # Log warning but don't crash — models may be loaded later
                 import logging
 
                 logging.getLogger(__name__).warning(f"Path not found: {path}")
