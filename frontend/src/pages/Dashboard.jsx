@@ -49,24 +49,24 @@ const MOCK_RISK_DIST = [
 
 function KpiCard({ title, value, change, trend, icon: Icon, color, bgColor, loading }) {
     return (
-        <div className="bg-background-secondary border border-border-subtle rounded-xl p-4 lg:p-5 card-hover">
+        <div className="kpi-card bg-background-secondary border border-border-subtle rounded-xl p-4 lg:p-5 card-hover">
             <div className="flex items-start justify-between">
-                <div>
-                    <p className="text-xs lg:text-sm text-text-secondary mb-1">{title}</p>
+                <div className="min-w-0 flex-1">
+                    <p className="text-xs lg:text-sm text-text-secondary mb-1 truncate">{title}</p>
                     {loading ? (
                         <div className="w-6 h-6 animate-spin rounded-full border-2 border-accent-info border-t-transparent mt-2" />
                     ) : (
-                        <h3 className="text-xl lg:text-2xl font-mono font-semibold text-text-primary">{value}</h3>
+                        <h3 className="kpi-value text-xl lg:text-2xl font-mono font-semibold text-text-primary">{value}</h3>
                     )}
                     <div className="flex items-center gap-1 mt-1 lg:mt-2">
-                        {trend === "up" && <TrendingUp className="w-3 h-3 text-accent-success" />}
-                        {trend === "down" && <TrendingDown className="w-3 h-3 text-accent-danger" />}
+                        {trend === "up" && <TrendingUp className="w-3 h-3 text-accent-success flex-shrink-0" />}
+                        {trend === "down" && <TrendingDown className="w-3 h-3 text-accent-danger flex-shrink-0" />}
                         <span className={`text-xs font-medium ${trend === "up" ? "text-accent-success" : trend === "down" ? "text-accent-danger" : "text-text-muted"}`}>
                             {change}
                         </span>
                     </div>
                 </div>
-                <div className={`p-2 lg:p-2.5 rounded-lg ${bgColor}`}>
+                <div className={`kpi-icon-box p-2 lg:p-2.5 rounded-lg ${bgColor} flex-shrink-0 ml-3`}>
                     <Icon className={`w-4 h-4 lg:w-5 lg:h-5 ${color}`} />
                 </div>
             </div>
@@ -163,39 +163,39 @@ export default function Dashboard() {
         <div className="space-y-4 lg:space-y-6">
             {/* Header */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div>
-                    <h1 className="text-xl lg:text-2xl font-bold text-text-primary">Dashboard</h1>
+                <div className="min-w-0">
+                    <h1 className="text-xl lg:text-2xl font-bold text-text-primary truncate">Dashboard</h1>
                     <p className="text-text-muted text-sm mt-1">Real-time fraud detection overview</p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-shrink-0">
                     <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium ${online ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" : "bg-red-500/10 text-red-400 border border-red-500/20"}`}>
                         {online ? <Wifi className="w-3.5 h-3.5" /> : <WifiOff className="w-3.5 h-3.5" />}
                         {online ? "API Online" : "API Offline"}
-                        {online && healthData && <span className="text-text-muted ml-1">v{healthData.version}</span>}
+                        {online && healthData && <span className="text-text-muted ml-1 hidden sm:inline">v{healthData.version}</span>}
                     </div>
                     <button onClick={() => setUseMock(!useMock)} className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${useMock ? "bg-amber-500/10 text-amber-400 border-amber-500/20" : "bg-background-tertiary text-text-muted border-border-subtle hover:text-text-primary"}`}>
-                        {useMock ? "Using Mock" : "Live API"}
+                        {useMock ? "Mock" : "Live"}
                     </button>
                 </div>
             </div>
 
             {/* KPI Cards - Responsive Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
+            <div className="kpi-grid grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
                 {kpiData.map((kpi, index) => (
                     <KpiCard key={index} {...kpi} loading={!useMock && statsLoading} />
                 ))}
             </div>
 
             {/* Charts Row - Responsive */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6">
+            <div className="chart-grid-2 grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6">
                 {/* Anomaly Trend Chart */}
                 <div className="lg:col-span-2 bg-background-secondary border border-border-subtle rounded-xl p-4 lg:p-5">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 lg:mb-6 gap-2">
-                        <div>
-                            <h3 className="text-sm lg:text-base font-semibold text-text-primary">Anomaly Detection Trend</h3>
+                        <div className="min-w-0">
+                            <h3 className="text-sm lg:text-base font-semibold text-text-primary truncate">Anomaly Detection Trend</h3>
                             <p className="text-xs lg:text-sm text-text-muted mt-0.5">Real-time fraud pattern analysis</p>
                         </div>
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-3 flex-shrink-0">
                             <span className="flex items-center gap-1.5 text-xs text-text-secondary">
                                 <span className="w-2 h-2 rounded-full bg-accent-danger" />Anomalies
                             </span>
@@ -204,26 +204,28 @@ export default function Dashboard() {
                             </span>
                         </div>
                     </div>
-                    <ResponsiveContainer width="100%" height={250} className="lg:h-[300px]">
-                        <AreaChart data={trendData}>
-                            <defs>
-                                <linearGradient id="anomalyGradient" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%" stopColor="#EF4444" stopOpacity={0.3} />
-                                    <stop offset="95%" stopColor="#EF4444" stopOpacity={0} />
-                                </linearGradient>
-                                <linearGradient id="normalGradient" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.2} />
-                                    <stop offset="95%" stopColor="#3B82F6" stopOpacity={0} />
-                                </linearGradient>
-                            </defs>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#1E293B" />
-                            <XAxis dataKey="time" stroke="#64748B" fontSize={12} tickLine={false} />
-                            <YAxis stroke="#64748B" fontSize={12} tickLine={false} />
-                            <Tooltip content={<CustomTooltip />} />
-                            <Area type="monotone" dataKey="anomalies" stroke="#EF4444" strokeWidth={2} fill="url(#anomalyGradient)" />
-                            <Area type="monotone" dataKey="normal" stroke="#3B82F6" strokeWidth={2} fill="url(#normalGradient)" />
-                        </AreaChart>
-                    </ResponsiveContainer>
+                    <div className="chart-container">
+                        <ResponsiveContainer width="100%" height={220}>
+                            <AreaChart data={trendData}>
+                                <defs>
+                                    <linearGradient id="anomalyGradient" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="5%" stopColor="#EF4444" stopOpacity={0.3} />
+                                        <stop offset="95%" stopColor="#EF4444" stopOpacity={0} />
+                                    </linearGradient>
+                                    <linearGradient id="normalGradient" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.2} />
+                                        <stop offset="95%" stopColor="#3B82F6" stopOpacity={0} />
+                                    </linearGradient>
+                                </defs>
+                                <CartesianGrid strokeDasharray="3 3" stroke="#1E293B" />
+                                <XAxis dataKey="time" stroke="#64748B" fontSize={11} tickLine={false} />
+                                <YAxis stroke="#64748B" fontSize={11} tickLine={false} />
+                                <Tooltip content={<CustomTooltip />} />
+                                <Area type="monotone" dataKey="anomalies" stroke="#EF4444" strokeWidth={2} fill="url(#anomalyGradient)" />
+                                <Area type="monotone" dataKey="normal" stroke="#3B82F6" strokeWidth={2} fill="url(#normalGradient)" />
+                            </AreaChart>
+                        </ResponsiveContainer>
+                    </div>
                 </div>
 
                 {/* Right Column */}
@@ -237,21 +239,23 @@ export default function Dashboard() {
                     {/* Risk Distribution */}
                     <div className="bg-background-secondary border border-border-subtle rounded-xl p-4 lg:p-5">
                         <h3 className="text-sm lg:text-base font-semibold text-text-primary mb-4">Risk Distribution</h3>
-                        <ResponsiveContainer width="100%" height={180} className="lg:h-[200px]">
-                            <PieChart>
-                                <Pie data={riskDistribution} cx="50%" cy="50%" innerRadius={40} outerRadius={70} paddingAngle={4} dataKey="value">
-                                    {riskDistribution.map((entry, index) => (
-                                        <Cell key={`cell-${index}`} fill={entry.color} />
-                                    ))}
-                                </Pie>
-                                <Tooltip content={<CustomTooltip />} />
-                            </PieChart>
-                        </ResponsiveContainer>
+                        <div className="chart-container">
+                            <ResponsiveContainer width="100%" height={180}>
+                                <PieChart>
+                                    <Pie data={riskDistribution} cx="50%" cy="50%" innerRadius={35} outerRadius={65} paddingAngle={4} dataKey="value">
+                                        {riskDistribution.map((entry, index) => (
+                                            <Cell key={`cell-${index}`} fill={entry.color} />
+                                        ))}
+                                    </Pie>
+                                    <Tooltip content={<CustomTooltip />} />
+                                </PieChart>
+                            </ResponsiveContainer>
+                        </div>
                         <div className="grid grid-cols-2 gap-2 mt-4">
                             {riskDistribution.map((item, index) => (
                                 <div key={index} className="flex items-center gap-2">
-                                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: item.color }} />
-                                    <span className="text-xs text-text-secondary">{item.name}</span>
+                                    <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: item.color }} />
+                                    <span className="text-xs text-text-secondary truncate">{item.name}</span>
                                 </div>
                             ))}
                         </div>
@@ -262,14 +266,14 @@ export default function Dashboard() {
             {/* Recent Transactions Table */}
             <div className="bg-background-secondary border border-border-subtle rounded-xl overflow-hidden">
                 <div className="p-4 lg:p-5 border-b border-border-subtle flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <div>
-                        <h3 className="text-sm lg:text-base font-semibold text-text-primary">Recent High-Risk Transactions</h3>
+                    <div className="min-w-0">
+                        <h3 className="text-sm lg:text-base font-semibold text-text-primary truncate">Recent High-Risk Transactions</h3>
                         <p className="text-xs lg:text-sm text-text-muted mt-0.5">Flagged for manual review</p>
                     </div>
-                    <button className="text-sm text-accent-info hover:text-blue-400 transition-colors">View All →</button>
+                    <button className="text-sm text-accent-info hover:text-blue-400 transition-colors flex-shrink-0">View All →</button>
                 </div>
-                <div className="overflow-x-auto">
-                    <table className="w-full">
+                <div className="table-scroll-wrapper overflow-x-auto">
+                    <table className="w-full min-w-[700px]">
                         <thead>
                             <tr className="bg-background-tertiary/50">
                                 <th className="text-left px-4 lg:px-5 py-3 text-xs font-medium text-text-secondary uppercase tracking-wider">ID</th>
@@ -287,25 +291,25 @@ export default function Dashboard() {
                                         <span className="text-sm font-mono text-text-primary">{tx.id}</span>
                                     </td>
                                     <td className="px-4 lg:px-5 py-3">
-                                        <span className={`text-xs font-medium px-2 py-0.5 rounded ${tx.type === "TRANSFER" ? "bg-purple-500/20 text-purple-400" : tx.type === "CASH_OUT" ? "bg-amber-500/20 text-amber-400" : tx.type === "CASH_IN" ? "bg-emerald-500/20 text-emerald-400" : "bg-blue-500/20 text-blue-400"}`}>
+                                        <span className={`text-xs font-medium px-2 py-0.5 rounded inline-block ${tx.type === "TRANSFER" ? "bg-purple-500/20 text-purple-400" : tx.type === "CASH_OUT" ? "bg-amber-500/20 text-amber-400" : tx.type === "CASH_IN" ? "bg-emerald-500/20 text-emerald-400" : "bg-blue-500/20 text-blue-400"}`}>
                                             {tx.type}
                                         </span>
                                     </td>
-                                    <td className="px-4 lg:px-5 py-3 text-sm font-mono text-text-primary">{tx.amount}</td>
+                                    <td className="px-4 lg:px-5 py-3 text-sm font-mono text-text-primary whitespace-nowrap">{tx.amount}</td>
                                     <td className="px-4 lg:px-5 py-3">
                                         <div className="flex items-center gap-2">
-                                            <div className="w-12 lg:w-16 h-1.5 rounded-full bg-background-tertiary overflow-hidden">
+                                            <div className="w-12 lg:w-16 h-1.5 rounded-full bg-background-tertiary overflow-hidden flex-shrink-0">
                                                 <div className="h-full rounded-full transition-all" style={{ width: `${tx.score}%`, backgroundColor: tx.score >= 90 ? "#EF4444" : tx.score >= 70 ? "#F59E0B" : "#10B981" }} />
                                             </div>
-                                            <span className="text-xs font-mono font-semibold">{tx.score}</span>
+                                            <span className="text-xs font-mono font-semibold flex-shrink-0">{tx.score}</span>
                                         </div>
                                     </td>
                                     <td className="px-4 lg:px-5 py-3">
-                                        <span className={`px-2 py-1 rounded-md text-xs font-medium ${tx.status === 'Critical' ? 'bg-red-500/15 text-red-400 border border-red-500/30' : tx.status === 'High' ? 'bg-orange-500/15 text-orange-400 border border-orange-500/30' : 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'}`}>
+                                        <span className={`px-2 py-1 rounded-md text-xs font-medium inline-block ${tx.status === 'Critical' ? 'bg-red-500/15 text-red-400 border border-red-500/30' : tx.status === 'High' ? 'bg-orange-500/15 text-orange-400 border border-orange-500/30' : 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'}`}>
                                             {tx.status}
                                         </span>
                                     </td>
-                                    <td className="px-4 lg:px-5 py-3 text-xs text-text-muted">{tx.time}</td>
+                                    <td className="px-4 lg:px-5 py-3 text-xs text-text-muted whitespace-nowrap">{tx.time}</td>
                                 </tr>
                             ))}
                         </tbody>
