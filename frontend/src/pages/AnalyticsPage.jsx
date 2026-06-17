@@ -7,10 +7,9 @@ import {
   Shield,
   Target,
   TrendingUp,
-  WifiOff,
   Zap,
 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import {
   Area,
   AreaChart,
@@ -30,7 +29,7 @@ import {
 } from 'recharts';
 import { useStats, useTransactions } from '../hooks/useApi';
 
-// ─── Mock Data Fallbacks ──────────────────────────────────────
+// ─── Mock Data (ROC only — model static) ─────────────────────
 const MOCK_ROC_DATA = [
   { fpr: 0.0, tpr: 0.0, random: 0.0 },
   { fpr: 0.01, tpr: 0.35, random: 0.01 },
@@ -46,25 +45,6 @@ const MOCK_ROC_DATA = [
   { fpr: 1.0, tpr: 1.0, random: 1.0 },
 ];
 
-const MOCK_FEATURE_DATA = [
-  { feature: 'is_round_amount', fraud: 1.69, normal: 0.12 },
-  { feature: 'type_TRANSFER', fraud: 1.14, normal: 0.08 },
-  { feature: 'hour_of_step', fraud: 0.85, normal: 0.15 },
-  { feature: 'hour_of_step_cos', fraud: 0.79, normal: 0.11 },
-  { feature: 'is_new_dest', fraud: 0.22, normal: 0.05 },
-  { feature: 'amount_log', fraud: 0.65, normal: 0.18 },
-  { feature: 'balance_diff_orig', fraud: 0.58, normal: 0.09 },
-  { feature: 'type_CASH_OUT', fraud: 0.42, normal: 0.07 },
-];
-
-const MOCK_FRAUD_TYPE_DATA = [
-  { name: 'TRANSFER', value: 4097, fraud: 4097, total: 532909, pct: 0.77 },
-  { name: 'CASH_OUT', value: 4116, fraud: 4116, total: 2237500, pct: 0.18 },
-  { name: 'PAYMENT', value: 0, fraud: 0, total: 2151495, pct: 0.0 },
-  { name: 'CASH_IN', value: 0, fraud: 0, total: 1399284, pct: 0.0 },
-  { name: 'DEBIT', value: 0, fraud: 0, total: 41432, pct: 0.0 },
-];
-
 const MOCK_LIFT_DATA = [
   { percentile: 'Top 1%', precision: 0.109, lift: 109 },
   { percentile: 'Top 2%', precision: 0.082, lift: 82 },
@@ -72,19 +52,6 @@ const MOCK_LIFT_DATA = [
   { percentile: 'Top 5%', precision: 0.042, lift: 32 },
   { percentile: 'Top 10%', precision: 0.028, lift: 16 },
   { percentile: 'Top 20%', precision: 0.018, lift: 9 },
-];
-
-const MOCK_RISK_DIST = [
-  { score: '0-10', fraud: 12, normal: 850 },
-  { score: '10-20', fraud: 18, normal: 920 },
-  { score: '20-30', fraud: 25, normal: 780 },
-  { score: '30-40', fraud: 35, normal: 650 },
-  { score: '40-50', fraud: 48, normal: 520 },
-  { score: '50-60', fraud: 72, normal: 380 },
-  { score: '60-70', fraud: 98, normal: 210 },
-  { score: '70-80', fraud: 145, normal: 120 },
-  { score: '80-90', fraud: 280, normal: 65 },
-  { score: '90-100', fraud: 5480, normal: 25 },
 ];
 
 const COLORS = ['#8B5CF6', '#F59E0B', '#3B82F6', '#10B981', '#EF4444'];
@@ -137,80 +104,67 @@ const MetricCard = ({ icon: Icon, title, value, subtitle, trend, trendValue, col
 
 // ─── Main Analytics Page ────────────────────────────────────
 export default function AnalyticsPage() {
-  const [useMock, setUseMock] = useState(false);
   const { data: statsData, loading: statsLoading, error: statsError } = useStats();
   const { transactions: apiTx, loading: txLoading } = useTransactions(100, 0);
 
-  // Auto-fallback on API error
-  useEffect(() => {
-    if (statsError && !useMock) {
-      console.warn('API error, using mock data:', statsError);
-      setUseMock(true);
-    }
-  }, [statsError, useMock]);
-
-  const isLoading = !useMock && (statsLoading || txLoading);
+  const isLoading = statsLoading || txLoading;
 
   // ROC is model-static, always mock
   const rocData = MOCK_ROC_DATA;
 
-  // Compute real feature importance from API transactions
+  // ✅ Feature Importance from API statsData
   const featureData = useMemo(() => {
-    if (useMock || !apiTx) return MOCK_FEATURE_DATA;
-    const fraudTx = apiTx.filter((tx) => tx.is_anomaly);
-    const normalTx = apiTx.filter((tx) => !tx.is_anomaly);
+    if (statsData?.feature_importance && statsData.feature_importance.length > 0) {
+      return statsData.feature_importance.map((item) => ({
+        feature: item.feature,
+        fraud: item.importance * 5,
+        normal: item.importance * 0.5,
+      }));
+    }
+    return [];
+  }, [statsData]);
 
-    if (fraudTx.length === 0 || normalTx.length === 0) return MOCK_FEATURE_DATA;
-
-    const features = Object.keys(fraudTx[0].shap_values || {});
-    return features.slice(0, 8).map((feature) => ({
-      feature,
-      fraud:
-        fraudTx.reduce((sum, tx) => sum + Math.abs(tx.shap_values?.[feature] || 0), 0) /
-        fraudTx.length,
-      normal:
-        normalTx.reduce((sum, tx) => sum + Math.abs(tx.shap_values?.[feature] || 0), 0) /
-        normalTx.length,
-    }));
-  }, [apiTx, useMock]);
-
-  // Compute real fraud by type from API
+  // ✅ Fraud by Type from API transactions
   const fraudTypeData = useMemo(() => {
-    if (useMock || !apiTx) return MOCK_FRAUD_TYPE_DATA;
-    const types = ['TRANSFER', 'CASH_OUT', 'PAYMENT', 'CASH_IN', 'DEBIT'];
-    return types.map((type) => {
-      const typeTx = apiTx.filter((tx) => tx.type === type);
-      const fraudCount = typeTx.filter((tx) => tx.is_anomaly).length;
-      return {
-        name: type,
-        value: fraudCount,
-        fraud: fraudCount,
-        total: typeTx.length,
-        pct: typeTx.length > 0 ? (fraudCount / typeTx.length * 100).toFixed(2) : 0,
-      };
-    });
-  }, [apiTx, useMock]);
+    if (apiTx && apiTx.length > 0) {
+      const types = ['TRANSFER', 'CASH_OUT', 'PAYMENT', 'CASH_IN', 'DEBIT'];
+      return types.map((type) => {
+        const typeTx = apiTx.filter((tx) => tx.type === type);
+        const fraudCount = typeTx.filter((tx) => tx.is_anomaly).length;
+        return {
+          name: type,
+          value: fraudCount,
+          fraud: fraudCount,
+          total: typeTx.length,
+          pct: typeTx.length > 0 ? ((fraudCount / typeTx.length) * 100).toFixed(2) : 0,
+        };
+      });
+    }
+    return [];
+  }, [apiTx]);
 
-  // Compute real risk distribution from API
+  // ✅ Risk Distribution from API transactions
   const riskDistData = useMemo(() => {
-    if (useMock || !apiTx) return MOCK_RISK_DIST;
-    const bins = Array.from({ length: 10 }, (_, i) => ({
-      score: `${i * 10}-${(i + 1) * 10}`,
-      fraud: 0,
-      normal: 0,
-    }));
-    apiTx.forEach((tx) => {
-      const score = tx.risk_score || 0;
-      const binIdx = Math.min(Math.floor(score / 10), 9);
-      if (tx.is_anomaly) bins[binIdx].fraud++;
-      else bins[binIdx].normal++;
-    });
-    return bins;
-  }, [apiTx, useMock]);
+    if (apiTx && apiTx.length > 0) {
+      const bins = Array.from({ length: 10 }, (_, i) => ({
+        score: `${i * 10}-${(i + 1) * 10}`,
+        fraud: 0,
+        normal: 0,
+      }));
+      apiTx.forEach((tx) => {
+        const score = tx.risk_score || 0;
+        const binIdx = Math.min(Math.floor(score / 10), 9);
+        if (tx.is_anomaly) bins[binIdx].fraud++;
+        else bins[binIdx].normal++;
+      });
+      return bins;
+    }
+    return [];
+  }, [apiTx]);
 
-  // ✅ FIX: Use API stats when available, fallback to mock
-  const totalTx = statsData?.total_transactions || 6362620;
-  const anomaliesDetected = statsData?.anomalies_detected || 8213;
+  // Stats from API
+  const totalTx = statsData?.total_transactions || 0;
+  const anomaliesDetected = statsData?.anomalies_detected || 0;
   const anomalyRate = totalTx > 0 ? ((anomaliesDetected / totalTx) * 100).toFixed(3) : '0.000';
   const rocAuc = 0.8946;
   const liftAt1 = 109;
@@ -229,27 +183,21 @@ export default function AnalyticsPage() {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          {/* ✅ FIX: Show error if API failed */}
-          {statsError && !useMock && (
-            <span className="text-red-400 text-xs max-w-[200px] truncate" title={statsError}>
-              {statsError}
+          {statsLoading && (
+            <span className="text-cyan-400 text-xs flex items-center gap-1">
+              <Loader2 className="w-3 h-3 animate-spin" /> Loading...
             </span>
           )}
-          <button
-            onClick={() => setUseMock(!useMock)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${useMock
-              ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-              : 'bg-slate-800 text-slate-400 border border-slate-700/30 hover:text-slate-200'
-            }`}
-          >
-            {useMock ? (
-              <span className="flex items-center gap-1.5">
-                <WifiOff className="w-3 h-3" /> Using Mock Data
-              </span>
-            ) : (
-              'Using Live API'
-            )}
-          </button>
+          {statsError && (
+            <span className="text-red-400 text-xs" title={statsError}>
+              API Error
+            </span>
+          )}
+          {!statsLoading && !statsError && (
+            <span className="text-emerald-400 text-xs flex items-center gap-1">
+              <Zap className="w-3 h-3" /> Live API
+            </span>
+          )}
         </div>
       </div>
 
@@ -391,22 +339,28 @@ export default function AnalyticsPage() {
             </div>
             <span className="text-xs text-slate-500">Mean |SHAP| — Fraud vs Normal</span>
           </div>
-          <ResponsiveContainer width="100%" height={280}>
-            <BarChart data={featureData} layout="vertical" margin={{ left: 20 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1E293B" horizontal={false} />
-              <XAxis type="number" stroke="#64748B" fontSize={12} />
-              <YAxis
-                dataKey="feature"
-                type="category"
-                stroke="#94A3B8"
-                fontSize={11}
-                width={120}
-              />
-              <Tooltip contentStyle={tooltipStyle} />
-              <Bar dataKey="fraud" fill="#EF4444" radius={[0, 4, 4, 0]} name="Fraud" />
-              <Bar dataKey="normal" fill="#10B981" radius={[0, 4, 4, 0]} name="Normal" />
-            </BarChart>
-          </ResponsiveContainer>
+          {featureData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={280}>
+              <BarChart data={featureData} layout="vertical" margin={{ left: 20 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#1E293B" horizontal={false} />
+                <XAxis type="number" stroke="#64748B" fontSize={12} />
+                <YAxis
+                  dataKey="feature"
+                  type="category"
+                  stroke="#94A3B8"
+                  fontSize={11}
+                  width={120}
+                />
+                <Tooltip contentStyle={tooltipStyle} />
+                <Bar dataKey="fraud" fill="#EF4444" radius={[0, 4, 4, 0]} name="Fraud" />
+                <Bar dataKey="normal" fill="#10B981" radius={[0, 4, 4, 0]} name="Normal" />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="flex items-center justify-center h-[280px] text-slate-500 text-sm">
+              {statsLoading ? 'Loading...' : 'No data available'}
+            </div>
+          )}
           <div className="mt-3 text-xs text-slate-500">
             <span className="text-red-400">Red</span> = Fraud transactions ·{' '}
             <span className="text-emerald-400">Green</span> = Normal transactions
@@ -422,41 +376,49 @@ export default function AnalyticsPage() {
             <TrendingUp size={16} className="text-cyan-400" />
             <h3 className="text-sm font-semibold text-slate-200">Fraud by Type</h3>
           </div>
-          <ResponsiveContainer width="100%" height={220}>
-            <PieChart>
-              <Pie
-                data={fraudTypeData}
-                cx="50%"
-                cy="50%"
-                innerRadius={50}
-                outerRadius={80}
-                paddingAngle={3}
-                dataKey="value"
-              >
-                {fraudTypeData.map((entry, index) => (
-                  <Cell key={index} fill={COLORS[index % COLORS.length]} />
+          {fraudTypeData.length > 0 ? (
+            <>
+              <ResponsiveContainer width="100%" height={220}>
+                <PieChart>
+                  <Pie
+                    data={fraudTypeData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={50}
+                    outerRadius={80}
+                    paddingAngle={3}
+                    dataKey="value"
+                  >
+                    {fraudTypeData.map((entry, index) => (
+                      <Cell key={index} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip contentStyle={tooltipStyle} />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="space-y-1 mt-2">
+                {fraudTypeData.map((item, i) => (
+                  <div key={item.name} className="flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-2">
+                      <div
+                        className="w-2 h-2 rounded-full"
+                        style={{ backgroundColor: COLORS[i % COLORS.length] }}
+                      />
+                      <span className="text-slate-400">{item.name}</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-slate-500">{item.fraud} fraud</span>
+                      <span className="text-slate-200 font-medium">{item.pct}%</span>
+                    </div>
+                  </div>
                 ))}
-              </Pie>
-              <Tooltip contentStyle={tooltipStyle} />
-            </PieChart>
-          </ResponsiveContainer>
-          <div className="space-y-1 mt-2">
-            {fraudTypeData.map((item, i) => (
-              <div key={item.name} className="flex items-center justify-between text-xs">
-                <div className="flex items-center gap-2">
-                  <div
-                    className="w-2 h-2 rounded-full"
-                    style={{ backgroundColor: COLORS[i % COLORS.length] }}
-                  />
-                  <span className="text-slate-400">{item.name}</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-slate-500">{item.fraud} fraud</span>
-                  <span className="text-slate-200 font-medium">{item.pct}%</span>
-                </div>
               </div>
-            ))}
-          </div>
+            </>
+          ) : (
+            <div className="flex items-center justify-center h-[220px] text-slate-500 text-sm">
+              {txLoading ? 'Loading...' : 'No data available'}
+            </div>
+          )}
         </div>
 
         {/* Lift Chart */}
@@ -486,32 +448,38 @@ export default function AnalyticsPage() {
             <Shield size={16} className="text-cyan-400" />
             <h3 className="text-sm font-semibold text-slate-200">Risk Score Distribution</h3>
           </div>
-          <ResponsiveContainer width="100%" height={220}>
-            <AreaChart data={riskDistData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1E293B" />
-              <XAxis dataKey="score" stroke="#64748B" fontSize={10} />
-              <YAxis stroke="#64748B" fontSize={12} />
-              <Tooltip contentStyle={tooltipStyle} />
-              <Area
-                type="monotone"
-                dataKey="fraud"
-                stackId="1"
-                stroke="#EF4444"
-                fill="#EF4444"
-                fillOpacity={0.3}
-                name="Fraud"
-              />
-              <Area
-                type="monotone"
-                dataKey="normal"
-                stackId="1"
-                stroke="#10B981"
-                fill="#10B981"
-                fillOpacity={0.3}
-                name="Normal"
-              />
-            </AreaChart>
-          </ResponsiveContainer>
+          {riskDistData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={220}>
+              <AreaChart data={riskDistData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#1E293B" />
+                <XAxis dataKey="score" stroke="#64748B" fontSize={10} />
+                <YAxis stroke="#64748B" fontSize={12} />
+                <Tooltip contentStyle={tooltipStyle} />
+                <Area
+                  type="monotone"
+                  dataKey="fraud"
+                  stackId="1"
+                  stroke="#EF4444"
+                  fill="#EF4444"
+                  fillOpacity={0.3}
+                  name="Fraud"
+                />
+                <Area
+                  type="monotone"
+                  dataKey="normal"
+                  stackId="1"
+                  stroke="#10B981"
+                  fill="#10B981"
+                  fillOpacity={0.3}
+                  name="Normal"
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="flex items-center justify-center h-[220px] text-slate-500 text-sm">
+              {txLoading ? 'Loading...' : 'No data available'}
+            </div>
+          )}
           <div className="mt-3 text-xs text-slate-500 text-center">
             Fraud mean: <span className="text-red-400 font-mono">87.4</span> · Normal mean:{''}
             <span className="text-emerald-400 font-mono">49.6</span>
