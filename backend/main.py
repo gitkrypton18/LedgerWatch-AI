@@ -2,6 +2,7 @@
 backend/main.py — FastAPI backend for LedgerWatch AI
 """
 
+import json
 import logging
 import os
 import random
@@ -473,7 +474,7 @@ async def batch_predict(
     explain: bool = Query(default=False),
     db: Session = Depends(get_db),
 ):
-    """Batch predict — supports CSV, JSON, and image/PDF files via OCR."""
+    """Batch predict — supports CSV, JSON, JSONL, and image/PDF files via OCR."""
     if app.state.model is None or app.state.risk_engine is None:
         raise HTTPException(status_code=503, detail="Model or risk engine not loaded")
 
@@ -485,6 +486,7 @@ async def batch_predict(
 
     for f in all_files:
         ext = f.filename.lower().split(".")[-1]
+        content_type = (f.content_type or "").lower()
 
         # ═══════════════════════════════════════════════════════════════
         # ✅ FIX: Handle image/PDF files via OCR
@@ -559,7 +561,150 @@ async def batch_predict(
                 continue
 
         # ═══════════════════════════════════════════════════════════════
-        # CSV Processing (existing code)
+        # ✅ FIX: JSON Processing (NEW)
+        # ═══════════════════════════════════════════════════════════════
+        elif ext in ["json", "jsonl"] or "json" in content_type:
+            logger.info(f"Processing JSON file: {f.filename}")
+
+            # Read file contents
+            MAX_BATCH_SIZE = 500 * 1024 * 1024
+            contents = await f.read(MAX_BATCH_SIZE + 1)
+            if len(contents) > MAX_BATCH_SIZE:
+                raise HTTPException(
+                    status_code=413, detail="File too large. Max 500MB."
+                )
+
+            try:
+                text = contents.decode("utf-8")
+
+                # Handle JSONL (JSON Lines) format
+                if (
+                    ext == "jsonl"
+                    or "\n" in text.strip()
+                    and text.strip().startswith("{")
+                ):
+                    data = []
+                    for line in text.strip().split("\n"):
+                        line = line.strip()
+                        if line:
+                            data.append(json.loads(line))
+                else:
+                    # Standard JSON array or object
+                    parsed = json.loads(text)
+                    if isinstance(parsed, dict) and "transactions" in parsed:
+                        data = parsed["transactions"]
+                    elif isinstance(parsed, list):
+                        data = parsed
+                    else:
+                        raise HTTPException(
+                            status_code=400,
+                            detail="JSON must be an array or object with 'transactions' key",
+                        )
+
+                df = pd.DataFrame(data)
+                logger.info(f"JSON loaded: {len(df)} rows, columns: {list(df.columns)}")
+
+            except json.JSONDecodeError as e:
+                raise HTTPException(status_code=400, detail=f"Invalid JSON: {e}")
+            except Exception as e:
+                raise HTTPException(status_code=400, detail=f"JSON parsing error: {e}")
+
+            # Validate required columns
+            required = {
+                "step",
+                "type",
+                "amount",
+                "nameOrig",
+                "oldbalanceOrg",
+                "newbalanceOrig",
+                "nameDest",
+                "oldbalanceDest",
+                "newbalanceDest",
+            }
+            missing = required - set(df.columns)
+            if missing:
+                raise HTTPException(
+                    status_code=400, detail=f"Missing columns: {missing}"
+                )
+
+            # Process same as CSV
+            CHUNK_SIZE = 1000
+            total_rows = len(df)
+
+            logger.info(f"Processing {total_rows} JSON rows in chunks of {CHUNK_SIZE}")
+
+            for chunk_start in range(0, total_rows, CHUNK_SIZE):
+                chunk_end = min(chunk_start + CHUNK_SIZE, total_rows)
+                chunk_df = df.iloc[chunk_start:chunk_end]
+
+                logger.info(f"Processing chunk {chunk_start}-{chunk_end}...")
+
+                # Process chunk
+                features = engineer_features_from_df(chunk_df)
+                feature_cols = get_feature_columns(features)
+                X = features[feature_cols]
+                X_aligned = align_features(X, app.state.expected_features)
+
+                anomaly_scores = app.state.model.score_samples(X_aligned)
+                raw_predictions = app.state.model.predict(X_aligned)
+
+                n = len(chunk_df)
+                sorted_indices = np.argsort(anomaly_scores)
+                risk_scores = [0] * n
+                for rank, idx in enumerate(sorted_indices):
+                    risk_scores[idx] = int(100 * (1 - rank / max(n - 1, 1)))
+
+                risk_bands = [get_risk_band(s) for s in risk_scores]
+
+                anomaly_threshold_idx = int(n * 0.05)
+                is_anomalies = [False] * n
+                for idx in sorted_indices[:anomaly_threshold_idx]:
+                    is_anomalies[idx] = True
+
+                # Build results for chunk
+                for i in range(n):
+                    all_results.append(
+                        PredictionResult(
+                            transaction_id=chunk_start + i,
+                            anomaly_score=float(anomaly_scores[i]),
+                            risk_score=risk_scores[i],
+                            risk_band=risk_bands[i],
+                            is_anomaly=is_anomalies[i],
+                            shap_values=None,
+                            top_features=None,
+                        )
+                    )
+                    if is_anomalies[i]:
+                        anomalies_detected += 1
+
+                # Save chunk to DB
+                for i, (_, row) in enumerate(chunk_df.iterrows()):
+                    db_tx = DBTransaction(
+                        step=int(row["step"]),
+                        type=str(row["type"]),
+                        amount=float(row["amount"]),
+                        nameOrig=str(row["nameOrig"]),
+                        oldbalanceOrg=float(row["oldbalanceOrg"]),
+                        newbalanceOrig=float(row["newbalanceOrig"]),
+                        nameDest=str(row["nameDest"]),
+                        oldbalanceDest=float(row["oldbalanceDest"]),
+                        newbalanceDest=float(row["newbalanceDest"]),
+                        is_anomaly=is_anomalies[i],
+                        risk_band=risk_bands[i],
+                        risk_score=risk_scores[i],
+                        isFraud=None,
+                        isFlaggedFraud=None,
+                        created_at=datetime.utcnow(),
+                    )
+                    db.add(db_tx)
+
+                db.commit()
+                logger.info(f"Chunk {chunk_start}-{chunk_end} complete")
+
+            total_processed += total_rows
+
+        # ═══════════════════════════════════════════════════════════════
+        # CSV Processing (existing code - unchanged)
         # ═══════════════════════════════════════════════════════════════
         elif ext == "csv":
             logger.info(f"Processing CSV file: {f.filename}")
@@ -881,44 +1026,56 @@ async def get_stats(db: Session = Depends(get_db)):
         total = 0
 
     try:
-        anomalies = db.query(func.count(DBTransaction.id)).filter(
-            DBTransaction.is_anomaly == True
-        ).scalar()
+        anomalies = (
+            db.query(func.count(DBTransaction.id))
+            .filter(DBTransaction.is_anomaly == True)
+            .scalar()
+        )
     except Exception:
         anomalies = 0
 
     try:
-        critical = db.query(func.count(DBTransaction.id)).filter(
-            DBTransaction.risk_band == "Critical"
-        ).scalar()
+        critical = (
+            db.query(func.count(DBTransaction.id))
+            .filter(DBTransaction.risk_band == "Critical")
+            .scalar()
+        )
     except Exception:
         critical = 0
 
     try:
-        high = db.query(func.count(DBTransaction.id)).filter(
-            DBTransaction.risk_band == "High"
-        ).scalar()
+        high = (
+            db.query(func.count(DBTransaction.id))
+            .filter(DBTransaction.risk_band == "High")
+            .scalar()
+        )
     except Exception:
         high = 0
 
     try:
-        elevated = db.query(func.count(DBTransaction.id)).filter(
-            DBTransaction.risk_band == "Elevated"
-        ).scalar()
+        elevated = (
+            db.query(func.count(DBTransaction.id))
+            .filter(DBTransaction.risk_band == "Elevated")
+            .scalar()
+        )
     except Exception:
         elevated = 0
 
     try:
-        medium = db.query(func.count(DBTransaction.id)).filter(
-            DBTransaction.risk_band == "Medium"
-        ).scalar()
+        medium = (
+            db.query(func.count(DBTransaction.id))
+            .filter(DBTransaction.risk_band == "Medium")
+            .scalar()
+        )
     except Exception:
         medium = 0
 
     try:
-        low = db.query(func.count(DBTransaction.id)).filter(
-            DBTransaction.risk_band == "Low"
-        ).scalar()
+        low = (
+            db.query(func.count(DBTransaction.id))
+            .filter(DBTransaction.risk_band == "Low")
+            .scalar()
+        )
     except Exception:
         low = 0
 
@@ -929,18 +1086,32 @@ async def get_stats(db: Session = Depends(get_db)):
 
     # ─── Feature Importance ─────────────────────────────────────────────
     feature_importance = []
-    
+
     # USE CASE 1: Real model extraction (Isolation Forest)
     try:
-        if hasattr(app.state.model, 'feature_importances_'):
+        if hasattr(app.state.model, "feature_importances_"):
             importances = app.state.model.feature_importances_
             feature_names = [
-                "amount", "oldbalanceOrg", "newbalanceOrig", "oldbalanceDest",
-                "newbalanceDest", "type_CASH_IN", "type_CASH_OUT", "type_DEBIT",
-                "type_PAYMENT", "type_TRANSFER", "amount_to_balance_ratio",
-                "balance_diff_orig", "balance_diff_dest", "zero_balance_orig",
-                "zero_balance_dest", "hour_of_step", "day_of_week", "is_weekend",
-                "amount_log", "oldbalanceOrg_log"
+                "amount",
+                "oldbalanceOrg",
+                "newbalanceOrig",
+                "oldbalanceDest",
+                "newbalanceDest",
+                "type_CASH_IN",
+                "type_CASH_OUT",
+                "type_DEBIT",
+                "type_PAYMENT",
+                "type_TRANSFER",
+                "amount_to_balance_ratio",
+                "balance_diff_orig",
+                "balance_diff_dest",
+                "zero_balance_orig",
+                "zero_balance_dest",
+                "hour_of_step",
+                "day_of_week",
+                "is_weekend",
+                "amount_log",
+                "oldbalanceOrg_log",
             ]
             feature_importance = [
                 {"feature": name, "importance": round(float(imp), 4)}
@@ -980,7 +1151,6 @@ async def get_stats(db: Session = Depends(get_db)):
         "avg_risk_score": round(float(avg_risk), 1) if avg_risk else 0.0,
         "feature_importance": feature_importance,  # ✅ ALWAYS PRESENT
     }
-
 
 
 if __name__ == "__main__":
