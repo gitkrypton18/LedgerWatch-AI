@@ -11,7 +11,7 @@ import {
     X,
 } from 'lucide-react';
 import { useState } from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 
 const navItems = [
     { path: '/', icon: LayoutDashboard, label: 'Dashboard' },
@@ -24,14 +24,34 @@ const navItems = [
 
 export default function Sidebar({ collapsed, onToggle, isMobile }) {
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+    const navigate = useNavigate();
+    const location = useLocation();
+
+    const handleNavClick = (path) => {
+        setMobileMenuOpen(false);
+        // Small delay to allow menu close animation
+        setTimeout(() => {
+            navigate(path);
+        }, 10);
+    };
+
+    const isActivePath = (path) => {
+        if (path === '/') {
+            return location.pathname === '/' || location.pathname === '/dashboard';
+        }
+        return location.pathname === path || location.pathname.startsWith(path + '/');
+    };
 
     // ─── MOBILE TOP NAV BAR ─────────────────────────────
     if (isMobile) {
         return (
             <>
-                <div className="sidebar-mobile fixed top-0 left-0 right-0 h-14 z-50 flex items-center justify-between px-3 bg-background-secondary/95 backdrop-blur-xl border-b border-border-subtle">
+                <div className="sidebar-mobile fixed top-0 left-0 right-0 h-14 z-[100] flex items-center justify-between px-3 bg-background-secondary/95 backdrop-blur-xl border-b border-border-subtle">
                     {/* Logo */}
-                    <div className="mobile-logo flex items-center gap-2">
+                    <div
+                        className="mobile-logo flex items-center gap-2 cursor-pointer"
+                        onClick={() => handleNavClick('/')}
+                    >
                         <div className="mobile-logo-icon w-7 h-7 rounded-lg bg-accent-info/20 flex items-center justify-center flex-shrink-0">
                             <svg className="w-4 h-4 text-accent-info" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                 <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
@@ -42,21 +62,21 @@ export default function Sidebar({ collapsed, onToggle, isMobile }) {
 
                     {/* Horizontal Scroll Nav */}
                     <nav className="mobile-nav-scroll flex items-center gap-1 overflow-x-auto scrollbar-hide ml-2">
-                        {navItems.map((item) => (
-                            <NavLink
-                                key={item.path}
-                                to={item.path}
-                                onClick={() => setMobileMenuOpen(false)}
-                                className={({ isActive }) =>
-                                    `mobile-nav-item flex items-center justify-center p-2 rounded-md transition-colors ${isActive
+                        {navItems.map((item) => {
+                            const active = isActivePath(item.path);
+                            return (
+                                <button
+                                    key={item.path}
+                                    onClick={() => handleNavClick(item.path)}
+                                    className={`mobile-nav-item flex items-center justify-center p-2 rounded-md transition-colors ${active
                                         ? 'bg-accent-info/10 text-accent-info'
                                         : 'text-text-secondary hover:bg-background-tertiary hover:text-text-primary'
-                                    }`
-                                }
-                            >
-                                <item.icon className="w-[18px] h-[18px]" />
-                            </NavLink>
-                        ))}
+                                        }`}
+                                >
+                                    <item.icon className="w-[18px] h-[18px]" />
+                                </button>
+                            );
+                        })}
                     </nav>
 
                     {/* Hamburger Menu Button */}
@@ -70,23 +90,23 @@ export default function Sidebar({ collapsed, onToggle, isMobile }) {
 
                 {/* Mobile Dropdown Menu */}
                 {mobileMenuOpen && (
-                    <div className="mobile-dropdown fixed top-14 left-0 right-0 z-40 bg-background-secondary/98 backdrop-blur-xl border-b border-border-subtle p-3 space-y-1">
-                        {navItems.map((item) => (
-                            <NavLink
-                                key={item.path}
-                                to={item.path}
-                                onClick={() => setMobileMenuOpen(false)}
-                                className={({ isActive }) =>
-                                    `mobile-dropdown-item flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${isActive
+                    <div className="mobile-dropdown fixed top-14 left-0 right-0 z-[99] bg-background-secondary/98 backdrop-blur-xl border-b border-border-subtle p-3 space-y-1">
+                        {navItems.map((item) => {
+                            const active = isActivePath(item.path);
+                            return (
+                                <button
+                                    key={item.path}
+                                    onClick={() => handleNavClick(item.path)}
+                                    className={`mobile-dropdown-item w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors text-left ${active
                                         ? 'bg-accent-info/10 text-accent-info'
                                         : 'text-text-secondary hover:bg-background-tertiary'
-                                    }`
-                                }
-                            >
-                                <item.icon className="w-4 h-4" />
-                                <span>{item.label}</span>
-                            </NavLink>
-                        ))}
+                                        }`}
+                                >
+                                    <item.icon className="w-4 h-4 flex-shrink-0" />
+                                    <span>{item.label}</span>
+                                </button>
+                            );
+                        })}
                         <div className="border-t border-border-subtle pt-2 mt-2">
                             <div className="flex items-center gap-2 px-3 py-2">
                                 <span className="w-2 h-2 rounded-full bg-accent-success animate-pulse" />
