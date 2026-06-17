@@ -147,6 +147,7 @@ class BatchPredictionResponse(BaseModel):
     total_processed: int
     anomalies_detected: int
     results: list[PredictionResult]
+    processing_method: str = "unknown"  # Add this line
 
 
 # ============================================================================
