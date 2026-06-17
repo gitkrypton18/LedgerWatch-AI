@@ -20,8 +20,12 @@ requests==2.31.0
 pillow==10.2.0
 python-dotenv==1.0.0
 
-# ✅ OCR — EasyOCR (replaces Tesseract/PyTesseract)
+# OCR — EasyOCR (replaces Tesseract)
 easyocr==1.7.1
 torch==2.1.2
 torchvision==0.16.2
 pdf2image==1.17.0
+
+# Parquet support
+pyarrow==15.0.0
+fastparquet==2024.1.0
