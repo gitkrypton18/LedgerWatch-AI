@@ -47,10 +47,10 @@ const StatusBadge = ({ band, isAnomaly }) => {
 
 const RiskBar = ({ score }) => (
   <div className="flex items-center gap-2">
-    <div className="w-16 lg:w-20 h-1.5 bg-background-tertiary rounded-full overflow-hidden">
+    <div className="w-16 lg:w-20 h-1.5 bg-background-tertiary rounded-full overflow-hidden flex-shrink-0">
       <div className="h-full rounded-full transition-all" style={{ width: `${Math.min(score || 0, 100)}%`, backgroundColor: score >= 90 ? '#EF4444' : score >= 70 ? '#F59E0B' : score >= 40 ? '#3B82F6' : '#10B981' }} />
     </div>
-    <span className="text-text-primary text-xs font-medium w-6">{score || 0}</span>
+    <span className="text-text-primary text-xs font-medium w-6 flex-shrink-0">{score || 0}</span>
   </div>
 );
 
@@ -88,22 +88,22 @@ const DetailDrawer = ({ transaction, onClose }) => {
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-md bg-background-secondary border-l border-border-subtle h-full overflow-y-auto">
-        <div className="p-6">
-          <div className="flex items-center justify-between mb-6">
+      <div className="detail-drawer relative w-full max-w-md bg-background-secondary border-l border-border-subtle h-full overflow-y-auto">
+        <div className="p-4 lg:p-6">
+          <div className="flex items-center justify-between mb-4 lg:mb-6">
             <h2 className="text-lg font-bold text-text-primary">Transaction Details</h2>
             <button onClick={onClose} className="p-1 hover:bg-background-tertiary rounded-lg">
               <X className="w-5 h-5 text-text-muted" />
             </button>
           </div>
-          <div className="flex flex-col items-center mb-6">
-            <div className="relative w-24 h-24">
+          <div className="flex flex-col items-center mb-4 lg:mb-6">
+            <div className="relative w-20 h-20 lg:w-24 lg:h-24">
               <svg className="w-full h-full transform -rotate-90">
-                <circle cx="48" cy="48" r="40" stroke="#1E293B" strokeWidth="6" fill="none" />
-                <circle cx="48" cy="48" r="40" stroke={color} strokeWidth="6" fill="none" strokeDasharray={`${(score / 100) * 251} 251`} strokeLinecap="round" />
+                <circle cx="50%" cy="50%" r="40%" stroke="#1E293B" strokeWidth="6" fill="none" />
+                <circle cx="50%" cy="50%" r="40%" stroke={color} strokeWidth="6" fill="none" strokeDasharray={`${(score / 100) * 251} 251`} strokeLinecap="round" />
               </svg>
               <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-2xl font-bold text-text-primary">{score}</span>
+                <span className="text-xl lg:text-2xl font-bold text-text-primary">{score}</span>
                 <span className="text-xs text-text-muted">/100</span>
               </div>
             </div>
@@ -118,7 +118,7 @@ const DetailDrawer = ({ transaction, onClose }) => {
             ))}
           </div>
           {transaction.shap_values && (
-            <div className="mt-6">
+            <div className="mt-4 lg:mt-6">
               <h3 className="text-text-primary font-semibold mb-3">SHAP Explanation</h3>
               <ShapMiniChart shapValues={transaction.shap_values} />
             </div>
@@ -199,13 +199,13 @@ export default function TransactionsPage() {
     <div className="space-y-4 lg:space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl lg:text-2xl font-bold text-text-primary">Transactions</h1>
+        <div className="min-w-0">
+          <h1 className="text-xl lg:text-2xl font-bold text-text-primary truncate">Transactions</h1>
           <p className="text-text-muted text-sm mt-1">Monitor, filter, and inspect all transaction records</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-shrink-0">
           <button onClick={() => setUseMock(!useMock)} className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${useMock ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' : 'bg-background-tertiary text-text-muted border-border-subtle hover:text-text-primary'}`}>
-            {useMock ? 'Using Mock' : 'Live API'}
+            {useMock ? 'Mock' : 'Live'}
           </button>
           <button onClick={refetch} className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-background-tertiary border border-border-subtle text-text-muted text-xs hover:text-text-primary transition-colors">
             <RefreshCw className="w-3 h-3" /> Refresh
@@ -217,11 +217,11 @@ export default function TransactionsPage() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
         {[{ label: 'Total', value: totalItems.toLocaleString(), color: 'text-accent-info', icon: Shield }, { label: 'Anomalies', value: anomalyCount.toLocaleString(), color: 'text-red-400', icon: AlertTriangle }, { label: 'Critical', value: criticalCount.toLocaleString(), color: 'text-purple-400', icon: TrendingUp }, { label: 'Avg Risk', value: avgRisk, color: 'text-amber-400', icon: Activity }].map(stat => (
           <div key={stat.label} className="bg-background-secondary border border-border-subtle rounded-xl p-3 lg:p-4 flex items-center gap-3">
-            <div className={`w-8 h-8 lg:w-10 lg:h-10 rounded-xl bg-background-tertiary flex items-center justify-center ${stat.color}`}>
+            <div className={`w-8 h-8 lg:w-10 lg:h-10 rounded-xl bg-background-tertiary flex items-center justify-center ${stat.color} flex-shrink-0`}>
               <stat.icon size={18} className="lg:w-5 lg:h-5" />
             </div>
-            <div>
-              <p className="text-text-muted text-[10px] lg:text-xs uppercase tracking-wider">{stat.label}</p>
+            <div className="min-w-0">
+              <p className="text-text-muted text-[10px] lg:text-xs uppercase tracking-wider truncate">{stat.label}</p>
               <p className={`text-lg lg:text-2xl font-bold font-mono ${stat.color}`}>{stat.value}</p>
             </div>
           </div>
@@ -234,7 +234,7 @@ export default function TransactionsPage() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
           <input type="text" placeholder="Search by ID, name, or amount..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} className="w-full pl-10 pr-4 py-2.5 bg-background-tertiary border border-border-subtle rounded-lg text-text-primary text-sm placeholder:text-text-muted focus:outline-none focus:border-accent-info focus:ring-1 focus:ring-accent-info/20" />
         </div>
-        <button onClick={() => setShowFilters(!showFilters)} className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium border transition-colors ${showFilters || activeFilterCount > 0 ? 'bg-accent-info/10 text-accent-info border-accent-info/30' : 'bg-background-tertiary text-text-primary border-border-subtle hover:border-border-accent'}`}>
+        <button onClick={() => setShowFilters(!showFilters)} className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium border transition-colors flex-shrink-0 ${showFilters || activeFilterCount > 0 ? 'bg-accent-info/10 text-accent-info border-accent-info/30' : 'bg-background-tertiary text-text-primary border-border-subtle hover:border-border-accent'}`}>
           <Filter className="w-4 h-4" /> Filters {activeFilterCount > 0 && `(${activeFilterCount})`}
         </button>
       </div>
@@ -358,21 +358,21 @@ export default function TransactionsPage() {
       </div>
 
       {/* Pagination */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+      <div className="pagination-bar flex flex-col sm:flex-row items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <span className="text-text-muted text-sm">Page {page} of {totalPages}</span>
+          <span className="page-info-text text-text-muted text-sm">Page {page} of {totalPages}</span>
           <span className="text-text-muted text-xs">({totalItems.toLocaleString()} items)</span>
         </div>
         <div className="flex items-center gap-1">
-          <button onClick={() => goToPage(1)} disabled={page === 1} className="p-2 rounded-lg hover:bg-background-tertiary disabled:opacity-30"><ChevronsLeft className="w-4 h-4 text-text-muted" /></button>
-          <button onClick={() => goToPage(page - 1)} disabled={page === 1} className="p-2 rounded-lg hover:bg-background-tertiary disabled:opacity-30"><ChevronLeft className="w-4 h-4 text-text-muted" /></button>
+          <button onClick={() => goToPage(1)} disabled={page === 1} className="page-btn p-2 rounded-lg hover:bg-background-tertiary disabled:opacity-30"><ChevronsLeft className="w-4 h-4 text-text-muted" /></button>
+          <button onClick={() => goToPage(page - 1)} disabled={page === 1} className="page-btn p-2 rounded-lg hover:bg-background-tertiary disabled:opacity-30"><ChevronLeft className="w-4 h-4 text-text-muted" /></button>
           {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
             const pageNum = Math.max(1, Math.min(page - 2 + i, totalPages));
             if (pageNum < 1 || pageNum > totalPages) return null;
-            return <button key={pageNum} onClick={() => goToPage(pageNum)} className={`w-8 h-8 rounded-lg text-sm font-medium ${page === pageNum ? 'bg-accent-info text-white' : 'text-text-muted hover:bg-background-tertiary hover:text-text-primary'}`}>{pageNum}</button>;
+            return <button key={pageNum} onClick={() => goToPage(pageNum)} className={`page-btn w-8 h-8 rounded-lg text-sm font-medium ${page === pageNum ? 'bg-accent-info text-white' : 'text-text-muted hover:bg-background-tertiary hover:text-text-primary'}`}>{pageNum}</button>;
           })}
-          <button onClick={() => goToPage(page + 1)} disabled={page === totalPages} className="p-2 rounded-lg hover:bg-background-tertiary disabled:opacity-30"><ChevronRight className="w-4 h-4 text-text-muted" /></button>
-          <button onClick={() => goToPage(totalPages)} disabled={page === totalPages} className="p-2 rounded-lg hover:bg-background-tertiary disabled:opacity-30"><ChevronsRight className="w-4 h-4 text-text-muted" /></button>
+          <button onClick={() => goToPage(page + 1)} disabled={page === totalPages} className="page-btn p-2 rounded-lg hover:bg-background-tertiary disabled:opacity-30"><ChevronRight className="w-4 h-4 text-text-muted" /></button>
+          <button onClick={() => goToPage(totalPages)} disabled={page === totalPages} className="page-btn p-2 rounded-lg hover:bg-background-tertiary disabled:opacity-30"><ChevronsRight className="w-4 h-4 text-text-muted" /></button>
         </div>
       </div>
 
