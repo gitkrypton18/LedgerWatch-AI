@@ -10,7 +10,7 @@ import {
     Upload,
     X,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 
 const navItems = [
@@ -22,17 +22,25 @@ const navItems = [
     { path: '/settings', icon: Settings, label: 'Settings' },
 ];
 
-export default function Sidebar({ collapsed, onToggle, isMobile }) {
+export default function Sidebar({ collapsed, onToggle, isMobile: propIsMobile }) {
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+    const [internalIsMobile, setInternalIsMobile] = useState(false);
     const navigate = useNavigate();
     const location = useLocation();
 
+    // Internal mobile detection (backup)
+    useEffect(() => {
+        const check = () => setInternalIsMobile(window.innerWidth < 768);
+        check();
+        window.addEventListener('resize', check);
+        return () => window.removeEventListener('resize', check);
+    }, []);
+
+    const isMobile = propIsMobile !== undefined ? propIsMobile : internalIsMobile;
+
     const handleNavClick = (path) => {
         setMobileMenuOpen(false);
-        // Small delay to allow menu close animation
-        setTimeout(() => {
-            navigate(path);
-        }, 10);
+        navigate(path);
     };
 
     const isActivePath = (path) => {
@@ -42,35 +50,37 @@ export default function Sidebar({ collapsed, onToggle, isMobile }) {
         return location.pathname === path || location.pathname.startsWith(path + '/');
     };
 
-    // ─── MOBILE TOP NAV BAR ─────────────────────────────
+    // ═══════════════════════════════════════════════════
+    // MOBILE TOP NAV BAR
+    // ═══════════════════════════════════════════════════
     if (isMobile) {
         return (
             <>
-                <div className="sidebar-mobile fixed top-0 left-0 right-0 h-14 z-[100] flex items-center justify-between px-3 bg-background-secondary/95 backdrop-blur-xl border-b border-border-subtle">
+                <div className="fixed top-0 left-0 right-0 h-14 z-[100] flex items-center justify-between px-3 bg-background-secondary/95 backdrop-blur-xl border-b border-border-subtle">
                     {/* Logo */}
-                    <div
-                        className="mobile-logo flex items-center gap-2 cursor-pointer"
+                    <button
                         onClick={() => handleNavClick('/')}
+                        className="flex items-center gap-2"
                     >
-                        <div className="mobile-logo-icon w-7 h-7 rounded-lg bg-accent-info/20 flex items-center justify-center flex-shrink-0">
+                        <div className="w-7 h-7 rounded-lg bg-accent-info/20 flex items-center justify-center flex-shrink-0">
                             <svg className="w-4 h-4 text-accent-info" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                 <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
                             </svg>
                         </div>
-                        <span className="mobile-logo-text text-sm font-bold text-text-primary">LedgerWatch</span>
-                    </div>
+                        <span className="text-sm font-bold text-text-primary">LedgerWatch</span>
+                    </button>
 
                     {/* Horizontal Scroll Nav */}
-                    <nav className="mobile-nav-scroll flex items-center gap-1 overflow-x-auto scrollbar-hide ml-2">
+                    <nav className="flex items-center gap-1 overflow-x-auto scrollbar-hide ml-2">
                         {navItems.map((item) => {
                             const active = isActivePath(item.path);
                             return (
                                 <button
                                     key={item.path}
                                     onClick={() => handleNavClick(item.path)}
-                                    className={`mobile-nav-item flex items-center justify-center p-2 rounded-md transition-colors ${active
-                                        ? 'bg-accent-info/10 text-accent-info'
-                                        : 'text-text-secondary hover:bg-background-tertiary hover:text-text-primary'
+                                    className={`flex items-center justify-center p-2 rounded-md transition-colors ${active
+                                            ? 'bg-accent-info/10 text-accent-info'
+                                            : 'text-text-secondary hover:bg-background-tertiary hover:text-text-primary'
                                         }`}
                                 >
                                     <item.icon className="w-[18px] h-[18px]" />
@@ -79,27 +89,27 @@ export default function Sidebar({ collapsed, onToggle, isMobile }) {
                         })}
                     </nav>
 
-                    {/* Hamburger Menu Button */}
+                    {/* Hamburger */}
                     <button
                         onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                        className="mobile-menu-btn w-8 h-8 rounded-md bg-background-tertiary/50 flex items-center justify-center text-text-secondary ml-1"
+                        className="w-8 h-8 rounded-md bg-background-tertiary/50 flex items-center justify-center text-text-secondary ml-1"
                     >
                         {mobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
                     </button>
                 </div>
 
-                {/* Mobile Dropdown Menu */}
+                {/* Dropdown Menu */}
                 {mobileMenuOpen && (
-                    <div className="mobile-dropdown fixed top-14 left-0 right-0 z-[99] bg-background-secondary/98 backdrop-blur-xl border-b border-border-subtle p-3 space-y-1">
+                    <div className="fixed top-14 left-0 right-0 z-[99] bg-background-secondary/98 backdrop-blur-xl border-b border-border-subtle p-3 space-y-1">
                         {navItems.map((item) => {
                             const active = isActivePath(item.path);
                             return (
                                 <button
                                     key={item.path}
                                     onClick={() => handleNavClick(item.path)}
-                                    className={`mobile-dropdown-item w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors text-left ${active
-                                        ? 'bg-accent-info/10 text-accent-info'
-                                        : 'text-text-secondary hover:bg-background-tertiary'
+                                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors text-left ${active
+                                            ? 'bg-accent-info/10 text-accent-info'
+                                            : 'text-text-secondary hover:bg-background-tertiary'
                                         }`}
                                 >
                                     <item.icon className="w-4 h-4 flex-shrink-0" />
@@ -119,11 +129,16 @@ export default function Sidebar({ collapsed, onToggle, isMobile }) {
         );
     }
 
-    // ─── DESKTOP SIDEBAR ────────────────────────────────
+    // ═══════════════════════════════════════════════════
+    // DESKTOP SIDEBAR
+    // ═══════════════════════════════════════════════════
     return (
         <div className="h-full flex flex-col bg-background-secondary border-r border-border-subtle">
             {/* Logo */}
-            <div className="h-16 flex items-center justify-between px-4 border-b border-border-subtle">
+            <button
+                onClick={() => navigate('/')}
+                className="h-16 flex items-center justify-between px-4 border-b border-border-subtle w-full text-left hover:bg-background-tertiary/50 transition-colors"
+            >
                 <div className={`flex items-center gap-3 ${collapsed ? 'justify-center w-full' : ''}`}>
                     <div className="w-8 h-8 rounded-lg bg-accent-info/20 flex items-center justify-center flex-shrink-0">
                         <svg className="w-5 h-5 text-accent-info" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -137,17 +152,20 @@ export default function Sidebar({ collapsed, onToggle, isMobile }) {
                         </div>
                     )}
                 </div>
-                <button
-                    onClick={onToggle}
-                    className="p-1.5 rounded-lg hover:bg-background-tertiary transition-colors"
+                <span
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        onToggle();
+                    }}
+                    className="p-1.5 rounded-lg hover:bg-background-tertiary transition-colors cursor-pointer"
                 >
                     {collapsed ? (
                         <ChevronRight className="w-4 h-4 text-text-muted" />
                     ) : (
                         <ChevronLeft className="w-4 h-4 text-text-muted" />
                     )}
-                </button>
-            </div>
+                </span>
+            </button>
 
             {/* Navigation */}
             <nav className="flex-1 py-4 px-3 space-y-1 overflow-y-auto">
@@ -156,7 +174,7 @@ export default function Sidebar({ collapsed, onToggle, isMobile }) {
                         key={item.path}
                         to={item.path}
                         className={({ isActive }) =>
-                            `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${isActive
+                            `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all w-full ${isActive
                                 ? 'bg-accent-info/10 text-accent-info border border-accent-info/20'
                                 : 'text-text-secondary hover:bg-background-tertiary hover:text-text-primary'
                             } ${collapsed ? 'justify-center' : ''}`

@@ -5,46 +5,37 @@ import TopBar from './TopBar';
 
 export default function Layout() {
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-    const [isMobile, setIsMobile] = useState(true); // ✅ Default true for safety
+    const [isMobile, setIsMobile] = useState(false);
 
     useEffect(() => {
         const checkMobile = () => {
-            const mobile = window.innerWidth < 768;
-            console.log('Mobile check:', mobile, 'Width:', window.innerWidth); // Debug
-            setIsMobile(mobile);
+            setIsMobile(window.innerWidth < 768);
         };
-
         checkMobile();
         window.addEventListener('resize', checkMobile);
         return () => window.removeEventListener('resize', checkMobile);
     }, []);
 
-    // Auto-collapse sidebar on tablet
+    // Auto-collapse on tablet
     useEffect(() => {
-        const checkTablet = () => {
-            const width = window.innerWidth;
-            if (width >= 768 && width < 1024) {
-                setSidebarCollapsed(true);
-            } else if (width >= 1024) {
-                setSidebarCollapsed(false);
-            }
+        const handleResize = () => {
+            const w = window.innerWidth;
+            if (w >= 768 && w < 1024) setSidebarCollapsed(true);
+            else if (w >= 1024) setSidebarCollapsed(false);
         };
-
-        checkTablet();
-        window.addEventListener('resize', checkTablet);
-        return () => window.removeEventListener('resize', checkTablet);
+        handleResize();
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
     }, []);
 
     return (
         <div className="min-h-screen bg-background-primary flex flex-col md:flex-row">
-            {/* ✅ MOBILE: Always render Sidebar, it handles mobile internally */}
-            <div className="md:hidden fixed top-0 left-0 right-0 z-[100]">
-                <Sidebar
-                    isMobile={true}
-                    collapsed={false}
-                    onToggle={() => { }}
-                />
-            </div>
+            {/* MOBILE: Top nav bar */}
+            {isMobile && (
+                <div className="md:hidden fixed top-0 left-0 right-0 z-[100]">
+                    <Sidebar isMobile={true} collapsed={false} onToggle={() => { }} />
+                </div>
+            )}
 
             {/* DESKTOP: Sidebar */}
             <div className={`hidden md:block h-screen flex-shrink-0 transition-all duration-300 ${sidebarCollapsed ? 'w-16' : 'w-60'}`}>
@@ -55,7 +46,7 @@ export default function Layout() {
                 />
             </div>
 
-            {/* Main Content - Add margin-top for mobile */}
+            {/* Main Content */}
             <div className="flex-1 flex flex-col min-h-screen w-full mt-14 md:mt-0">
                 <TopBar isMobile={isMobile} />
                 <main className="flex-1 p-4 md:p-6 overflow-y-auto overflow-x-hidden">
