@@ -115,71 +115,20 @@ async def lifespan(app: FastAPI):
 
 
 async def _seed_database_if_empty():
+    """NO AUTO-SEED: Database starts completely empty.
+
+    Users must upload files via /batch-predict to populate data.
+    This ensures the dashboard shows 0/0/0 on first load.
+    """
     db = SessionLocal()
     try:
-        count = db.query(func.count(DBTransaction.id)).scalar()
-        if count > 0:
-            logger.info(f"DB has {count} rows — skip seed")
-            return
-
-        logger.info("DB empty — seeding sample data...")
-        possible_paths = [
-            "data/sample.csv",
-            "../data/sample.csv",
-            "/opt/render/project/src/data/sample.csv",
-            "tessmall.csv",
-            "data/tessmall.csv",
-        ]
-
-        sample_path = None
-        for path in possible_paths:
-            abs_path = os.path.abspath(path)
-            if os.path.exists(abs_path):
-                sample_path = abs_path
-                break
-
-        if not sample_path:
-            logger.warning("sample.csv not found — starting empty")
-            return
-
-        df = pd.read_csv(sample_path).head(5000)
-        total_rows = len(df)
-        records = []
-        for _, row in df.iterrows():
-            risk_score = random.randint(5, 98)
-            risk_band = get_risk_band(risk_score)
-            is_anomaly = risk_score >= 85
-            records.append(
-                {
-                    "step": int(row["step"]),
-                    "type": str(row["type"]),
-                    "amount": float(row["amount"]),
-                    "nameOrig": str(row["nameOrig"]),
-                    "oldbalanceOrg": float(row["oldbalanceOrg"]),
-                    "newbalanceOrig": float(row["newbalanceOrig"]),
-                    "nameDest": str(row["nameDest"]),
-                    "oldbalanceDest": float(row["oldbalanceDest"]),
-                    "newbalanceDest": float(row["newbalanceDest"]),
-                    "isFraud": int(row.get("isFraud", 0)) if "isFraud" in row else None,
-                    "isFlaggedFraud": (
-                        int(row.get("isFlaggedFraud", 0))
-                        if "isFlaggedFraud" in row
-                        else None
-                    ),
-                    "risk_score": risk_score,
-                    "risk_band": risk_band,
-                    "is_anomaly": is_anomaly,
-                    "created_at": datetime.utcnow(),
-                }
-            )
-
-        db.bulk_insert_mappings(DBTransaction, records)
-        db.commit()
-        logger.info(f"Seeded {total_rows} transactions from {sample_path}")
+        count = db.query(func.count(DBTransaction.id)).scalar() or 0
+        logger.info(
+            f"DB status: {count} transactions. Auto-seed DISABLED — starting empty."
+        )
+        # Intentionally doing nothing — no seed data inserted
     except Exception as e:
-        logger.error(f"Auto-seed failed: {e}")
-        logger.error(traceback.format_exc())
-        db.rollback()
+        logger.error(f"DB check failed: {e}")
     finally:
         db.close()
 
