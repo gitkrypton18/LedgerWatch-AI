@@ -50,7 +50,7 @@ const MOCK_RISK_DIST = [
 
 function KpiCard({ title, value, change, trend, icon: Icon, color, bgColor, loading }) {
     return (
-        <div className="kpi-card bg-background-secondary border border-border-subtle rounded-xl p-4 lg:p-5 card-hover">
+        <div className="kpi-card glass-panel border border-border-subtle rounded-xl p-4 lg:p-5 card-hover">
             <div className="flex items-start justify-between">
                 <div className="min-w-0 flex-1">
                     <p className="text-xs lg:text-sm text-text-secondary mb-1 truncate">{title}</p>
@@ -211,7 +211,7 @@ export default function Dashboard() {
             {/* Charts Row - Responsive */}
             <div className="chart-grid-2 grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6">
                 {/* Anomaly Trend Chart */}
-                <div className="lg:col-span-2 bg-background-secondary border border-border-subtle rounded-xl p-4 lg:p-5">
+                <div className="lg:col-span-2 glass-panel border border-border-subtle rounded-xl p-4 lg:p-5 card-hover">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 lg:mb-6 gap-2">
                         <div className="min-w-0">
                             <h3 className="text-sm lg:text-base font-semibold text-text-primary truncate">Anomaly Detection Trend</h3>
@@ -253,13 +253,13 @@ export default function Dashboard() {
                 {/* Right Column */}
                 <div className="space-y-4 lg:space-y-6">
                     {/* Risk Ring */}
-                    <div className="bg-background-secondary border border-border-subtle rounded-xl p-4 lg:p-5 flex flex-col items-center">
+                    <div className="glass-panel border border-border-subtle rounded-xl p-4 lg:p-5 flex flex-col items-center card-hover">
                         <h3 className="text-sm lg:text-base font-semibold text-text-primary mb-4 self-start">Current Risk Level</h3>
                         <RiskRing score={statsData?.avg_risk_score ? Math.round(statsData.avg_risk_score) : 52} />
                     </div>
 
                     {/* Risk Distribution */}
-                    <div className="bg-background-secondary border border-border-subtle rounded-xl p-4 lg:p-5">
+                    <div className="glass-panel border border-border-subtle rounded-xl p-4 lg:p-5 card-hover">
                         <h3 className="text-sm lg:text-base font-semibold text-text-primary mb-4">Risk Distribution</h3>
                         <div className="chart-container">
                             <ResponsiveContainer width="100%" height={180}>
@@ -286,7 +286,7 @@ export default function Dashboard() {
             </div>
 
             {/* Recent Transactions Table */}
-            <div className="bg-background-secondary border border-border-subtle rounded-xl overflow-hidden">
+            <div className="glass-panel border border-border-subtle rounded-xl overflow-hidden card-hover">
                 <div className="p-4 lg:p-5 border-b border-border-subtle flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                     <div className="min-w-0">
                         <h3 className="text-sm lg:text-base font-semibold text-text-primary truncate">Recent High-Risk Transactions</h3>
