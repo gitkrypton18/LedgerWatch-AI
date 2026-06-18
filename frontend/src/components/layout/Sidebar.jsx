@@ -9,6 +9,7 @@ import {
     Settings,
     Upload,
     X,
+    Hexagon
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
@@ -62,10 +63,8 @@ export default function Sidebar({ collapsed, onToggle, isMobile: propIsMobile })
                         onClick={() => handleNavClick('/')}
                         className="flex items-center gap-2"
                     >
-                        <div className="w-7 h-7 rounded-lg bg-accent-info/20 flex items-center justify-center flex-shrink-0">
-                            <svg className="w-4 h-4 text-accent-info" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
-                            </svg>
+                        <div className="w-7 h-7 rounded-lg bg-accent-info/20 flex items-center justify-center flex-shrink-0 shadow-[0_0_10px_rgba(0,229,255,0.2)]">
+                            <Hexagon className="w-4 h-4 text-accent-info" />
                         </div>
                         <span className="text-sm font-bold text-text-primary">LedgerWatch</span>
                     </button>
@@ -140,10 +139,8 @@ export default function Sidebar({ collapsed, onToggle, isMobile: propIsMobile })
                 className="h-16 flex items-center justify-between px-4 border-b border-border-subtle w-full text-left hover:bg-background-tertiary/50 transition-colors"
             >
                 <div className={`flex items-center gap-3 ${collapsed ? 'justify-center w-full' : ''}`}>
-                    <div className="w-8 h-8 rounded-lg bg-accent-info/20 flex items-center justify-center flex-shrink-0">
-                        <svg className="w-5 h-5 text-accent-info" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
-                        </svg>
+                    <div className="w-8 h-8 rounded-lg bg-accent-info/20 flex items-center justify-center flex-shrink-0 shadow-[0_0_15px_rgba(0,229,255,0.3)]">
+                        <Hexagon className="w-5 h-5 text-accent-info" />
                     </div>
                     {!collapsed && (
                         <div>
