@@ -33,7 +33,7 @@ class TransactionBase(BaseModel):
     type: str = Field(
         ..., description="Transaction type: PAYMENT, TRANSFER, CASH_OUT, etc."
     )
-    amount: float = Field(..., gt=0, description="Transaction amount (must be > 0)")
+    amount: float = Field(..., ge=0, description="Transaction amount (must be >= 0)")
     nameOrig: str = Field(..., description="Sender account ID")
     oldbalanceOrg: float = Field(
         ..., ge=0, description="Sender balance BEFORE transaction"

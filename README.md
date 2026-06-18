@@ -2,7 +2,7 @@
 
 # 🔍 LedgerWatch AI
 
-**OCR-powered financial transaction anomaly detection platform**
+**Enterprise-Grade Fraud Detection & Transaction Monitoring Platform**
 
 [![Python](https://img.shields.io/badge/Python-3.11-blue?logo=python)](https://python.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.109-009688?logo=fastapi)](https://fastapi.tiangolo.com)
@@ -12,409 +12,230 @@
 [![SHAP](https://img.shields.io/badge/SHAP-0.44-red)](https://shap.readthedocs.io)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-[🚀 Live Demo](https://ledgerwatch-ai.vercel.app) · [📖 API Docs](https://ledgerwatch-api.onrender.com/docs) · [📊 Kaggle Dataset](https://www.kaggle.com/datasets/ealaxi/paysim1)
+[🚀 Live Demo](https://ledger-watch-ai.vercel.app/) · [📖 API Docs](https://ledgerwatch-api.onrender.com/docs) · [📊 Documentation](docs/LedgerWatch_Complete_Documentation.md)
 
 </div>
 
 ---
 
-## 📋 Table of Contents
+## 🎯 Executive Summary
 
-- [Overview](#-overview)
-- [Key Results](#-key-results)
-- [Architecture](#-architecture)
-- [Tech Stack](#-tech-stack)
-- [Quick Start](#-quick-start)
-- [API Reference](#-api-reference)
-- [Project Structure](#-project-structure)
-- [Screenshots](#-screenshots)
-- [Interview Talking Points](#-interview-talking-points)
-- [Deployment](#-deployment)
-- [License](#-license)
+**LedgerWatch AI** is a full-stack, machine learning-driven platform designed to detect fraudulent financial transactions and anomalous invoices without relying on pre-labeled data. 
+
+In the real world, fraud labels are rare. LedgerWatch solves this by leveraging an **Unsupervised Isolation Forest** model trained on over 6.3 million transactions. It learns the multi-dimensional shape of "normal" behavior and calculates an anomaly score for new transactions. This mathematical score is then calibrated by a **Risk Engine** into an intuitive 0-100 percentile, and explained visually using **SHAP (SHapley Additive exPlanations)** to ensure AI transparency for compliance and analyst review.
+
+Coupled with a robust **OCR Invoice Parsing** engine and a production-ready **React Dashboard**, LedgerWatch AI provides an end-to-end fraud monitoring solution.
 
 ---
 
-## 🎯 Overview
+## ✨ Key Features
 
-LedgerWatch AI is a **full-stack fraud detection platform** that ingests financial transactions (CSV uploads) and invoice PDFs, detects anomalies using an **Isolation Forest** trained on 6.3M synthetic transactions, scores each transaction 0-100 for fraud risk, and explains every prediction with **SHAP** visualizations — all served through a professional React dashboard.
-
-### What Makes This Different
-
-| Feature | Why It Matters |
-|---------|---------------|
-| **Unsupervised Learning** | No labels needed during training — works on unlabeled real-world data |
-| **SHAP Explainability** | Every prediction comes with a "why" — critical for compliance |
-| **OCR Invoice Parsing** | Extracts structured data from PDFs/images using Tesseract |
-| **Percentile-Based Risk** | 0-100 score calibrated without ever seeing fraud labels |
-| **Full-Stack Production** | FastAPI backend + React frontend + SQLite database |
+| Feature | Description | Business Value |
+|---------|-------------|----------------|
+| **Unsupervised Learning** | Isolation Forest model trained on 6.3M rows. | Operates perfectly on unlabeled real-world financial data. |
+| **SHAP Explainability** | Generates feature-importance waterfall charts. | Critical for regulatory compliance—every prediction has a "why". |
+| **Risk Calibration** | Maps raw anomaly math to a 0-100 percentile score. | Analysts can easily filter, prioritize, and define alert thresholds. |
+| **OCR Invoice Parsing** | Extracts structured entities (Vendor, Amount, Date) from PDFs via Tesseract. | Unifies unstructured invoice data with tabular transaction data. |
+| **Real-time Dashboard** | React 18, Tailwind v4, Recharts, drag-and-drop batch processing. | Professional, dark-mode fintech UX for operational monitoring. |
 
 ---
 
-## 🏆 Key Results
+## 📸 Frontend Pages & Screenshots
 
-### Model Performance (PaySim Dataset — 6,362,620 transactions)
+*(Drop your screenshots in the `docs/screenshots/` folder and name them as shown below, or replace the paths with your own!)*
 
-| Metric | Value | Interpretation |
-|--------|-------|----------------|
-| **ROC-AUC** | **0.8946** | Excellent discrimination |
-| **Precision@Top-1%** | 10.9% | 109× better than random |
-| **Lift@Top-1%** | **109×** | 109x more fraud in top 1% vs baseline |
-| **Lift@Top-5%** | 32× | 32x better than random |
-| **Fraud Mean Risk** | 87.4/100 | Clear separation from normal (49.6) |
-| **Separation Ratio** | **1.76×** | Fraud scores 1.76× higher than normal |
+### 1. Main Dashboard
+![Dashboard Screenshot](docs/screenshots/dashboard.png)
+*High-level KPIs, global anomaly trend graphs, and dynamic risk score rings.*
 
-### LOF Comparison (Why Isolation Forest Won)
+### 2. Transaction Monitoring
+![Transactions Screenshot](docs/screenshots/transactions.png)
+*Comprehensive data table with complex filtering, sorting, and pagination.*
 
-| Model | ROC-AUC | Training Time | Inference | Verdict |
-|-------|---------|---------------|-----------|---------|
-| **Isolation Forest** | **0.8946** | ~3 min | ~50ms/1K | ✅ Primary |
-| LOF | 0.5571 | >30 min | >5 min/1K | ❌ Fails at scale |
+### 3. AI Explainability (SHAP)
+![Explainability Screenshot](docs/screenshots/explainability.png)
+*Visual waterfall charts showing exactly why a transaction was flagged.*
 
-> LOF's O(n²) complexity makes it computationally infeasible for 6.3M rows. Isolation Forest's O(n log n) scaling is the right choice.
+### 4. Batch Upload & OCR Invoice Parsing
+![Upload Screenshot](docs/screenshots/upload.png)
+*Drag-and-drop interface for importing CSV transaction logs and PDF invoices.*
+
+### 5. Analytics & Risk Distributions
+![Analytics Screenshot](docs/screenshots/analytics.png)
+*Aggregated data trends, fraud distributions, and ML performance curves.*
 
 ---
 
-## 🏗️ Architecture
+## 🏗️ System Architecture
 
-```
+```text
 ┌─────────────┐     ┌─────────────┐     ┌─────────────────────────────┐
 │ Invoice PDF │────▶│ OCR Service │────▶│      FastAPI Backend        │
-│  (Tesseract)│     │   (Day 9)   │     │      (Day 10 + 10.5)        │
+│  (Tesseract)│     │             │     │                             │
 └─────────────┘     └─────────────┘     │  • /predict                 │
-                                         │  • /batch-predict           │
+                                        │  • /batch-predict           │
 ┌─────────────┐     ┌─────────────┐     │  • /ocr                     │
 │ CSV Upload  │────▶│ Data Ingest │────▶│  • /transactions            │
-│  (Raw Data) │     │   (Day 1)   │     │  • /stats                   │
+│  (Raw Data) │     │  Pipeline   │     │  • /stats                   │
 └─────────────┘     └─────────────┘     └──────────────┬──────────────┘
-                                                        │
-       ┌────────────────────────────────────────────────┘
+                                                       │
+       ┌───────────────────────────────────────────────┘
        ▼
 ┌─────────────────────────────────────────────────────────────────────┐
 │                         SQLite Database                             │
-│                    (ledgerwatch.db)                                 │
 └─────────────────────────────────────────────────────────────────────┘
        │
        ▼
 ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
 │   Feature    │───▶│   Isolation  │───▶│ Risk Engine  │
 │ Engineering  │    │   Forest     │    │  (0-100)     │
-│  (24 feats)  │    │ (Day 4)      │    │ (Day 7)      │
+│  (24 feats)  │    │ (6.3M rows)  │    │ Calibration  │
 └──────────────┘    └──────────────┘    └──────┬───────┘
-                                                │
-       ┌────────────────────────────────────────┘
+                                               │
+       ┌───────────────────────────────────────┘
        ▼
 ┌──────────────┐    ┌─────────────────────────────────────────────────┐
-│ SHAP Explain │───▶│           React Frontend (Days 11-13)           │
-│   (Day 8)    │    │  Vite + Tailwind v4 + Recharts + React Router   │
-└──────────────┘    │  • Dashboard (KPIs, charts, risk ring)          │
-                    │  • Upload (drag-drop, batch processing)         │
-                    │  • Transactions (filter, sort, pagination)      │
-                    │  • Explainability (SHAP waterfall charts)       │
-                    │  • Analytics (ROC, lift, feature importance)    │
-                    │  • Settings (API config, theme, notifications)  │
-                    └─────────────────────────────────────────────────┘
+│ SHAP Explain │───▶│           React Frontend Dashboard              │
+│ (Waterfall)  │    │  Vite + Tailwind v4 + Recharts + React Router   │
+└──────────────┘    └─────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 🛠️ Tech Stack
+## 📂 Project Structure
 
-### Backend
+```text
+LedgerWatch-AI/
+├── backend/                    # FastAPI application and ML pipeline
+│   ├── main.py                 # Core API endpoints & server setup
+│   ├── src/                    # Machine Learning & Business Logic
+│   │   ├── train.py            # Isolation Forest training pipeline
+│   │   ├── risk_engine.py      # Percentile-based 0-100 scoring
+│   │   ├── explain.py          # SHAP TreeExplainer wrapper
+│   │   ├── ocr_service.py      # Tesseract + regex invoice parser
+│   │   └── features.py         # 24-feature engineering pipeline
+│   ├── saved_models/           # Serialized .joblib models
+│   └── tests/                  # Pytest test suite
+├── frontend/                   # React frontend application
+│   ├── src/
+│   │   ├── pages/              # Main UI views (Dashboard, Upload, etc.)
+│   │   ├── components/         # Reusable UI elements (Charts, Tables, Layouts)
+│   │   └── index.css           # Tailwind v4 theme tokens
+├── data/                       # Raw and processed datasets, test invoices
+├── docs/                       # Project documentation and screenshots
+├── notebooks/                  # EDA and model research notebooks
+└── render.yaml                 # Render cloud deployment config
+```
 
-| Technology | Version | Purpose |
-|-----------|---------|---------|
-| **Python** | 3.11 | Core language |
-| **FastAPI** | 0.109 | Async REST API framework |
-| **SQLAlchemy** | 2.0 | ORM + database management |
-| **Pydantic** | v2 | Request/response validation |
-| **scikit-learn** | 1.4 | Isolation Forest model |
-| **SHAP** | 0.44 | Model explainability (TreeExplainer) |
-| **Tesseract** | 5.x | OCR for invoice parsing |
-| **Uvicorn** | 0.27 | ASGI server |
+---
+
+## 🏆 Model Performance & Metrics
+
+Trained on the **PaySim Dataset** (6,362,620 transactions).
+
+| Metric | Value | Interpretation |
+|--------|-------|----------------|
+| **ROC-AUC** | **0.8946** | Excellent discrimination capability. |
+| **Lift @ Top 1%** | **109×** | The top 1% of highest-risk scores contain 109x more fraud than a random sample. |
+| **Separation Ratio** | **1.76×** | Fraudulent transactions score, on average, 1.76x higher than normal ones. |
+| **Inference Time** | **~50ms/1K** | Highly scalable for real-time streaming architectures. |
+
+---
+
+## 🛠️ Technology Stack
+
+### Backend & Machine Learning
+- **Python 3.11** / **FastAPI 0.109**: Async REST API framework.
+- **scikit-learn 1.4**: Core Isolation Forest implementation.
+- **SHAP 0.44**: TreeExplainer for feature importance visualization.
+- **SQLAlchemy 2.0 / Pydantic v2**: ORM and request/response type validation.
+- **Tesseract OCR 5.x**: Invoice text extraction.
 
 ### Frontend
-
-| Technology | Version | Purpose |
-|-----------|---------|---------|
-| **React** | 18 | UI framework |
-| **Vite** | 5 | Build tool |
-| **Tailwind CSS** | v4 | Utility-first styling |
-| **Recharts** | 2 | Data visualization |
-| **React Router** | 6 | Client-side routing |
-| **Lucide React** | latest | Icons |
-| **Axios** | 1 | HTTP client |
-
-### Infrastructure
-
-| Technology | Purpose |
-|-----------|---------|
-| **SQLite** | Zero-config database |
-| **Render** | FastAPI backend hosting |
-| **Vercel** | React frontend hosting |
+- **React 18 / Vite 5**: UI framework and build tooling.
+- **Tailwind CSS v4**: Utility-first styling with modern CSS-first configuration.
+- **Recharts 2**: Interactive SVG charting for analytics.
+- **Lucide React**: Modern iconography.
 
 ---
 
-## 🚀 Quick Start
+## 🚀 Quick Start Guide
 
 ### Prerequisites
-
 - Python 3.11+
 - Node.js 18+
-- Tesseract OCR (optional — mock mode works without it)
+- Tesseract OCR (Optional: API will fallback to Mock Mode if not installed)
 
-### 1. Clone & Setup
-
+### 1. Backend Setup
 ```bash
+# Clone repository
 git clone https://github.com/yourusername/LedgerWatch-AI.git
 cd LedgerWatch-AI
-```
 
-### 2. Backend Setup
-
-```bash
 # Create virtual environment
 python -m venv venv
-source venv/bin/activate  # Linux/Mac
-# venv\Scripts\activate  # Windows
+source venv/bin/activate  # Windows: venv\Scripts\activate
 
 # Install dependencies
-pip install -r requirements.txt
+pip install -r backend/requirements.txt
 
-# Start server
-uvicorn backend.main:app --reload
+# Configure environment
+cp .env.example .env
+
+# Run FastAPI Server
+cd backend
+uvicorn main:app --reload
 ```
+API Documentation available at: `http://localhost:8000/docs`
 
-API runs at `http://localhost:8000`
-Swagger UI: `http://localhost:8000/docs`
-
-### 3. Frontend Setup
-
+### 2. Frontend Setup
 ```bash
-cd frontend
+# Open a new terminal
+cd LedgerWatch-AI/frontend
+
+# Install node modules
 npm install
+
+# Start React development server
 npm run dev
 ```
-
-Frontend runs at `http://localhost:5173`
-
-### 4. Environment Variables
-
-Copy `.env.example` to `.env` and customize:
-
-```bash
-cp .env.example .env
-```
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `DATABASE_URL` | `sqlite:///ledgerwatch.db` | SQLite database path |
-| `MODEL_PATH` | `saved_models/isolation_forest_v1.0.0.joblib` | Trained model |
-| `RISK_ENGINE_PATH` | `saved_models/risk_engine_v1.0.0.joblib` | Risk calibration |
-| `API_KEY` | `demo-key-123` | API authentication |
-| `CORS_ORIGINS` | `http://localhost:5173,...` | Allowed frontend origins |
+Dashboard available at: `http://localhost:5173`
 
 ---
 
 ## 📡 API Reference
 
-### Authentication
+Authentication is handled via the `X-API-Key` header. 
 
-All endpoints except `/health` require `X-API-Key` header:
-```bash
-curl -H "X-API-Key: demo-key-123" http://localhost:8000/stats
-```
-
-### Endpoints
-
-| Endpoint | Method | Description | Auth |
-|----------|--------|-------------|------|
-| `/health` | GET | Service health check | ❌ Public |
-| `/predict` | POST | Single transaction prediction | ✅ API Key |
-| `/batch-predict` | POST | Bulk CSV prediction (max 10MB) | ✅ API Key |
-| `/ocr` | POST | Invoice PDF/image parsing | ✅ API Key |
-| `/transactions` | GET | Query transaction history | ✅ API Key |
-| `/transactions/{id}` | GET | Get single transaction | ✅ API Key |
-| `/stats` | GET | Dashboard statistics | ✅ API Key |
-
-### Example: Predict Fraud Risk
-
-```bash
-curl -X POST "http://localhost:8000/predict?explain=true" \
-  -H "Content-Type: application/json" \
-  -H "X-API-Key: demo-key-123" \
-  -d '{
-    "step": 1,
-    "type": "TRANSFER",
-    "amount": 181.00,
-    "nameOrig": "C123456789",
-    "oldbalanceOrg": 181.00,
-    "newbalanceOrig": 0.00,
-    "nameDest": "M987654321",
-    "oldbalanceDest": 0.00,
-    "newbalanceDest": 0.00
-  }'
-```
-
-**Response:**
-```json
-{
-  "transaction_id": 1,
-  "anomaly_score": -0.6403,
-  "risk_score": 99,
-  "risk_band": "Critical",
-  "is_anomaly": true,
-  "shap_values": {
-    "is_round_amount": 1.60,
-    "type_TRANSFER": 1.06,
-    "amount_log": 0.84
-  },
-  "top_features": ["is_round_amount", "type_TRANSFER", "amount_log"]
-}
-```
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/predict` | `POST` | Single transaction anomaly prediction with optional SHAP explanation. |
+| `/batch-predict` | `POST` | Bulk CSV processing. Handles files up to 10MB. |
+| `/ocr` | `POST` | Upload PDF/PNG invoices for structured Tesseract parsing. |
+| `/transactions` | `GET` | Query and filter historical transactions stored in SQLite. |
+| `/stats` | `GET` | Retrieve aggregated KPIs and global risk distributions for dashboards. |
 
 ---
 
-## 📁 Project Structure
+## 📁 Comprehensive Documentation
 
-```
-LedgerWatch-AI/
-├── backend/                    # FastAPI application
-│   ├── __init__.py
-│   └── main.py                 # 7 REST endpoints
-├── frontend/                   # React dashboard
-│   ├── src/
-│   │   ├── components/         # Reusable UI components
-│   │   │   ├── analytics/      # Charts (ROC, lift, distribution)
-│   │   │   ├── explain/        # SHAP waterfall, feature importance
-│   │   │   ├── layout/         # Sidebar, TopBar, Layout
-│   │   │   ├── settings/       # ToggleSwitch, InputField, DangerZone
-│   │   │   └── transactions/   # Table, FilterBar, Pagination, DetailDrawer
-│   │   ├── pages/              # 6 page components
-│   │   │   ├── Dashboard.jsx
-│   │   │   ├── UploadPage.jsx
-│   │   │   ├── TransactionsPage.jsx
-│   │   │   ├── ExplainabilityPage.jsx
-│   │   │   ├── AnalyticsPage.jsx
-│   │   │   └── SettingsPage.jsx
-│   │   ├── App.jsx             # React Router setup
-│   │   ├── main.jsx
-│   │   └── index.css           # Tailwind v4 theme tokens
-│   ├── package.json
-│   └── vite.config.js
-├── src/                        # Python ML pipeline
-│   ├── config.py               # Pydantic settings + .env
-│   ├── database.py             # SQLAlchemy ORM
-│   ├── schemas.py              # Pydantic request/response models
-│   ├── features.py             # 24-feature engineering pipeline
-│   ├── train.py                # Isolation Forest training
-│   ├── evaluate.py             # Post-hoc evaluation (ROC, lift)
-│   ├── risk_engine.py          # Percentile-based 0-100 scoring
-│   ├── explain.py              # SHAP TreeExplainer wrapper
-│   ├── ocr_service.py          # Tesseract + regex invoice parser
-│   └── data_ingest.py          # ETL pipeline (CSV → SQLite)
-├── notebooks/                  # Day-by-day verification notebooks
-│   ├── eda_paysim.ipynb
-│   ├── day3_feature_verification.ipynb
-│   ├── day4_model_training.ipynb
-│   ├── day5_evaluation.ipynb
-│   ├── day6_lof_comparison.ipynb
-│   ├── day7_risk_engine.ipynb
-│   ├── day8_shap_explainability.ipynb
-│   └── day9_ocr_service.ipynb
-├── saved_models/               # Serialized models
-│   ├── isolation_forest_v1.0.0.joblib
-│   └── risk_engine_v1.0.0.joblib
-├── tests/                      # pytest suite
-│   ├── test_train.py
-│   └── test_evaluate.py
-├── docs/                       # Documentation assets
-├── .env.example                # Environment template
-├── requirements.txt            # Python dependencies
-├── render.yaml                 # Render deployment config
-└── README.md                   # This file
-```
+For an in-depth breakdown of every file, architectural decisions, and the challenges faced during development (e.g. Model Serialization, SHAP mathematical sign-flipping, and feature space alignment), please refer to our official guide:
+
+👉 **[Read the Complete Technical & Interview Guide](docs/LedgerWatch_Complete_Documentation.md)**
 
 ---
 
-## 📸 Screenshots
+## 🌐 Deployment Overview
 
-> _Screenshots will be added upon project completion. See [docs/](docs/) for current assets._
-
-### Planned Screenshots
-
-| Screen | Description |
-|--------|-------------|
-| **Dashboard** | KPI cards, anomaly trend chart, risk distribution donut |
-| **Upload** | Drag-and-drop CSV upload with progress simulation |
-| **Transactions** | Filterable data table with detail drawer |
-| **Explainability** | SHAP waterfall chart + feature importance |
-| **Analytics** | ROC curve, lift chart, fraud type breakdown |
-| **Settings** | API config, theme selector, danger zone |
-
----
-
-## 🎤 Interview Talking Points
-
-### The 90-Second Pitch
-
-> "I built LedgerWatch AI, a full-stack fraud detection platform. It ingests transaction CSVs and invoice PDFs, trains an Isolation Forest on 6.3 million transactions, scores each transaction 0-100 for fraud risk, and explains every score using SHAP. The backend is FastAPI with 7 REST endpoints and API key auth. The frontend is a professional React dashboard with 6 fully functional pages, dark fintech design, drag-and-drop upload, interactive data tables, and SHAP visualizations."
-
-### Key Technical Decisions
-
-| Decision | Rationale |
-|----------|-----------|
-| **Isolation Forest over LOF** | O(n log n) vs O(n²) — validated with 6.3M rows |
-| **Percentile-based risk** | No labels needed during calibration — fully unsupervised |
-| **SHAP sign-flipping** | Aligns positive SHAP values with anomaly direction |
-| **SQLite over Postgres** | Zero-config, interview-appropriate, portable |
-| **Tailwind CSS v4** | CSS-first config, no tailwind.config.js needed |
-
-### What I Fixed (Code Quality)
-
-After building the initial backend, I did a comprehensive code review that uncovered 16 issues:
-
-- Fixed RiskEngine loading crash (dict vs object formats)
-- Added database auto-creation for fresh deploys
-- Cached SHAP TreeExplainer for 10× faster explanations
-- Added missing `/stats` and `/transactions/{id}` endpoints
-- Fixed ORM serialization for proper JSON responses
-- Hardened data ingestion with session-based rollback
-- Added file size limits and API key authentication
-
----
-
-## 🌐 Deployment
-
-### Backend (Render)
-
-1. Connect GitHub repo to Render
-2. `render.yaml` auto-configures the service
-3. Tesseract installs automatically via `buildCommand`
-4. Models deploy from `saved_models/` in repo
-
-**URL:** `https://ledgerwatch-api.onrender.com`
-
-### Frontend (Vercel)
-
-1. Import `frontend/` folder to Vercel
-2. Set build command: `npm run build`
-3. Set output directory: `dist`
-
-**URL:** `https://ledgerwatch-ai.vercel.app`
-
----
-
-## 📜 License
-
-MIT License — see [LICENSE](LICENSE) for details.
+- **Backend / API**: Deployed via **Render** using the included `render.yaml`. Automated Tesseract installation is handled during the build phase.
+- **Frontend / UI**: Hosted globally on the Edge via **Vercel**. 
 
 ---
 
 <div align="center">
 
-**Built with ❤️ by Kalpit**
-*Electronics Engineering Student*
+**Built by Kalpit** — Electronics Engineering Student
 
-[⬆ Back to Top](#-ledgerwatch-ai)
+[MIT License](LICENSE) | [Back to Top](#-ledgerwatch-ai)
 
 </div>

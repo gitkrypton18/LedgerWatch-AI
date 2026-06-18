@@ -202,19 +202,15 @@ def compute_anomaly_scores(model, X: pd.DataFrame) -> np.ndarray:
     Returns:
         Normalized anomaly scores in [0, 1].
     """
-    from sklearn.preprocessing import MinMaxScaler
-
     # Unwrap if passed as dict container
     if isinstance(model, dict):
         feature_names = model.get("feature_names", X.columns.tolist())
         model = model["model"]
         X = X[feature_names]
 
-    raw_scores = model.decision_function(X)
+    raw_scores = model.score_samples(X)
     inverted = -raw_scores
-    normalized = MinMaxScaler().fit_transform(inverted.reshape(-1, 1)).flatten()
-
-    return normalized
+    return inverted
 
 
 def compute_risk_scores(

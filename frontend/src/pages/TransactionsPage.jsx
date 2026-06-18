@@ -20,6 +20,7 @@ import {
   X,
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useStats, useTransactions } from '../hooks/useApi';
 
 const TYPE_CONFIG = {
@@ -48,7 +49,7 @@ const StatusBadge = ({ band, isAnomaly }) => {
 const RiskBar = ({ score }) => (
   <div className="flex items-center gap-2">
     <div className="w-16 lg:w-20 h-1.5 bg-background-tertiary rounded-full overflow-hidden flex-shrink-0">
-      <div className="h-full rounded-full transition-all" style={{ width: `${Math.min(score || 0, 100)}%`, backgroundColor: score >= 90 ? '#EF4444' : score >= 70 ? '#F59E0B' : score >= 40 ? '#3B82F6' : '#10B981' }} />
+      <div className="h-full rounded-full transition-all" style={{ width: `${Math.min(score || 0, 100)}%`, backgroundColor: score >= 95 ? '#EF4444' : score >= 85 ? '#F97316' : score >= 60 ? '#F59E0B' : score >= 30 ? '#3B82F6' : '#10B981' }} />
     </div>
     <span className="text-text-primary text-xs font-medium w-6 flex-shrink-0">{score || 0}</span>
   </div>
@@ -84,7 +85,7 @@ const formatTime = (timestamp) => {
 const DetailDrawer = ({ transaction, onClose }) => {
   if (!transaction) return null;
   const score = transaction.risk_score || 0;
-  const color = score >= 90 ? '#EF4444' : score >= 70 ? '#F59E0B' : score >= 40 ? '#3B82F6' : '#10B981';
+  const color = score >= 95 ? '#EF4444' : score >= 85 ? '#F97316' : score >= 60 ? '#F59E0B' : score >= 30 ? '#3B82F6' : '#10B981';
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
@@ -123,6 +124,14 @@ const DetailDrawer = ({ transaction, onClose }) => {
               <ShapMiniChart shapValues={transaction.shap_values} />
             </div>
           )}
+          <div className="mt-6">
+            <Link
+              to={`/explainability?id=${transaction.id}`}
+              className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-accent-primary hover:bg-accent-secondary text-white rounded-lg font-medium transition-colors"
+            >
+              <Activity className="w-4 h-4" /> View Full AI Explainability
+            </Link>
+          </div>
         </div>
       </div>
     </div>
@@ -293,7 +302,7 @@ export default function TransactionsPage() {
             </div>
             <div className="flex items-center justify-between text-sm">
               <div className="w-20 h-1.5 bg-background-tertiary rounded-full overflow-hidden">
-                <div className="h-full rounded-full" style={{ width: `${Math.min(tx.risk_score || 0, 100)}%`, backgroundColor: tx.risk_score >= 90 ? '#EF4444' : tx.risk_score >= 70 ? '#F59E0B' : '#10B981' }} />
+                <div className="h-full rounded-full" style={{ width: `${Math.min(tx.risk_score || 0, 100)}%`, backgroundColor: tx.risk_score >= 95 ? '#EF4444' : tx.risk_score >= 85 ? '#F97316' : tx.risk_score >= 60 ? '#F59E0B' : tx.risk_score >= 30 ? '#3B82F6' : '#10B981' }} />
               </div>
               <span className="text-text-muted text-xs flex items-center gap-1">
                 <Clock className="w-3 h-3" /> {formatTime(tx.created_at)}
@@ -318,7 +327,9 @@ export default function TransactionsPage() {
         ) : error ? (
           <div className="flex flex-col items-center justify-center py-20 text-center animate-fade-in">
             <WifiOff className="w-12 h-12 text-accent-danger mb-4" />
-            <h3 className="text-lg font-bold text-text-primary mb-2">Connection Failed</h3>
+            <h3 className="text-lg font-bold text-text-primary mb-2">
+              {error === 'Unable to connect to the server. It might be starting up or offline.' ? 'Connection Failed' : 'Error Loading Transactions'}
+            </h3>
             <p className="text-text-secondary max-w-md text-sm mb-6">{typeof error === 'string' ? error : "Unable to load transactions. The backend server might be starting up or unavailable."}</p>
             <button onClick={refetch} className="px-6 py-2 bg-background-tertiary border border-border-subtle hover:bg-background-tertiary/80 text-text-primary rounded-lg text-sm transition-colors flex items-center gap-2">
               <RefreshCw className="w-4 h-4" /> Try Again
