@@ -12,7 +12,7 @@
 [![SHAP](https://img.shields.io/badge/SHAP-0.44-red)](https://shap.readthedocs.io)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-[🚀 Live Demo](https://ledger-watch-ai.vercel.app/) · [📖 API Docs](https://ledgerwatch-api.onrender.com/docs) · [📊 Documentation](docs/LedgerWatch_Complete_Documentation.md)
+[🚀 Live Demo](https://ledger-watch-ai.vercel.app/) · [📖 API Docs](https://ledgerwatch-ai.onrender.com/docs) · [📊 Documentation](docs/LedgerWatch_Complete_Documentation.md)
 
 </div>
 
