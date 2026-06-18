@@ -146,13 +146,29 @@ class InvoiceOCR:
     }
 
     def __init__(self, mock_mode: bool = False, dpi: int = 300):
-        self.mock_mode = mock_mode
-        self.dpi = dpi
-        self.tesseract_available = TESSERACT_AVAILABLE
+        # Check if tesseract binary is actually in PATH
+        if not mock_mode and TESSERACT_AVAILABLE:
+            try:
+                import subprocess
 
-        if not mock_mode and not TESSERACT_AVAILABLE:
-            logger.warning("Tesseract not available — falling back to mock mode")
-            self.mock_mode = True
+                result = subprocess.run(
+                    ["tesseract", "--version"],
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                )
+                if result.returncode != 0:
+                    logger.warning(
+                        "Tesseract binary not found — falling back to mock mode"
+                    )
+                    self.mock_mode = True
+                else:
+                    logger.info(f"Tesseract found: {result.stdout.splitlines()[0]}")
+            except Exception as e:
+                logger.warning(
+                    f"Tesseract check failed: {e} — falling back to mock mode"
+                )
+                self.mock_mode = True
 
     def _preprocess_image(self, image: Image.Image) -> Image.Image:
         """Preprocess image for better OCR."""
