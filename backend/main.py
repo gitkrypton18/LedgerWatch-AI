@@ -120,6 +120,18 @@ async def _seed_database_if_empty():
     """
     db = SessionLocal()
     try:
+        from src.database import User
+        from src.auth import get_password_hash
+        
+        # Check for admin user
+        admin = db.query(User).filter(User.email == "admin@ledgerwatch.com").first()
+        if not admin:
+            hashed_pw = get_password_hash("admin123")
+            admin_user = User(email="admin@ledgerwatch.com", hashed_password=hashed_pw)
+            db.add(admin_user)
+            db.commit()
+            logger.info("Admin user created (admin@ledgerwatch.com / admin123)")
+
         count = db.query(func.count(DBTransaction.id)).scalar() or 0
         logger.info(
             f"DB status: {count} transactions. Auto-seed DISABLED — starting empty."
@@ -242,13 +254,42 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
+from fastapi.security import OAuth2PasswordRequestForm
+from src.auth import get_current_user, create_access_token, verify_password, get_password_hash
+from pydantic import BaseModel
 
+# Alias to prevent needing to refactor every single endpoint dependency
+async def verify_api_key(user = Depends(get_current_user)):
+    return user
 
-async def verify_api_key(api_key: str = Security(api_key_header)):
-    if api_key != settings.API_KEY:
-        raise HTTPException(status_code=403, detail="Invalid API key")
-    return api_key
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+@app.post("/token")
+async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+    from src.database import User
+    user = db.query(User).filter(User.email == form_data.username).first()
+    if not user or not verify_password(form_data.password, user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    access_token = create_access_token(data={"sub": user.email})
+    return {"access_token": access_token, "token_type": "bearer"}
+
+@app.post("/users/change-password")
+async def change_password(
+    req: ChangePasswordRequest, 
+    db: Session = Depends(get_db), 
+    current_user = Depends(get_current_user)
+):
+    if not verify_password(req.current_password, current_user.hashed_password):
+        raise HTTPException(status_code=400, detail="Incorrect password")
+    current_user.hashed_password = get_password_hash(req.new_password)
+    db.commit()
+    return {"message": "Password updated successfully"}
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
