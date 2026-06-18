@@ -57,9 +57,9 @@ data/
 *.h5
 *.onnx
 # Allow saved_models folder and its contents
-!saved_models/
-!saved_models/*.joblib
-!saved_models/*.pkl
+!backend/saved_models/
+!backend/saved_models/*.joblib
+!backend/saved_models/*.pkl
 
 # === FRONTEND ===
 frontend/node_modules/
