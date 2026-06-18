@@ -14,6 +14,7 @@ const routeTitles = {
 export default function TopBar({ isMobile }) {
     const [pathname, setPathname] = useState(() => window.location.pathname);
     const [searchOpen, setSearchOpen] = useState(false);
+    const [profileOpen, setProfileOpen] = useState(false);
     const intervalRef = useRef(null);
 
     useEffect(() => {
@@ -107,12 +108,35 @@ export default function TopBar({ isMobile }) {
                 </button>
 
                 {/* User Profile */}
-                <button className="action-btn-icon flex items-center gap-2 p-1.5 rounded-lg hover:bg-background-tertiary transition-colors">
-                    <div className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-accent-info/20 flex items-center justify-center">
-                        <User className="w-3.5 h-3.5 md:w-4 md:h-4 text-accent-info" />
-                    </div>
-                    <span className="text-sm text-text-secondary hidden md:inline">Admin</span>
-                </button>
+                <div className="relative">
+                    <button 
+                        className="action-btn-icon flex items-center gap-2 p-1.5 rounded-lg hover:bg-background-tertiary transition-colors"
+                        onClick={() => setProfileOpen(!profileOpen)}
+                    >
+                        <div className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-accent-info/20 flex items-center justify-center">
+                            <User className="w-3.5 h-3.5 md:w-4 md:h-4 text-accent-info" />
+                        </div>
+                        <span className="text-sm text-text-secondary hidden md:inline">User</span>
+                    </button>
+                    
+                    {profileOpen && (
+                        <div className="absolute right-0 mt-2 w-48 bg-[#111827] border border-slate-800 rounded-xl shadow-xl overflow-hidden py-1 z-50 animate-in fade-in slide-in-from-top-2">
+                            <a href="/settings" className="block px-4 py-2 text-sm text-slate-300 hover:text-white hover:bg-[#1a2332] transition-colors">
+                                Change Password
+                            </a>
+                            <div className="h-px bg-slate-800 my-1"></div>
+                            <button 
+                                onClick={() => {
+                                    localStorage.removeItem('ledgerwatch_token');
+                                    window.location.href = '/login';
+                                }}
+                                className="w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-red-500/10 transition-colors"
+                            >
+                                Logout
+                            </button>
+                        </div>
+                    )}
+                </div>
             </div>
         </header>
     );

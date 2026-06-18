@@ -16,7 +16,7 @@ import {
   XCircle
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { checkHealth } from '../lib/axios';
+import api, { checkHealth } from '../lib/axios';
 
 // ─── Toggle Switch ──────────────────────────────────────────
 const ToggleSwitch = ({ label, checked, onChange, disabled = false, description }) => (
@@ -225,6 +225,92 @@ const DangerZone = ({ onClearCache, onExport, onDelete }) => {
   );
 };
 
+// ─── Change Password Section ────────────────────────────────
+const ChangePasswordSection = () => {
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [status, setStatus] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (newPassword !== confirmPassword) {
+      setStatus({ type: 'error', message: 'New passwords do not match' });
+      return;
+    }
+    setLoading(true);
+    setStatus(null);
+    try {
+      await api.post('/users/change-password', {
+        current_password: currentPassword,
+        new_password: newPassword
+      });
+      setStatus({ type: 'success', message: 'Password updated successfully!' });
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+    } catch (err) {
+      setStatus({ type: 'error', message: err.response?.data?.detail || 'Failed to update password' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <SettingsSection title="Security" icon={Key}>
+      <form onSubmit={handleSubmit} className="space-y-4 py-2">
+        <InputField
+          icon={Key}
+          label="Current Password"
+          type="password"
+          value={currentPassword}
+          onChange={setCurrentPassword}
+          placeholder="Enter current password"
+          showToggle
+        />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <InputField
+            icon={Key}
+            label="New Password"
+            type="password"
+            value={newPassword}
+            onChange={setNewPassword}
+            placeholder="Enter new password"
+            showToggle
+          />
+          <InputField
+            icon={Key}
+            label="Confirm New Password"
+            type="password"
+            value={confirmPassword}
+            onChange={setConfirmPassword}
+            placeholder="Confirm new password"
+            showToggle
+          />
+        </div>
+        
+        {status && (
+          <div className={`p-3 rounded-xl text-sm flex items-center gap-2 ${
+            status.type === 'error' ? 'bg-red-500/10 text-red-400 border border-red-500/20' : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+          }`}>
+            {status.type === 'error' ? <XCircle className="w-4 h-4" /> : <CheckCircle className="w-4 h-4" />}
+            {status.message}
+          </div>
+        )}
+
+        <button
+          type="submit"
+          disabled={loading || !currentPassword || !newPassword}
+          className="px-5 py-2.5 bg-cyan-500 hover:bg-cyan-400 text-slate-900 font-semibold rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {loading ? 'Updating...' : 'Change Password'}
+        </button>
+      </form>
+    </SettingsSection>
+  );
+};
+
 // ─── Main Settings Page ─────────────────────────────────────
 export default function SettingsPage() {
   const [settings, setSettings] = useState({
@@ -398,6 +484,9 @@ export default function SettingsPage() {
           <ConnectionBadge status={connStatus} message={connMessage} />
         </div>
       </SettingsSection>
+
+      {/* Security */}
+      <ChangePasswordSection />
 
       {/* Appearance */}
       <SettingsSection title="Appearance" icon={Palette}>

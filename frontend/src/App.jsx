@@ -14,8 +14,8 @@ import LoginPage from './pages/LoginPage';
 // ─────────────────────────────────────────────────────────────
 
 const ProtectedRoute = ({ children }) => {
-  const hasKey = localStorage.getItem('ledgerwatch_apiKey');
-  if (!hasKey) {
+  const hasToken = localStorage.getItem('ledgerwatch_token');
+  if (!hasToken) {
     return <Navigate to="/login" replace />;
   }
   return children;

@@ -303,19 +303,16 @@ export default function UploadPage() {
 
     const processFile = async (fileObj) => {
         const { file, id } = fileObj;
-        const useOCR = isImageOrPDF(file);
 
         setFiles((prev) =>
             prev.map((f) => (f.id === id ? { ...f, status: 'uploading', progress: 5 } : f))
         );
 
         try {
-            let result;
-            if (useOCR) {
-                result = await ocrUpload(file);
-            } else {
-                result = await batchUpload(file);
-            }
+            // FIX: Route ALL files (including images/PDFs) to batchUpload (/batch-predict)
+            // The backend /batch-predict endpoint automatically detects images, runs OCR, 
+            // scores anomalies, and SAVES it to the database!
+            const result = await batchUpload(file);
 
             setFiles((prev) =>
                 prev.map((f) =>

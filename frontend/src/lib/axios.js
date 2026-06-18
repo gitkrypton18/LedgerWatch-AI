@@ -2,25 +2,28 @@ import axios from 'axios';
 
 // Read from localStorage first so the Settings page actually takes effect
 const storedUrl = localStorage.getItem('ledgerwatch_apiUrl');
-const storedKey = localStorage.getItem('ledgerwatch_apiKey');
-
 const API_URL = storedUrl || import.meta.env.VITE_API_URL || 'https://ledgerwatch-api.onrender.com';
-const API_KEY = storedKey || import.meta.env.VITE_API_KEY || 'demo-key-123';
 
 const api = axios.create({
     baseURL: API_URL,
     headers: {
         'Content-Type': 'application/json',
-        'X-API-Key': API_KEY,
     },
     timeout: 300000,
 });
 
-// Request interceptor — remove Content-Type for FormData
+// Request interceptor — remove Content-Type for FormData, and add Auth token
 api.interceptors.request.use((config) => {
     if (config.data instanceof FormData) {
         delete config.headers['Content-Type']; // Let browser set it with boundary
     }
+    
+    // Inject the JWT token if available
+    const token = localStorage.getItem('ledgerwatch_token');
+    if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+    }
+    
     return config;
 });
 
