@@ -882,6 +882,20 @@ async def batch_predict(
     )
 
 
+@app.get("/health")
+def health_check():
+    """System health status"""
+    return {
+        "status": "ok",
+        "version": "2.1.1",
+        "model_loaded": IF_MODEL is not None,
+        "risk_engine_loaded": RISK_ENGINE is not None,
+        "ocr_available": bool(getattr(settings, "ENABLE_OCR", False)),
+        "retrain_available": True,
+        "timestamp": datetime.utcnow().isoformat(),
+    }
+
+
 @app.post("/ocr", dependencies=[Depends(verify_api_key)])
 async def ocr_parse(
     file: UploadFile = File(..., description="Invoice/receipt image or PDF")
