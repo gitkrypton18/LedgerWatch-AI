@@ -89,17 +89,7 @@ def fetch_all_data(db, limit: int = None) -> pd.DataFrame:
 
 
 def fetch_original_data(sample_size: int = None) -> pd.DataFrame:
-    """Fetch original training data with optional sampling."""
-    # Try features.csv first (already engineered)
-    features_path = Path("data/processed/features.csv")
-    if features_path.exists():
-        logger.info(f"Loading engineered features: {features_path}")
-        if sample_size:
-            # Read only sample_size rows
-            return pd.read_csv(features_path, nrows=sample_size)
-        return pd.read_csv(features_path)
-
-    # Fallback to cleaned.csv
+    """Fetch original training data with optional sampling. Must be raw data, not features."""
     cleaned_path = Path(
         getattr(settings, "PROCESSED_DATA_PATH", "data/processed/cleaned.csv")
     )
@@ -109,7 +99,7 @@ def fetch_original_data(sample_size: int = None) -> pd.DataFrame:
             return pd.read_csv(cleaned_path, nrows=sample_size)
         return pd.read_csv(cleaned_path)
 
-    logger.warning("Original training data not found")
+    logger.warning("Original raw training data not found")
     return pd.DataFrame()
 
 
@@ -287,7 +277,7 @@ def retrain_model(
 
         # 4. Create new Risk Engine
         scores = model.score_samples(X)
-        risk_engine = RiskEngine(percentile_bins=101)
+        risk_engine = RiskEngine(percentile_bins=100)
         risk_engine.fit(-scores)  # Negate: higher score = more anomalous
 
         # 5. Save with new version (unless dry_run)
