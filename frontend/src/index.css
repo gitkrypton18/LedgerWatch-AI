@@ -2,23 +2,23 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600;700&display=swap');
 
 @theme {
-  --color-background-primary: #0A0E1A;
-  --color-background-secondary: #111827;
-  --color-background-tertiary: #1E293B;
-  --color-background-elevated: #0F172A;
+  --color-background-primary: #050711;
+  --color-background-secondary: #0A0F1D;
+  --color-background-tertiary: #12192B;
+  --color-background-elevated: #0F1426;
 
-  --color-border-subtle: #1E293B;
-  --color-border-accent: #334155;
+  --color-border-subtle: rgba(0, 229, 255, 0.15);
+  --color-border-accent: rgba(0, 229, 255, 0.3);
 
-  --color-text-primary: #F8FAFC;
-  --color-text-secondary: #94A3B8;
-  --color-text-muted: #64748B;
+  --color-text-primary: #E0F2FE;
+  --color-text-secondary: #BAE6FD;
+  --color-text-muted: #7DD3FC;
 
-  --color-accent-success: #10B981;
-  --color-accent-warning: #F59E0B;
-  --color-accent-danger: #EF4444;
-  --color-accent-info: #3B82F6;
-  --color-accent-purple: #8B5CF6;
+  --color-accent-success: #00FF9D;
+  --color-accent-warning: #FFB800;
+  --color-accent-danger: #FF0055;
+  --color-accent-info: #00E5FF;
+  --color-accent-purple: #B300FF;
 
   --font-family-sans: 'Inter', system-ui, sans-serif;
   --font-family-mono: 'JetBrains Mono', monospace;
@@ -59,19 +59,22 @@
 
 @layer components {
   .glass-panel {
-    background: rgba(17, 24, 39, 0.7);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(10, 15, 29, 0.6);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(0, 229, 255, 0.1);
+    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5), inset 0 0 20px rgba(0, 229, 255, 0.05);
   }
 
   .card-hover {
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    transform-style: preserve-3d;
   }
 
   .card-hover:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+    transform: translateY(-5px) rotateX(2deg) rotateY(-2deg) scale(1.02);
+    box-shadow: 0 15px 35px rgba(0, 229, 255, 0.15), 0 5px 15px rgba(179, 0, 255, 0.1);
+    border-color: rgba(0, 229, 255, 0.3);
   }
 
   .risk-glow-low {
@@ -130,6 +133,16 @@
 
 .animate-fade-in {
   animation: fade-in 0.3s ease-out;
+}
+
+@keyframes rocket-launch {
+  0% { transform: translateY(0) scale(1); opacity: 1; }
+  50% { transform: translateY(-50px) scale(1.1); opacity: 0.5; }
+  100% { transform: translateY(-300px) scale(0.5); opacity: 0; }
+}
+
+.animate-rocket {
+  animation: rocket-launch 0.8s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
 
 /* ─────────────────────────────────────────────
