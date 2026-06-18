@@ -488,17 +488,12 @@ def process_dataframe_batch(
         raw_predictions = model.predict(X_aligned)
 
         n = chunk_len
-        sorted_indices = np.argsort(anomaly_scores)
-        risk_scores = [0] * n
-        for rank, idx in enumerate(sorted_indices):
-            risk_scores[idx] = int(100 * (1 - rank / max(n - 1, 1)))
-
+        # Fix: Use the risk engine to calibrate risk scores based on training percentiles
+        risk_scores_array = risk_engine.transform(-anomaly_scores)
+        risk_scores = [int(score) for score in risk_scores_array]
         risk_bands = [get_risk_band(s) for s in risk_scores]
 
-        anomaly_threshold_idx = int(n * 0.05)
-        is_anomalies = [False] * n
-        for idx in sorted_indices[:anomaly_threshold_idx]:
-            is_anomalies[idx] = True
+        is_anomalies = [bool(p == -1) for p in raw_predictions]
 
         for i in range(n):
             all_results.append(
@@ -758,6 +753,7 @@ async def batch_predict(
         except HTTPException:
             raise
         except Exception as e:
+            db.rollback()
             logger.error(f"OCR processing failed for {file.filename}: {e}")
             logger.error(traceback.format_exc())
             raise HTTPException(
