@@ -99,16 +99,16 @@ SessionLocal = sessionmaker(
 
 Base = declarative_base()
 
-# What this is:
-# - Every table in your database will be a Python class that inherits from Base
-# - Base carries the metadata that maps Python classes to SQL tables
-# - When we say "create all tables," SQLAlchemy looks at everything
-#   that inherits from Base and builds the corresponding SQL tables
-
-
 # ============================================================================
-# PART 4: Helper Function (Used by FastAPI later)
+# PART 3a: The User Table
 # ============================================================================
+class User(Base):
+    __tablename__ = "users"
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String, unique=True, index=True, nullable=False)
+    hashed_password = Column(String, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
 # ============================================================================
 # PART 3b: The Transaction Table (The "Room Blueprint")
 # ============================================================================
