@@ -177,12 +177,12 @@ class OCRExtraction(BaseModel):
 
 
 # ============================================================================
-# SECTION 4: API-ONLY SCHEMAS (added for FastAPI backend — Day 10)
+# SECTION 4: API-ONLY SCHEMAS
 # ============================================================================
 
 
 class HealthResponse(BaseModel):
-    model_config = ConfigDict(protected_namespaces=())  # ✅ ADD THIS LINE
+    model_config = ConfigDict(protected_namespaces=())
 
     status: str
     version: str

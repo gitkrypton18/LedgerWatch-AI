@@ -1,5 +1,5 @@
 """
-LedgerWatch AI — SHAP Explainability Module (Day 8)
+explain.py — SHAP Explainability Module
 Provides model-agnostic explanations for Isolation Forest predictions.
 """
 
@@ -143,7 +143,7 @@ def plot_waterfall(
 ) -> str:
     """Custom matplotlib waterfall plot. Returns path to saved PNG."""
     if output_path is None:
-        output_path = "docs/day8_shap_waterfall.png"
+        output_path = "docs/shap_waterfall.png"
 
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
@@ -191,7 +191,7 @@ def plot_summary_beeswarm(
 ) -> str:
     """SHAP beeswarm summary plot. Returns path to saved PNG."""
     if output_path is None:
-        output_path = "docs/day8_shap_summary.png"
+        output_path = "docs/shap_summary.png"
 
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
@@ -219,7 +219,7 @@ def plot_feature_importance_bar(
 ) -> str:
     """Horizontal bar chart of mean |SHAP|. Returns path to saved PNG."""
     if output_path is None:
-        output_path = "docs/day8_shap_importance_bar.png"
+        output_path = "docs/shap_importance_bar.png"
 
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
@@ -248,14 +248,13 @@ def plot_feature_importance_bar(
 def export_shap_summary(
     importance_df: pd.DataFrame,
     sample_explanations: List[Dict],
-    output_path: str = "docs/day8_shap_summary.json",
+    output_path: str = "docs/shap_summary.json",
 ) -> str:
     """Export SHAP analysis to JSON. Returns path to saved JSON."""
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
     summary = {
         "metadata": {
-            "day": 8,
             "module": "explain",
             "feature_count": len(importance_df),
             "top_feature": (

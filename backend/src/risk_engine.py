@@ -1,5 +1,5 @@
 """
-Risk Engine Module — LedgerWatch AI (Day 7)
+Risk Engine Module — LedgerWatch AI
 Converts raw anomaly scores to calibrated 0-100 risk scores.
 
 Design: Percentile-based calibration on training-set anomaly scores.

@@ -1,5 +1,5 @@
 """
-LedgerWatch AI — Day 5: Model Evaluation Pipeline
+evaluate.py — Model Evaluation Pipeline
 ==================================================
 Production evaluation module for Isolation Forest anomaly detection.
 

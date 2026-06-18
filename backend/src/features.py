@@ -1,8 +1,6 @@
 """
 src/features.py — Feature Engineering Pipeline for LedgerWatch AI
-
-Day 3: Feature Engineering
-==========================
+==================================================================
 Engineers 16 features from cleaned PaySim data based on EDA insights.
 All features are computable on NEW transactions (no future leakage).
 Labels (isFraud) are NEVER used during feature engineering.

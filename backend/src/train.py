@@ -1,5 +1,5 @@
 """
-LedgerWatch AI — Day 4: Model Training Pipeline
+train.py — Model Training Pipeline
 ================================================
 Train Isolation Forest on engineered features.
 Honest unsupervised approach: labels NEVER used during training.
