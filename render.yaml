@@ -2,11 +2,10 @@ services:
   - type: web
     name: ledgerwatch-api
     runtime: python
-    plan: standard  # 512MB RAM for EasyOCR
+    plan: free  # ✅ Tesseract works on free tier (~100MB RAM)
     buildCommand: |
-      apt-get update && apt-get install -y libgl1-mesa-glx libglib2.0-0 poppler-utils
+      apt-get update && apt-get install -y tesseract-ocr poppler-utils
       pip install -r requirements.txt
-      python -c "import easyocr; easyocr.Reader(['en'], gpu=False)"
     startCommand: uvicorn backend.main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: PYTHON_VERSION
@@ -21,6 +20,8 @@ services:
         value: saved_models/isolation_forest.joblib
       - key: RISK_ENGINE_PATH
         value: saved_models/risk_engine.joblib
+      - key: OCR_MOCK_MODE
+        value: "false"  # ✅ Real Tesseract OCR
     healthCheckPath: /health
     autoDeploy: true
 

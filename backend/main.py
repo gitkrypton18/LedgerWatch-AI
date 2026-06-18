@@ -1,7 +1,8 @@
 """
 backend/main.py — Production-grade FastAPI backend for LedgerWatch AI
 Supports: JSON, CSV, Parquet, OCR (PNG/JPG/TIFF/WebP/BMP/GIF), PDF
-Version: 2.0.0
+Uses Tesseract OCR (lightweight, ~100MB RAM, Render free tier compatible)
+Version: 2.1.0
 """
 
 import io
@@ -22,7 +23,6 @@ import numpy as np
 import pandas as pd
 import shap
 from fastapi import (
-    BackgroundTasks,
     Depends,
     FastAPI,
     File,
@@ -33,7 +33,7 @@ from fastapi import (
     status,
 )
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse
 from fastapi.security import APIKeyHeader
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -100,12 +100,12 @@ REQUIRED_COLUMNS = {
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info("Starting LedgerWatch API v2.0.0...")
+    logger.info("Starting LedgerWatch API v2.1.0...")
     logger.info(f"Working directory: {os.getcwd()}")
     logger.info(f"Root files: {os.listdir('.')}")
 
     Base.metadata.create_all(bind=engine)
-    await _seed_database_if_empty()
+    await _seed_database_if_empty()  # NO AUTO-SEED — starts empty
     await _load_model(app)
     await _load_risk_engine(app)
     await _init_shap(app)
@@ -116,9 +116,7 @@ async def lifespan(app: FastAPI):
 
 async def _seed_database_if_empty():
     """NO AUTO-SEED: Database starts completely empty.
-
     Users must upload files via /batch-predict to populate data.
-    This ensures the dashboard shows 0/0/0 on first load.
     """
     db = SessionLocal()
     try:
@@ -126,7 +124,6 @@ async def _seed_database_if_empty():
         logger.info(
             f"DB status: {count} transactions. Auto-seed DISABLED — starting empty."
         )
-        # Intentionally doing nothing — no seed data inserted
     except Exception as e:
         logger.error(f"DB check failed: {e}")
     finally:
@@ -154,13 +151,13 @@ async def _load_model(app: FastAPI):
             }
             app.state.expected_features = model_data.get("feature_names", [])
             logger.info(
-                f"Model loaded (dict format): {len(app.state.expected_features)} features"
+                f"Model loaded (dict): {len(app.state.expected_features)} features"
             )
         else:
             app.state.model = model_data
             app.state.model_metadata = {}
             app.state.expected_features = []
-            logger.info("Model loaded (direct format)")
+            logger.info("Model loaded (direct)")
     except Exception as e:
         logger.error(f"Model load failed: {e}")
         app.state.model = None
@@ -188,7 +185,7 @@ async def _init_shap(app: FastAPI):
             app.state.explainer = shap.TreeExplainer(
                 app.state.model, feature_perturbation="interventional"
             )
-            logger.info("SHAP TreeExplainer ready")
+            logger.info("SHAP ready")
         except Exception as e:
             logger.warning(f"SHAP init failed: {e}")
             app.state.explainer = None
@@ -197,14 +194,22 @@ async def _init_shap(app: FastAPI):
 
 
 async def _init_ocr(app: FastAPI):
+    """Initialize OCR. Tesseract is lightweight (~100MB RAM) and works on Render free tier."""
+    force_mock = os.environ.get("OCR_MOCK_MODE", "false").lower() == "true"
+
+    if force_mock:
+        logger.info("OCR_MOCK_MODE=true — using mock OCR")
+        app.state.ocr = InvoiceOCR(mock_mode=True)
+        return
+
     try:
         app.state.ocr = InvoiceOCR(mock_mode=False)
-        logger.info("OCR initialized (EasyOCR real mode)")
+        logger.info("OCR initialized (Tesseract real mode)")
     except Exception as e:
-        logger.warning(f"EasyOCR real mode failed: {e}")
+        logger.warning(f"Tesseract init failed: {e}")
         try:
             app.state.ocr = InvoiceOCR(mock_mode=True)
-            logger.info("OCR initialized (Mock mode)")
+            logger.info("OCR initialized (Mock fallback)")
         except Exception as e2:
             logger.error(f"OCR init completely failed: {e2}")
             app.state.ocr = None
@@ -216,9 +221,9 @@ async def _init_ocr(app: FastAPI):
 
 app = FastAPI(
     title="LedgerWatch AI",
-    description="Production-grade OCR-powered financial transaction anomaly detection API. "
-    "Supports JSON, CSV, Parquet, OCR (images), and PDF uploads.",
-    version="2.0.0",
+    description="OCR-powered financial transaction anomaly detection. "
+    "Supports JSON, CSV, Parquet, OCR images, and PDF.",
+    version="2.1.0",
     lifespan=lifespan,
     docs_url="/docs",
     redoc_url="/redoc",
@@ -379,7 +384,6 @@ async def parse_json_file(contents: bytes) -> pd.DataFrame:
         text = contents.decode("utf-8").strip()
     except UnicodeDecodeError:
         raise HTTPException(status_code=400, detail="File must be UTF-8 encoded")
-
     if not text:
         raise HTTPException(status_code=400, detail="Empty file")
 
@@ -391,11 +395,9 @@ async def parse_json_file(contents: bytes) -> pd.DataFrame:
                 try:
                     records.append(json.loads(line))
                 except json.JSONDecodeError as e:
-                    raise HTTPException(
-                        status_code=400, detail=f"Invalid JSONL line: {e}"
-                    )
+                    raise HTTPException(status_code=400, detail=f"Invalid JSONL: {e}")
         if not records:
-            raise HTTPException(status_code=400, detail="No valid JSON lines found")
+            raise HTTPException(status_code=400, detail="No valid JSON lines")
         return pd.DataFrame(records)
 
     try:
@@ -585,68 +587,18 @@ async def process_ocr_file(file: UploadFile, ocr: InvoiceOCR) -> Dict[str, Any]:
 @app.get("/docs-info")
 async def docs_redirect():
     return {
-        "message": "LedgerWatch AI API v2.0.0",
+        "message": "LedgerWatch AI API v2.1.0",
         "endpoints": [
-            {
-                "path": "/health",
-                "method": "GET",
-                "auth": False,
-                "description": "Health check",
-            },
-            {
-                "path": "/predict",
-                "method": "POST",
-                "auth": True,
-                "description": "Single transaction prediction",
-            },
-            {
-                "path": "/batch-predict",
-                "method": "POST",
-                "auth": True,
-                "description": "Batch prediction (CSV/JSON/Parquet/OCR/PDF)",
-            },
-            {
-                "path": "/transactions",
-                "method": "GET",
-                "auth": True,
-                "description": "List transactions",
-            },
-            {
-                "path": "/transactions/{id}",
-                "method": "GET",
-                "auth": True,
-                "description": "Get single transaction",
-            },
-            {
-                "path": "/transactions/{id}/feedback",
-                "method": "PATCH",
-                "auth": True,
-                "description": "Add feedback",
-            },
-            {
-                "path": "/stats",
-                "method": "GET",
-                "auth": True,
-                "description": "Dashboard stats",
-            },
-            {
-                "path": "/feedback-stats",
-                "method": "GET",
-                "auth": True,
-                "description": "Feedback statistics",
-            },
-            {
-                "path": "/ocr",
-                "method": "POST",
-                "auth": True,
-                "description": "OCR parse invoice/receipt",
-            },
-            {
-                "path": "/retrain",
-                "method": "POST",
-                "auth": True,
-                "description": "Retrain model",
-            },
+            {"path": "/health", "method": "GET", "auth": False},
+            {"path": "/predict", "method": "POST", "auth": True},
+            {"path": "/batch-predict", "method": "POST", "auth": True},
+            {"path": "/transactions", "method": "GET", "auth": True},
+            {"path": "/transactions/{id}", "method": "GET", "auth": True},
+            {"path": "/transactions/{id}/feedback", "method": "PATCH", "auth": True},
+            {"path": "/stats", "method": "GET", "auth": True},
+            {"path": "/feedback-stats", "method": "GET", "auth": True},
+            {"path": "/ocr", "method": "POST", "auth": True},
+            {"path": "/retrain", "method": "POST", "auth": True},
         ],
         "supported_formats": sorted(SUPPORTED_ALL_EXTS),
     }
@@ -657,7 +609,7 @@ async def root():
     return {
         "status": "ok",
         "message": "LedgerWatch AI API is running",
-        "version": "2.0.0",
+        "version": "2.1.0",
         "timestamp": datetime.utcnow().isoformat(),
     }
 
@@ -667,7 +619,7 @@ async def health_check():
     ocr_mock = getattr(app.state.ocr, "mock_mode", True) if app.state.ocr else True
     return HealthResponse(
         status="ok",
-        version="2.0.0",
+        version="2.1.0",
         model_loaded=app.state.model is not None,
         risk_engine_loaded=app.state.risk_engine is not None,
         ocr_available=not ocr_mock,
@@ -867,8 +819,7 @@ async def batch_predict(
         raise HTTPException(status_code=415, detail=f"Unsupported file type: .{ext}")
 
     logger.info(
-        f"Batch complete: method={processing_method}, "
-        f"processed={total_processed}, anomalies={anomalies_detected}"
+        f"Batch complete: method={processing_method}, processed={total_processed}, anomalies={anomalies_detected}"
     )
 
     return BatchPredictionResponse(
@@ -881,7 +832,7 @@ async def batch_predict(
 
 @app.post("/ocr", dependencies=[Depends(verify_api_key)])
 async def ocr_parse(
-    file: UploadFile = File(..., description="Invoice/receipt image or PDF"),
+    file: UploadFile = File(..., description="Invoice/receipt image or PDF")
 ):
     if app.state.ocr is None:
         raise HTTPException(status_code=503, detail="OCR service not available")
@@ -950,10 +901,7 @@ async def get_transactions(
 
 
 @app.get("/transactions/{transaction_id}", dependencies=[Depends(verify_api_key)])
-async def get_transaction(
-    transaction_id: int,
-    db: Session = Depends(get_db),
-):
+async def get_transaction(transaction_id: int, db: Session = Depends(get_db)):
     tx = db.query(DBTransaction).filter(DBTransaction.id == transaction_id).first()
     if not tx:
         raise HTTPException(status_code=404, detail="Transaction not found")
@@ -1039,9 +987,7 @@ async def retrain(
     logger.info("Starting model retraining...")
     try:
         model, risk_engine, version = retrain_model(
-            contamination=contamination,
-            n_estimators=n_estimators,
-            dry_run=dry_run,
+            contamination=contamination, n_estimators=n_estimators, dry_run=dry_run
         )
 
         if not dry_run:

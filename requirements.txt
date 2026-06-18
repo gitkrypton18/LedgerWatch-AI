@@ -20,11 +20,11 @@ requests==2.31.0
 pillow==10.2.0
 python-dotenv==1.0.0
 
-# OCR — EasyOCR (replaces Tesseract/PyTesseract)
-easyocr==1.7.1
-torch==2.1.2
-torchvision==0.16.2
+# OCR — Tesseract (lightweight, ~100MB RAM, Render free tier compatible)
+pytesseract==0.3.10
 pdf2image==1.17.0
+# ❌ Removed: easyocr, torch, torchvision (heavy, ~500MB RAM)
 
-# Parquet support — pyarrow is sufficient, no need for fastparquet
+# Parquet support — pyarrow only
 pyarrow==15.0.0
+# ❌ Removed: fastparquet (not needed, causes build errors)
