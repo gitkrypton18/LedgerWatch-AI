@@ -41,6 +41,15 @@ export default function LoginPage() {
       
       localStorage.setItem('ledgerwatch_token', response.data.access_token);
       
+      // Wipe the database upon successful login to ensure a fresh session
+      try {
+          await api.delete('/transactions/clear', {
+              headers: { Authorization: `Bearer ${response.data.access_token}` }
+          });
+      } catch (err) {
+          console.error("Failed to clear previous session data:", err);
+      }
+      
       setTimeout(() => {
         window.location.href = '/dashboard';
       }, 800);
