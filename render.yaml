@@ -2,14 +2,9 @@ services:
   - type: web
     name: ledgerwatch-api
     runtime: python
-    plan: free  # ✅ Tesseract works on free tier (~100MB RAM)
-    buildCommand: |
-    apt-get update -qq
-    apt-get install -y -qq tesseract-ocr tesseract-ocr-eng poppler-utils
-    which tesseract          # ✅ Verify binary exists
-    tesseract --version      # ✅ Verify version
-    pip install -r requirements.txt
-    startCommand: uvicorn backend.main:app --host 0.0.0.0 --port $PORT
+    plan: free
+    buildCommand: apt-get update && apt-get install -y tesseract-ocr tesseract-ocr-eng poppler-utils && pip install -r requirements.txt
+    startCommand: uvicorn backend.main:app --host 0.0.0.0 --port 10000
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.0
@@ -20,11 +15,11 @@ services:
           name: ledgerwatch-db
           property: connectionString
       - key: MODEL_PATH
-        value: saved_models/isolation_forest.joblib
+        value: saved_models/isolation_forest_v1.0.0.joblib
       - key: RISK_ENGINE_PATH
-        value: saved_models/risk_engine.joblib
+        value: saved_models/risk_engine_v1.0.0.joblib
       - key: OCR_MOCK_MODE
-        value: "false"  # ✅ Real Tesseract OCR
+        value: "false"
     healthCheckPath: /health
     autoDeploy: true
 
