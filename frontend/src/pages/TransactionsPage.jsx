@@ -316,10 +316,13 @@ export default function TransactionsPage() {
             <Loader2 className="w-8 h-8 animate-spin text-accent-info" />
           </div>
         ) : error ? (
-          <div className="flex flex-col items-center justify-center py-20 text-center">
-            <WifiOff className="w-10 h-10 text-red-400 mb-3" />
-            <p className="text-text-primary font-medium">API Connection Failed</p>
-            <button onClick={() => setUseMock(true)} className="mt-4 px-4 py-2 bg-accent-info text-white rounded-lg text-sm">Use Mock Data</button>
+          <div className="flex flex-col items-center justify-center py-20 text-center animate-fade-in">
+            <WifiOff className="w-12 h-12 text-accent-danger mb-4" />
+            <h3 className="text-lg font-bold text-text-primary mb-2">Connection Failed</h3>
+            <p className="text-text-secondary max-w-md text-sm mb-6">{typeof error === 'string' ? error : "Unable to load transactions. The backend server might be starting up or unavailable."}</p>
+            <button onClick={refetch} className="px-6 py-2 bg-background-tertiary border border-border-subtle hover:bg-background-tertiary/80 text-text-primary rounded-lg text-sm transition-colors flex items-center gap-2">
+              <RefreshCw className="w-4 h-4" /> Try Again
+            </button>
           </div>
         ) : (
           <div className="overflow-x-auto">

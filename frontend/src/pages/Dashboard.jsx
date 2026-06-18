@@ -137,7 +137,25 @@ export default function Dashboard() {
     useEffect(() => { setMounted(true); }, []);
     if (!mounted) return null;
 
-    const isEmptyState = !useMock && !statsLoading && statsData?.total_transactions === 0;
+    const isEmptyState = !useMock && !statsLoading && online && statsData?.total_transactions === 0;
+    const isErrorState = !useMock && !statsLoading && !online;
+
+    if (isErrorState) {
+        return (
+            <div className="flex flex-col items-center justify-center min-h-[70vh] space-y-6 text-center animate-fade-in">
+                <div className="w-24 h-24 bg-background-tertiary rounded-full flex items-center justify-center risk-glow-high">
+                    <WifiOff className="w-10 h-10 text-accent-danger opacity-80" />
+                </div>
+                <div className="max-w-md">
+                    <h2 className="text-2xl font-bold text-text-primary mb-3">Connection Failed</h2>
+                    <p className="text-text-secondary mb-8">Unable to connect to the LedgerWatch backend server. Please check your API URL in settings or wait for the server to spin up.</p>
+                    <button onClick={() => navigate('/settings')} className="px-6 py-3 bg-accent-danger/20 hover:bg-accent-danger/30 text-accent-danger border border-accent-danger/30 rounded-lg font-medium transition-all">
+                        Check Settings
+                    </button>
+                </div>
+            </div>
+        );
+    }
 
     if (isEmptyState) {
         return (
@@ -157,10 +175,10 @@ export default function Dashboard() {
     }
 
     const kpiData = useMock ? MOCK_KPI : [
-        { title: "Total Transactions", value: statsData?.total_transactions?.toLocaleString() || "5,001", change: "+0%", trend: "neutral", icon: Database, color: "text-accent-info", bgColor: "bg-accent-info/10" },
-        { title: "Anomalies Detected", value: statsData?.anomalies_detected?.toLocaleString() || "703", change: `+${((statsData?.anomaly_rate || 0) * 100).toFixed(3)}%`, trend: "up", icon: AlertTriangle, color: "text-accent-warning", bgColor: "bg-accent-warning/10" },
-        { title: "Avg Risk Score", value: statsData?.avg_risk_score?.toFixed(1) || "51.8", change: "─", trend: "neutral", icon: Shield, color: "text-accent-success", bgColor: "bg-accent-success/10" },
-        { title: "Critical Alerts", value: statsData?.critical_count?.toLocaleString() || "206", change: "+0%", trend: "up", icon: Activity, color: "text-accent-danger", bgColor: "bg-accent-danger/10" },
+        { title: "Total Transactions", value: statsData?.total_transactions?.toLocaleString() || "0", change: "+0%", trend: "neutral", icon: Database, color: "text-accent-info", bgColor: "bg-accent-info/10" },
+        { title: "Anomalies Detected", value: statsData?.anomalies_detected?.toLocaleString() || "0", change: `+${((statsData?.anomaly_rate || 0) * 100).toFixed(3)}%`, trend: "up", icon: AlertTriangle, color: "text-accent-warning", bgColor: "bg-accent-warning/10" },
+        { title: "Avg Risk Score", value: statsData?.avg_risk_score?.toFixed(1) || "0.0", change: "─", trend: "neutral", icon: Shield, color: "text-accent-success", bgColor: "bg-accent-success/10" },
+        { title: "Critical Alerts", value: statsData?.critical_count?.toLocaleString() || "0", change: "+0%", trend: "up", icon: Activity, color: "text-accent-danger", bgColor: "bg-accent-danger/10" },
     ];
 
     const riskDistribution = useMock ? MOCK_RISK_DIST : [

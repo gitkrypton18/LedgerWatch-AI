@@ -30,9 +30,17 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
     (response) => response,
     (error) => {
-        if (!error.response && (error.code === 'ERR_NETWORK' || error.message === 'Network Error')) {
-            error.isAdBlocker = true;
-            error.userMessage = 'Connection blocked! Please disable ad blocker or try incognito mode.';
+        if (!error.response) {
+            error.userMessage = 'Unable to connect to the server. It might be starting up or offline.';
+        } else {
+            const detail = error.response.data?.detail;
+            if (Array.isArray(detail)) {
+                error.userMessage = detail.map(d => d.msg).join(', ');
+            } else if (typeof detail === 'string') {
+                error.userMessage = detail;
+            } else {
+                error.userMessage = `Server error (${error.response.status}).`;
+            }
         }
         return Promise.reject(error);
     }
