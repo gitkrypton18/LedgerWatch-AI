@@ -1193,6 +1193,46 @@ async def get_stats(db: Session = Depends(get_db)):
             {"feature": "hour_of_step", "importance": 0.004},
         ]
 
+    fraud_by_type_query = (
+        db.query(DBTransaction.type, func.count(DBTransaction.id))
+        .filter(DBTransaction.is_anomaly == True)
+        .group_by(DBTransaction.type)
+        .all()
+    )
+    total_by_type_query = (
+        db.query(DBTransaction.type, func.count(DBTransaction.id))
+        .group_by(DBTransaction.type)
+        .all()
+    )
+    fraud_counts = {t: c for t, c in fraud_by_type_query}
+    total_counts = {t: c for t, c in total_by_type_query}
+    fraud_by_type = []
+    for t in ["TRANSFER", "CASH_OUT", "PAYMENT", "CASH_IN", "DEBIT"]:
+        f_count = fraud_counts.get(t, 0)
+        t_count = total_counts.get(t, 0)
+        pct = (f_count / t_count * 100) if t_count > 0 else 0
+        fraud_by_type.append({
+            "name": t,
+            "fraud": f_count,
+            "total": t_count,
+            "value": f_count,
+            "pct": f"{pct:.2f}"
+        })
+
+    risk_query = (
+        db.query(DBTransaction.risk_score, DBTransaction.is_anomaly, func.count(DBTransaction.id))
+        .group_by(DBTransaction.risk_score, DBTransaction.is_anomaly)
+        .all()
+    )
+    risk_distribution = [{"score": f"{i*10}-{(i+1)*10}", "fraud": 0, "normal": 0} for i in range(10)]
+    for score, is_anomaly, count in risk_query:
+        if score is None: continue
+        bin_idx = min(int(score) // 10, 9)
+        if is_anomaly:
+            risk_distribution[bin_idx]["fraud"] += count
+        else:
+            risk_distribution[bin_idx]["normal"] += count
+
     return {
         "total_transactions": total,
         "anomalies_detected": anomalies,
@@ -1204,6 +1244,8 @@ async def get_stats(db: Session = Depends(get_db)):
         "anomaly_rate": round(anomalies / total, 4) if total else 0.0,
         "avg_risk_score": round(float(avg_risk), 1) if avg_risk else 0.0,
         "feature_importance": feature_importance,
+        "fraud_by_type": fraud_by_type,
+        "risk_distribution": risk_distribution,
     }
 
 

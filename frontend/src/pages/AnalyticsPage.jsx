@@ -124,43 +124,21 @@ export default function AnalyticsPage() {
     return [];
   }, [statsData]);
 
-  // ✅ Fraud by Type from API transactions
+  // ✅ Fraud by Type from real-time API stats
   const fraudTypeData = useMemo(() => {
-    if (apiTx && apiTx.length > 0) {
-      const types = ['TRANSFER', 'CASH_OUT', 'PAYMENT', 'CASH_IN', 'DEBIT'];
-      return types.map((type) => {
-        const typeTx = apiTx.filter((tx) => tx.type === type);
-        const fraudCount = typeTx.filter((tx) => tx.is_anomaly).length;
-        return {
-          name: type,
-          value: fraudCount,
-          fraud: fraudCount,
-          total: typeTx.length,
-          pct: typeTx.length > 0 ? ((fraudCount / typeTx.length) * 100).toFixed(2) : 0,
-        };
-      });
+    if (statsData?.fraud_by_type && statsData.fraud_by_type.length > 0) {
+      return statsData.fraud_by_type;
     }
     return [];
-  }, [apiTx]);
+  }, [statsData]);
 
-  // ✅ Risk Distribution from API transactions
+  // ✅ Risk Distribution from real-time API stats
   const riskDistData = useMemo(() => {
-    if (apiTx && apiTx.length > 0) {
-      const bins = Array.from({ length: 10 }, (_, i) => ({
-        score: `${i * 10}-${(i + 1) * 10}`,
-        fraud: 0,
-        normal: 0,
-      }));
-      apiTx.forEach((tx) => {
-        const score = tx.risk_score || 0;
-        const binIdx = Math.min(Math.floor(score / 10), 9);
-        if (tx.is_anomaly) bins[binIdx].fraud++;
-        else bins[binIdx].normal++;
-      });
-      return bins;
+    if (statsData?.risk_distribution && statsData.risk_distribution.length > 0) {
+      return statsData.risk_distribution;
     }
     return [];
-  }, [apiTx]);
+  }, [statsData]);
 
   // Stats from API
   const totalTx = statsData?.total_transactions || 0;

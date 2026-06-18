@@ -126,7 +126,7 @@ const DetailDrawer = ({ transaction, onClose }) => {
           )}
           <div className="mt-6">
             <Link
-              to={`/explainability?id=${transaction.id}`}
+              to={`/explain?id=${transaction.id}`}
               className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-accent-primary hover:bg-accent-secondary text-white rounded-lg font-medium transition-colors"
             >
               <Activity className="w-4 h-4" /> View Full AI Explainability
@@ -361,7 +361,7 @@ export default function TransactionsPage() {
                     <td className="py-3 px-4 text-text-muted text-xs"><div className="flex items-center gap-1"><Clock className="w-3 h-3" />{formatTime(tx.created_at)}</div></td>
                     <td className="py-3 px-4 flex items-center gap-3">
                       <button 
-                        onClick={(e) => { e.stopPropagation(); window.location.href = `/explainability?id=${tx.id}`; }}
+                        onClick={(e) => { e.stopPropagation(); window.location.href = `/explain?id=${tx.id}`; }}
                         className="p-1 hover:bg-accent-info/20 rounded text-accent-info tooltip-trigger relative"
                         title="View SHAP Explainability"
                       >
