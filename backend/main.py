@@ -958,12 +958,17 @@ async def get_transactions(
     )
     total_count = query.count()
 
-    return {
-        "transactions": [TransactionRead.model_validate(tx) for tx in txs],
-        "count": total_count,
-        "limit": limit,
-        "offset": offset,
-    }
+    try:
+        return {
+            "transactions": [TransactionRead.model_validate(tx) for tx in txs],
+            "count": total_count,
+            "limit": limit,
+            "offset": offset,
+        }
+    except Exception as e:
+        logger.error(f"Error validating transactions: {e}")
+        logger.error(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=f"Validation error: {str(e)}")
 
 
 @app.delete("/transactions/clear", dependencies=[Depends(verify_api_key)])

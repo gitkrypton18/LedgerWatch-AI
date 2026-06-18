@@ -340,7 +340,7 @@ export default function TransactionsPage() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-border-subtle bg-background-tertiary/50">
-                  {[{ key: 'id', label: 'ID', sortable: true }, { key: 'type', label: 'Type', sortable: true }, { key: 'amount', label: 'Amount', sortable: true }, { key: 'risk_score', label: 'Risk', sortable: true }, { key: 'risk_band', label: 'Status', sortable: false }, { key: 'shap_values', label: 'SHAP', sortable: false }, { key: 'created_at', label: 'Time', sortable: true }, { key: null, label: '', sortable: false }].map(col => (
+                  {[{ key: 'id', label: 'ID', sortable: true }, { key: 'type', label: 'Type', sortable: true }, { key: 'amount', label: 'Amount', sortable: true }, { key: 'risk_score', label: 'Risk', sortable: true }, { key: 'risk_band', label: 'Status', sortable: false }, { key: 'shap_values', label: 'SHAP', sortable: false }, { key: 'created_at', label: 'Time', sortable: true }, { key: 'actions', label: 'Actions', sortable: false }].map(col => (
                     <th key={col.key || col.label} onClick={() => col.sortable && handleSort(col.key)} className={`text-left text-text-muted text-xs font-medium py-3 px-4 ${col.sortable ? 'cursor-pointer hover:text-text-primary' : ''}`}>
                       <div className="flex items-center gap-1">{col.label} {col.sortable && <SortIcon field={col.key} />}</div>
                     </th>
@@ -359,7 +359,16 @@ export default function TransactionsPage() {
                     <td className="py-3 px-4"><StatusBadge band={tx.risk_band || 'Low'} isAnomaly={tx.is_anomaly} /></td>
                     <td className="py-3 px-4 max-w-[150px] overflow-hidden"><ShapMiniChart shapValues={tx.shap_values} /></td>
                     <td className="py-3 px-4 text-text-muted text-xs"><div className="flex items-center gap-1"><Clock className="w-3 h-3" />{formatTime(tx.created_at)}</div></td>
-                    <td className="py-3 px-4"><Eye className="w-4 h-4 text-text-muted group-hover:text-accent-info transition-colors" /></td>
+                    <td className="py-3 px-4 flex items-center gap-3">
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); window.location.href = `/explainability?id=${tx.id}`; }}
+                        className="p-1 hover:bg-accent-info/20 rounded text-accent-info tooltip-trigger relative"
+                        title="View SHAP Explainability"
+                      >
+                        <Activity className="w-4 h-4" />
+                      </button>
+                      <Eye className="w-4 h-4 text-text-muted group-hover:text-accent-info transition-colors" />
+                    </td>
                   </tr>
                 ))}
                 {filteredTransactions.length === 0 && (
