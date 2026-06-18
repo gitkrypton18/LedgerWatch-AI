@@ -314,7 +314,7 @@ const ChangePasswordSection = () => {
 // ─── Main Settings Page ─────────────────────────────────────
 export default function SettingsPage() {
   const [settings, setSettings] = useState({
-    apiUrl: 'https://ledgerwatch-ai.onrender.com',
+    apiUrl_clean: 'https://ledgerwatch-ai.onrender.com',
     apiKey: import.meta.env.VITE_API_KEY || 'demo-key-123',
     theme: 'dark',
     pageSize: '10',
@@ -366,8 +366,8 @@ export default function SettingsPage() {
     setConnMessage('Testing connection...');
     setShowAdBlockerWarning(false);
 
-    const prevUrl = localStorage.getItem('ledgerwatch_api_url');
-    localStorage.setItem('ledgerwatch_api_url', settings.apiUrl);
+    const prevUrl = localStorage.getItem('ledgerwatch_apiUrl_clean');
+    localStorage.setItem('ledgerwatch_apiUrl_clean', settings.apiUrl_clean);
 
     try {
       const result = await checkHealth();
@@ -389,7 +389,7 @@ export default function SettingsPage() {
       }
     } finally {
       if (connStatus === 'error' && prevUrl) {
-        localStorage.setItem('ledgerwatch_api_url', prevUrl);
+        localStorage.setItem('ledgerwatch_apiUrl_clean', prevUrl);
       }
     }
   };
@@ -452,8 +452,8 @@ export default function SettingsPage() {
           <InputField
             icon={Server}
             label="Backend API URL"
-            value={settings.apiUrl}
-            onChange={(v) => updateSetting('apiUrl', v)}
+            value={settings.apiUrl_clean}
+            onChange={(v) => updateSetting('apiUrl_clean', v)}
             placeholder="https://ledgerwatch-ai.onrender.com"
             description="FastAPI backend endpoint"
           />

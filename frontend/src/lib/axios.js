@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 // Read from localStorage first so the Settings page actually takes effect
-const storedUrl = localStorage.getItem('ledgerwatch_apiUrl');
+const storedUrl = localStorage.getItem('ledgerwatch_apiUrl_clean');
 const API_URL = storedUrl || import.meta.env.VITE_API_URL || 'https://ledgerwatch-ai.onrender.com';
 
 const api = axios.create({

@@ -12,9 +12,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     """Application settings loaded from .env file."""
 
-    # ─── Paths ────────────────────────────────────────────────────────────────
-    MODEL_PATH: str = "saved_models/isolation_forest.joblib"
-    RISK_ENGINE_PATH: str = "saved_models/risk_engine.joblib"
+    MODEL_PATH: str = "saved_models/isolation_forest_v1.0.0.joblib"
+    RISK_ENGINE_PATH: str = "saved_models/risk_engine_v1.0.0.joblib"
 
     # Database: Render provides DATABASE_URL env var automatically
     # Fallback to SQLite for local development
