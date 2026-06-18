@@ -266,6 +266,23 @@ class ChangePasswordRequest(BaseModel):
     current_password: str
     new_password: str
 
+class UserCreate(BaseModel):
+    email: str
+    password: str
+
+@app.post("/users/register")
+async def register_user(user: UserCreate, db: Session = Depends(get_db)):
+    from src.database import User
+    existing_user = db.query(User).filter(User.email == user.email).first()
+    if existing_user:
+        raise HTTPException(status_code=400, detail="Email already registered")
+    
+    hashed_password = get_password_hash(user.password)
+    new_user = User(email=user.email, hashed_password=hashed_password)
+    db.add(new_user)
+    db.commit()
+    return {"message": "User registered successfully"}
+
 @app.post("/token")
 async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     from src.database import User

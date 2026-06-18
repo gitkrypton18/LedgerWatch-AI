@@ -1,23 +1,36 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Rocket, Key, AlertCircle, Mail, Hexagon } from 'lucide-react';
+import { Rocket, Key, AlertCircle, Mail, Hexagon, UserPlus } from 'lucide-react';
 import api from '../lib/axios';
 
 export default function LoginPage() {
+  const [isSignup, setIsSignup] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
   const [loading, setLoading] = useState(false);
   const [isLaunching, setIsLaunching] = useState(false);
   const navigate = useNavigate();
 
-  const handleLogin = async (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-    setIsLaunching(true);
     setError('');
+    setSuccessMsg('');
 
     try {
+      if (isSignup) {
+        // Register the user
+        await api.post('/users/register', {
+          email: email,
+          password: password
+        });
+        // On success, we immediately proceed to auto-login
+      }
+      
+      setIsLaunching(true);
+
       const params = new URLSearchParams();
       params.append('username', email);
       params.append('password', password);
@@ -28,13 +41,12 @@ export default function LoginPage() {
       
       localStorage.setItem('ledgerwatch_token', response.data.access_token);
       
-      // Delay navigation to let the rocket launch animation play out
       setTimeout(() => {
         window.location.href = '/dashboard';
       }, 800);
     } catch (err) {
       setIsLaunching(false);
-      setError(err.response?.status === 401 ? 'Invalid Email or Password.' : 'Connection failed. Check your backend server.');
+      setError(err.response?.data?.detail || (err.response?.status === 401 ? 'Invalid Email or Password.' : 'Connection failed. Check your backend server.'));
     } finally {
       setLoading(false);
     }
@@ -57,9 +69,9 @@ export default function LoginPage() {
           </div>
         </div>
         <h1 className="text-3xl font-bold text-center text-text-primary mb-2 tracking-tight drop-shadow-[0_0_15px_rgba(0,229,255,0.5)]">LedgerWatch AI</h1>
-        <p className="text-center text-text-muted mb-8 text-sm">Secure Authentication Gateway</p>
+        <p className="text-center text-text-muted mb-8 text-sm">{isSignup ? 'Create your secure account' : 'Secure Authentication Gateway'}</p>
         
-        <form onSubmit={handleLogin} className="space-y-5">
+        <form onSubmit={handleSubmit} className="space-y-5">
           <div>
             <div className="relative group">
               <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-text-muted group-focus-within:text-accent-info transition-colors" />
@@ -94,14 +106,31 @@ export default function LoginPage() {
             </div>
           )}
 
+          {successMsg && (
+            <div className="flex items-center gap-2 text-accent-success text-sm bg-accent-success/10 p-3 rounded-lg border border-accent-success/20 animate-fade-in">
+              <UserPlus className="w-4 h-4 flex-shrink-0" />
+              <p>{successMsg}</p>
+            </div>
+          )}
+
           <button
             type="submit"
             disabled={loading}
             className="w-full bg-gradient-to-r from-accent-info to-accent-purple hover:from-cyan-400 hover:to-purple-500 text-white font-bold py-3.5 rounded-xl transition-all shadow-[0_0_20px_rgba(0,229,255,0.4)] hover:shadow-[0_0_30px_rgba(179,0,255,0.6)] hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:shadow-none"
           >
-            {loading ? 'Initiating Launch...' : 'Secure Login'}
+            {loading ? 'Processing...' : isSignup ? 'Create Account' : 'Secure Login'}
           </button>
         </form>
+
+        <div className="mt-6 text-center">
+            <button 
+                type="button" 
+                onClick={() => { setIsSignup(!isSignup); setError(''); setSuccessMsg(''); }} 
+                className="text-sm text-text-muted hover:text-accent-info transition-colors"
+            >
+                {isSignup ? 'Already have an account? Login' : "Don't have an account? Sign Up"}
+            </button>
+        </div>
       </div>
     </div>
   );
