@@ -45,7 +45,7 @@ from src.database import engine, get_db
 from src.explain import explain_transaction
 from src.features import engineer_all_features
 from src.ocr_service import InvoiceOCR
-from src.risk_engine import RiskEngine
+from src.risk_engine import RiskEngine, compute_risk_scores
 from src.schemas import (
     BatchPredictionResponse,
     HealthResponse,
@@ -377,10 +377,11 @@ def predict_single(
     X = features[feature_cols]
     X_aligned = align_features(X, expected_features)
 
-    anomaly_score = float(model.score_samples(X_aligned)[0])
-    is_anomaly = model.predict(X_aligned)[0] == -1
-    risk_score = int(risk_engine.transform([-anomaly_score])[0])
-    risk_band = get_risk_band(risk_score)
+    risk_dict = compute_risk_scores(model, X_aligned, risk_engine)
+    anomaly_score = float(risk_dict["anomaly_scores"][0])
+    is_anomaly = bool(risk_dict["is_anomaly"][0])
+    risk_score = int(risk_dict["risk_scores"][0]) if risk_dict["risk_scores"] is not None else 0
+    risk_band = risk_dict["risk_bands"][0] if risk_dict["risk_bands"] is not None else "Low"
 
     shap_vals = None
     top_feats = None
@@ -542,16 +543,13 @@ def process_dataframe_batch(
         X = features[feature_cols]
         X_aligned = align_features(X, expected_features)
 
-        anomaly_scores = model.score_samples(X_aligned)
-        raw_predictions = model.predict(X_aligned)
+        risk_dict = compute_risk_scores(model, X_aligned, risk_engine)
+        anomaly_scores = risk_dict["anomaly_scores"]
+        is_anomalies = risk_dict["is_anomaly"]
+        risk_scores = risk_dict["risk_scores"] if risk_dict["risk_scores"] is not None else [0] * chunk_len
+        risk_bands = risk_dict["risk_bands"] if risk_dict["risk_bands"] is not None else ["Low"] * chunk_len
 
         n = chunk_len
-        # Fix: Use the risk engine to calibrate risk scores based on training percentiles
-        risk_scores_array = risk_engine.transform(-anomaly_scores)
-        risk_scores = [int(score) for score in risk_scores_array]
-        risk_bands = [get_risk_band(s) for s in risk_scores]
-
-        is_anomalies = [bool(p == -1) for p in raw_predictions]
 
         for i in range(n):
             all_results.append(
@@ -952,6 +950,18 @@ async def get_transactions(
         "limit": limit,
         "offset": offset,
     }
+
+
+@app.delete("/transactions/clear", dependencies=[Depends(verify_api_key)])
+async def clear_transactions(db: Session = Depends(get_db)):
+    try:
+        db.query(DBTransaction).delete()
+        db.commit()
+        return {"message": "Database wiped successfully"}
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to clear database: {e}")
+        raise HTTPException(status_code=500, detail="Failed to clear database")
 
 
 @app.get("/transactions/{transaction_id}", dependencies=[Depends(verify_api_key)])

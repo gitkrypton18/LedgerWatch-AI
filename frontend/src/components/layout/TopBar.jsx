@@ -1,5 +1,6 @@
 import { Bell, Search, User } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+import api from '../../lib/axios';
 
 const routeTitles = {
     '/': { title: 'Dashboard', subtitle: 'Overview' },
@@ -126,7 +127,12 @@ export default function TopBar({ isMobile }) {
                             </a>
                             <div className="h-px bg-slate-800 my-1"></div>
                             <button 
-                                onClick={() => {
+                                onClick={async () => {
+                                    try {
+                                        await api.delete('/transactions/clear');
+                                    } catch (err) {
+                                        console.error('Failed to clear database on logout:', err);
+                                    }
                                     localStorage.removeItem('ledgerwatch_token');
                                     window.location.href = '/login';
                                 }}
