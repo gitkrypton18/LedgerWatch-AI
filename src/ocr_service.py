@@ -29,12 +29,12 @@ except ImportError:
 
 # PDF support
 try:
-    from pdf2image import convert_from_path
+    import pymupdf
 
-    PDF2IMAGE_AVAILABLE = True
+    PYMUPDF_AVAILABLE = True
 except ImportError:
-    PDF2IMAGE_AVAILABLE = False
-    convert_from_path = None
+    PYMUPDF_AVAILABLE = False
+    pymupdf = None
 
 logging.basicConfig(
     level=logging.INFO,
@@ -146,6 +146,8 @@ class InvoiceOCR:
     }
 
     def __init__(self, mock_mode: bool = False, dpi: int = 300):
+        self.mock_mode = mock_mode
+        self.dpi = dpi
         # Check if tesseract binary is actually in PATH
         if not mock_mode and TESSERACT_AVAILABLE:
             try:
@@ -172,12 +174,14 @@ class InvoiceOCR:
 
     def _preprocess_image(self, image: Image.Image) -> Image.Image:
         """Preprocess image for better OCR."""
-        if image.mode != "RGB":
-            image = image.convert("RGB")
+        image = image.convert("L")
         w, h = image.size
         if w < 800:
             ratio = 800 / w
             image = image.resize((800, int(h * ratio)), Image.LANCZOS)
+        if w > 3000:
+            ratio = 3000 / w
+            image = image.resize((3000, int(h * ratio)), Image.LANCZOS)
         return image
 
     def run_ocr(
@@ -199,7 +203,8 @@ class InvoiceOCR:
         image = self._preprocess_image(image)
 
         try:
-            text = pytesseract.image_to_string(image, lang="eng")
+            custom_config = r'--oem 3 --psm 4'
+            text = pytesseract.image_to_string(image, lang="eng", config=custom_config)
             lines = []
             for i, line_text in enumerate(text.split("\n")):
                 line_text = line_text.strip()
@@ -212,21 +217,29 @@ class InvoiceOCR:
             raise
 
     def pdf_to_lines(self, pdf_path: Union[str, Path]) -> List[OCRLine]:
-        """Convert PDF to images, then OCR."""
-        if not PDF2IMAGE_AVAILABLE:
-            raise RuntimeError("pdf2image not installed")
+        """Convert PDF to images using PyMuPDF, then OCR."""
+        if not PYMUPDF_AVAILABLE:
+            raise RuntimeError("pymupdf not installed")
         if self.mock_mode:
             return self._generate_mock_lines()
 
-        images = convert_from_path(str(pdf_path), dpi=self.dpi)
         all_lines = []
-        for i, image in enumerate(images):
-            image = self._preprocess_image(image)
-            text = pytesseract.image_to_string(image, lang="eng")
-            for line_text in text.split("\n"):
-                line_text = line_text.strip()
-                if line_text:
-                    all_lines.append(OCRLine(text=line_text, confidence=0.9))
+        doc = pymupdf.open(str(pdf_path))
+        try:
+            for page_num in range(len(doc)):
+                page = doc.load_page(page_num)
+                pix = page.get_pixmap(dpi=self.dpi)
+                img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+                img = self._preprocess_image(img)
+                
+                custom_config = r'--oem 3 --psm 4'
+                text = pytesseract.image_to_string(img, lang="eng", config=custom_config)
+                for line_text in text.split("\n"):
+                    line_text = line_text.strip()
+                    if line_text:
+                        all_lines.append(OCRLine(text=line_text, confidence=0.9))
+        finally:
+            doc.close()
         return all_lines
 
     def extract_fields(self, lines: List[OCRLine]) -> OCRExtraction:
