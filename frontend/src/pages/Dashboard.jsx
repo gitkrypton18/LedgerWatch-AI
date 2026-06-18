@@ -9,6 +9,7 @@ import {
     WifiOff,
 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
     Area,
     AreaChart,
@@ -131,8 +132,29 @@ export default function Dashboard() {
     const { data: statsData, loading: statsLoading } = useStats();
     const { transactions: recentTx } = useTransactions(5, 0);
 
+    const navigate = useNavigate();
+
     useEffect(() => { setMounted(true); }, []);
     if (!mounted) return null;
+
+    const isEmptyState = !useMock && !statsLoading && statsData?.total_transactions === 0;
+
+    if (isEmptyState) {
+        return (
+            <div className="flex flex-col items-center justify-center min-h-[70vh] space-y-6 text-center animate-fade-in">
+                <div className="w-24 h-24 bg-background-tertiary rounded-full flex items-center justify-center risk-glow-low">
+                    <Database className="w-10 h-10 text-accent-info opacity-80" />
+                </div>
+                <div className="max-w-md">
+                    <h2 className="text-2xl font-bold text-text-primary mb-3">Welcome to LedgerWatch AI</h2>
+                    <p className="text-text-secondary mb-8">Your dashboard is currently empty. There are zero transactions in the database. Upload your first dataset or invoice to begin analysis.</p>
+                    <button onClick={() => navigate('/upload')} className="px-6 py-3 bg-accent-info hover:bg-blue-600 text-white rounded-lg font-medium transition-all shadow-lg shadow-blue-500/20 hover:-translate-y-0.5">
+                        Go to Upload Section
+                    </button>
+                </div>
+            </div>
+        );
+    }
 
     const kpiData = useMock ? MOCK_KPI : [
         { title: "Total Transactions", value: statsData?.total_transactions?.toLocaleString() || "5,001", change: "+0%", trend: "neutral", icon: Database, color: "text-accent-info", bgColor: "bg-accent-info/10" },
@@ -270,7 +292,7 @@ export default function Dashboard() {
                         <h3 className="text-sm lg:text-base font-semibold text-text-primary truncate">Recent High-Risk Transactions</h3>
                         <p className="text-xs lg:text-sm text-text-muted mt-0.5">Flagged for manual review</p>
                     </div>
-                    <button className="text-sm text-accent-info hover:text-blue-400 transition-colors flex-shrink-0">View All →</button>
+                    <button onClick={() => navigate('/transactions')} className="text-sm text-accent-info hover:text-blue-400 transition-colors flex-shrink-0">View All →</button>
                 </div>
                 <div className="overflow-x-auto">
                     <table className="w-full min-w-[700px]">
