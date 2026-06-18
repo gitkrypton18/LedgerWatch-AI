@@ -1,7 +1,11 @@
 import axios from 'axios';
 
-const API_URL = import.meta.env.VITE_API_URL || 'https://ledgerwatch-api.onrender.com';
-const API_KEY = import.meta.env.VITE_API_KEY || 'demo-key-123';
+// Read from localStorage first so the Settings page actually takes effect
+const storedUrl = localStorage.getItem('ledgerwatch_apiUrl');
+const storedKey = localStorage.getItem('ledgerwatch_apiKey');
+
+const API_URL = storedUrl || import.meta.env.VITE_API_URL || 'https://ledgerwatch-api.onrender.com';
+const API_KEY = storedKey || import.meta.env.VITE_API_KEY || 'demo-key-123';
 
 const api = axios.create({
     baseURL: API_URL,
@@ -12,7 +16,7 @@ const api = axios.create({
     timeout: 300000,
 });
 
-// ✅ FIX: Request interceptor — remove Content-Type for FormData
+// Request interceptor — remove Content-Type for FormData
 api.interceptors.request.use((config) => {
     if (config.data instanceof FormData) {
         delete config.headers['Content-Type']; // Let browser set it with boundary
@@ -51,10 +55,9 @@ export const predict = async (transactionData, explain = true) => {
     return data;
 };
 
-// ✅ FIXED: 'file' key (backend expects single file)
 export const batchPredict = async (file, onProgress = null) => {
     const formData = new FormData();
-    formData.append('file', file);  // ✅ 'file' not 'files'
+    formData.append('file', file);
 
     const config = {
         onUploadProgress: onProgress ? (progressEvent) => {
