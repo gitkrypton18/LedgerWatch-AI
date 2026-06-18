@@ -88,7 +88,7 @@ const DetailDrawer = ({ transaction, onClose }) => {
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      <div className="detail-drawer relative w-full max-w-md bg-background-secondary border-l border-border-subtle h-full overflow-y-auto">
+      <div className="detail-drawer relative w-full max-w-md glass-panel border-l border-border-subtle h-full overflow-y-auto">
         <div className="p-4 lg:p-6">
           <div className="flex items-center justify-between mb-4 lg:mb-6">
             <h2 className="text-lg font-bold text-text-primary">Transaction Details</h2>
@@ -216,7 +216,7 @@ export default function TransactionsPage() {
       {/* Stats Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
         {[{ label: 'Total', value: totalItems.toLocaleString(), color: 'text-accent-info', icon: Shield }, { label: 'Anomalies', value: anomalyCount.toLocaleString(), color: 'text-red-400', icon: AlertTriangle }, { label: 'Critical', value: criticalCount.toLocaleString(), color: 'text-purple-400', icon: TrendingUp }, { label: 'Avg Risk', value: avgRisk, color: 'text-amber-400', icon: Activity }].map(stat => (
-          <div key={stat.label} className="bg-background-secondary border border-border-subtle rounded-xl p-3 lg:p-4 flex items-center gap-3">
+          <div key={stat.label} className="glass-panel border border-border-subtle rounded-xl p-3 lg:p-4 flex items-center gap-3 card-hover">
             <div className={`w-8 h-8 lg:w-10 lg:h-10 rounded-xl bg-background-tertiary flex items-center justify-center ${stat.color} flex-shrink-0`}>
               <stat.icon size={18} className="lg:w-5 lg:h-5" />
             </div>
@@ -241,7 +241,7 @@ export default function TransactionsPage() {
 
       {/* Filter Panel */}
       {showFilters && (
-        <div className="bg-background-secondary rounded-xl p-4 border border-border-subtle space-y-3">
+        <div className="glass-panel rounded-xl p-4 border border-border-subtle space-y-3">
           <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-5 gap-3">
             <select value={filters.type} onChange={(e) => { setFilters(f => ({ ...f, type: e.target.value })); setPage(1); }} className="px-3 py-2 bg-background-tertiary border border-border-subtle rounded-lg text-text-primary text-sm focus:outline-none focus:border-accent-info">
               <option value="">All Types</option>
@@ -280,7 +280,7 @@ export default function TransactionsPage() {
       {/* MOBILE CARD VIEW */}
       <div className="lg:hidden space-y-3">
         {filteredTransactions.map((tx) => (
-          <div key={tx.id} onClick={() => setSelectedTx(tx)} className="bg-background-secondary border border-border-subtle rounded-xl p-4 active:bg-background-tertiary/50">
+          <div key={tx.id} onClick={() => setSelectedTx(tx)} className="glass-panel border border-border-subtle rounded-xl p-4 active:bg-background-tertiary/50 card-hover">
             <div className="flex items-center justify-between mb-2">
               <span className="font-mono text-text-primary text-sm">#{tx.id}</span>
               <StatusBadge band={tx.risk_band || 'Low'} isAnomaly={tx.is_anomaly} />
@@ -310,7 +310,7 @@ export default function TransactionsPage() {
       </div>
 
       {/* DESKTOP TABLE VIEW */}
-      <div className="hidden lg:block bg-background-secondary border border-border-subtle rounded-xl overflow-hidden">
+      <div className="hidden lg:block glass-panel border border-border-subtle rounded-xl overflow-hidden card-hover">
         {loading ? (
           <div className="flex items-center justify-center py-20">
             <Loader2 className="w-8 h-8 animate-spin text-accent-info" />
