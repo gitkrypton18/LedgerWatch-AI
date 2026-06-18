@@ -583,9 +583,9 @@ def process_dataframe_batch(
                     if "isFlaggedFraud" in row
                     else None
                 ),
-                is_anomaly=is_anomalies[i],
-                risk_band=risk_bands[i],
-                risk_score=risk_scores[i],
+                is_anomaly=bool(is_anomalies[i]),
+                risk_band=str(risk_bands[i]),
+                risk_score=int(risk_scores[i]),
                 created_at=datetime.utcnow(),
             )
             db.add(db_tx)
