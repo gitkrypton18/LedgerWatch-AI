@@ -1,56 +1,87 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Shield, Key, AlertCircle } from 'lucide-react';
+import { Rocket, Key, AlertCircle, Mail, Hexagon } from 'lucide-react';
 import api from '../lib/axios';
 
 export default function LoginPage() {
-  const [key, setKey] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [isLaunching, setIsLaunching] = useState(false);
   const navigate = useNavigate();
 
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoading(true);
+    setIsLaunching(true);
     setError('');
 
     try {
-      // Test the API key against a protected endpoint
-      await api.get('/transactions?limit=1', {
-        headers: { 'X-API-Key': key }
+      const params = new URLSearchParams();
+      params.append('username', email);
+      params.append('password', password);
+      
+      const response = await api.post('/token', params, {
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
       });
       
-      // If successful, save to localStorage and reload/redirect
-      localStorage.setItem('ledgerwatch_apiKey', key);
-      window.location.href = '/dashboard';
+      localStorage.setItem('ledgerwatch_token', response.data.access_token);
+      
+      // Delay navigation to let the rocket launch animation play out
+      setTimeout(() => {
+        window.location.href = '/dashboard';
+      }, 800);
     } catch (err) {
-      setError(err.response?.status === 403 ? 'Invalid API Key. Access Denied.' : 'Connection failed. Check your backend server.');
+      setIsLaunching(false);
+      setError(err.response?.status === 401 ? 'Invalid Email or Password.' : 'Connection failed. Check your backend server.');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
-      <div className="max-w-md w-full bg-background-secondary border border-border-subtle rounded-2xl p-8 shadow-2xl">
-        <div className="flex justify-center mb-6">
-          <div className="w-16 h-16 bg-accent-info/10 rounded-2xl flex items-center justify-center border border-accent-info/20 shadow-[0_0_20px_rgba(59,130,246,0.3)]">
-            <Shield className="w-8 h-8 text-accent-info" />
+    <div className="min-h-screen bg-background-primary flex items-center justify-center p-4 relative overflow-hidden perspective-1000">
+      {/* Background decorations */}
+      <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-accent-info/20 rounded-full blur-[120px] pointer-events-none"></div>
+      <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-accent-purple/20 rounded-full blur-[120px] pointer-events-none"></div>
+
+      <div className="glass-panel max-w-md w-full rounded-2xl p-8 z-10 relative">
+        <div className="flex justify-center mb-6 relative">
+          <div className={`w-20 h-20 bg-accent-info/10 rounded-2xl flex items-center justify-center border border-accent-info/30 shadow-[0_0_30px_rgba(0,229,255,0.3)] transition-transform ${isLaunching ? 'animate-rocket' : ''}`}>
+            {isLaunching ? (
+                <Rocket className="w-10 h-10 text-accent-info" />
+            ) : (
+                <Hexagon className="w-10 h-10 text-accent-info" />
+            )}
           </div>
         </div>
-        <h1 className="text-2xl font-bold text-center text-text-primary mb-2 tracking-tight">LedgerWatch AI</h1>
-        <p className="text-center text-text-muted mb-8 text-sm">Enter your Master API Key to access the dashboard</p>
+        <h1 className="text-3xl font-bold text-center text-text-primary mb-2 tracking-tight drop-shadow-[0_0_15px_rgba(0,229,255,0.5)]">LedgerWatch AI</h1>
+        <p className="text-center text-text-muted mb-8 text-sm">Secure Authentication Gateway</p>
         
         <form onSubmit={handleLogin} className="space-y-5">
           <div>
-            <div className="relative">
-              <Key className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-text-muted" />
+            <div className="relative group">
+              <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-text-muted group-focus-within:text-accent-info transition-colors" />
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="Email Address"
+                className="w-full bg-background-elevated border border-border-subtle text-text-primary rounded-xl pl-11 pr-4 py-3 focus:outline-none focus:border-accent-info focus:ring-1 focus:ring-accent-info focus:shadow-[0_0_15px_rgba(0,229,255,0.2)] transition-all text-sm"
+                required
+              />
+            </div>
+          </div>
+          <div>
+            <div className="relative group">
+              <Key className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-text-muted group-focus-within:text-accent-purple transition-colors" />
               <input
                 type="password"
-                value={key}
-                onChange={(e) => setKey(e.target.value)}
-                placeholder="Master API Key"
-                className="w-full bg-background-tertiary border border-border-subtle text-text-primary rounded-xl pl-11 pr-4 py-3 focus:outline-none focus:border-accent-info focus:ring-1 focus:ring-accent-info transition-all font-mono text-sm"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Password"
+                className="w-full bg-background-elevated border border-border-subtle text-text-primary rounded-xl pl-11 pr-4 py-3 focus:outline-none focus:border-accent-purple focus:ring-1 focus:ring-accent-purple focus:shadow-[0_0_15px_rgba(179,0,255,0.2)] transition-all font-mono text-sm"
                 required
               />
             </div>
@@ -66,9 +97,9 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-accent-info hover:bg-blue-600 text-white font-medium py-3 rounded-xl transition-all shadow-lg shadow-blue-500/25 hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0"
+            className="w-full bg-gradient-to-r from-accent-info to-accent-purple hover:from-cyan-400 hover:to-purple-500 text-white font-bold py-3.5 rounded-xl transition-all shadow-[0_0_20px_rgba(0,229,255,0.4)] hover:shadow-[0_0_30px_rgba(179,0,255,0.6)] hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:shadow-none"
           >
-            {loading ? 'Authenticating...' : 'Secure Login'}
+            {loading ? 'Initiating Launch...' : 'Secure Login'}
           </button>
         </form>
       </div>
