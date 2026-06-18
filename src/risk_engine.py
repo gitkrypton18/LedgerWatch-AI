@@ -175,8 +175,8 @@ class RiskEngine:
         # If it's a dict (older format), reconstruct
         if isinstance(data, dict):
             engine = cls(percentile_bins=data["percentile_bins"])
-            engine.percentiles = data["percentiles"]
-            engine.is_fitted = data.get("is_fitted", True)
+            engine._percentiles = data["percentiles"]
+            engine._is_fitted = data.get("is_fitted", True)
             return engine
 
         raise TypeError(f"Unexpected type in risk engine file: {type(data)}")
