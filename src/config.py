@@ -6,7 +6,7 @@ Pydantic-settings with .env loading. All paths validated at startup.
 import os
 from pathlib import Path
 
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -18,7 +18,7 @@ class Settings(BaseSettings):
 
     # Database: Render provides DATABASE_URL env var automatically
     # Fallback to SQLite for local development
-    DATABASE_URL: str = os.environ.get("DATABASE_URL", "sqlite:///./ledgerwatch.db")
+    DATABASE_URL: str = "sqlite:///./ledgerwatch.db"
 
     DATA_DIR: str = "data"
     PROCESSED_DIR: str = "data/processed"
@@ -27,7 +27,7 @@ class Settings(BaseSettings):
     TEST_SIZE: float = 0.2
     RANDOM_STATE: int = 42
     N_ESTIMATORS: int = 200
-    MAX_SAMPLES: str = "auto"
+    MAX_SAMPLES: int | str = "auto"
     MAX_FEATURES: float = 1.0
     BOOTSTRAP: bool = False
     N_JOBS: int = -1
@@ -55,9 +55,7 @@ class Settings(BaseSettings):
     OCR_GPU: bool = False
     OCR_LANGUAGES: str = "en"
 
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
     # ─── Path Validation ────────────────────────────────────────────────────
     def validate_paths(self) -> None:
