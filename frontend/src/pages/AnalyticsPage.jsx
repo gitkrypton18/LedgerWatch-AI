@@ -27,7 +27,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { useStats, useTransactions } from '../hooks/useApi';
+import { useStats } from '../hooks/useApi';
 
 // ─── Mock Data (ROC only — model static) ─────────────────────
 const MOCK_ROC_DATA = [
@@ -105,9 +105,8 @@ const MetricCard = ({ icon: Icon, title, value, subtitle, trend, trendValue, col
 // ─── Main Analytics Page ────────────────────────────────────
 export default function AnalyticsPage() {
   const { data: statsData, loading: statsLoading, error: statsError } = useStats();
-  const { transactions: apiTx, loading: txLoading } = useTransactions(100, 0);
 
-  const isLoading = statsLoading || txLoading;
+  const isLoading = statsLoading;
 
   // ROC is model-static, always mock
   const rocData = MOCK_ROC_DATA;
@@ -212,7 +211,7 @@ export default function AnalyticsPage() {
           value={`${anomalyRate}%`}
           subtitle={`${anomaliesDetected.toLocaleString()} flagged`}
           trend="up"
-          trendValue="Day 7 validation"
+          trendValue="Tested against validation set"
           color="emerald"
         />
         <MetricCard
@@ -482,7 +481,7 @@ export default function AnalyticsPage() {
           <div className="space-y-1">
             <div className="text-cyan-400 font-medium">Inverted Balance Anomaly</div>
             <p className="text-slate-400 text-xs leading-relaxed">
-              Day 2 EDA discovery: transactions where originator balance drops to exactly zero
+              Discovery: transactions where originator balance drops to exactly zero
               after transfer are the strongest fraud signal.
             </p>
           </div>

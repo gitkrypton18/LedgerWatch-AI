@@ -23,6 +23,7 @@ import {
   YAxis,
 } from 'recharts';
 import { usePredict, useTransactions } from '../hooks/useApi';
+import { useSearchParams } from 'react-router-dom';
 
 // ─── Mock fallback transactions ───────────────────────────────
 const MOCK_TRANSACTIONS = [
@@ -322,8 +323,12 @@ export default function ExplainabilityPage() {
   const [explainLoading, setExplainLoading] = useState(false);
   const [explainError, setExplainError] = useState(null);
   const [explainResult, setExplainResult] = useState(null);
+  const [hasAutoSelected, setHasAutoSelected] = useState(false);
 
-  const { transactions: apiTransactions, loading: txLoading, error: txError } = useTransactions(50, 0);
+  const [searchParams] = useSearchParams();
+  const urlId = searchParams.get('id');
+
+  const { transactions: apiTransactions, loading: txLoading, error: txError } = useTransactions(200, 0);
   const { predict } = usePredict();
 
   // Auto-fallback to mock on API error
@@ -336,12 +341,22 @@ export default function ExplainabilityPage() {
 
   const transactions = useMock ? MOCK_TRANSACTIONS : (apiTransactions || []);
 
-  // Auto-select first transaction
+  // Auto-select transaction from URL ?id= param, then fall back to first
   useEffect(() => {
-    if (transactions.length > 0 && !selectedTx) {
+    if (transactions.length > 0 && !hasAutoSelected) {
+      if (urlId) {
+        const match = transactions.find(tx => String(tx.id) === String(urlId));
+        if (match) {
+          setSelectedTx(match);
+          setHasAutoSelected(true);
+          return;
+        }
+      }
+      // fallback: select first transaction
       setSelectedTx(transactions[0]);
+      setHasAutoSelected(true);
     }
-  }, [transactions, selectedTx]);
+  }, [transactions, urlId, hasAutoSelected]);
 
   // Fetch SHAP explanation when transaction changes
   useEffect(() => {

@@ -617,8 +617,10 @@ export default function SettingsPage() {
             <span className="text-slate-500">Model</span>
             <span className="text-slate-300 font-mono">isolation_forest_v1.0.0</span>
           </div>
-          <div className="pt-2 border-t border-slate-700/20 text-xs text-slate-500">
-            Built by Kalpit · Electronics Engineering Student · 2026
+          <div className="pt-4 border-t border-slate-700/20 text-sm space-y-1">
+            <div className="font-semibold text-slate-300">Kalpit Nagar</div>
+            <div className="text-slate-500">SVNIT Electronics Student · Batch 2028</div>
+            <div className="text-cyan-400">AI / ML Engineer</div>
           </div>
         </div>
       </SettingsSection>

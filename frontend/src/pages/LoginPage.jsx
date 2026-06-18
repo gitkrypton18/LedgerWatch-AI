@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Rocket, Key, AlertCircle, Mail, Hexagon, UserPlus } from 'lucide-react';
+import { Rocket, Key, AlertCircle, Mail, Hexagon, UserPlus, Linkedin, Github } from 'lucide-react';
 import api from '../lib/axios';
 
 export default function LoginPage() {
@@ -139,6 +139,31 @@ export default function LoginPage() {
             >
                 {isSignup ? 'Already have an account? Login' : "Don't have an account? Sign Up"}
             </button>
+        </div>
+      </div>
+
+      {/* Developer Footer */}
+      <div className="absolute bottom-6 left-0 w-full flex flex-col items-center justify-center space-y-3 z-10 animate-fade-in">
+        <p className="text-slate-400 text-sm font-medium tracking-wide">
+          Developed by <span className="text-cyan-400 font-semibold drop-shadow-[0_0_8px_rgba(0,229,255,0.5)]">Kalpit Nagar</span>
+        </p>
+        <div className="flex items-center gap-4">
+          <a
+            href="https://linkedin.com/in/kalpitnagar"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-10 h-10 rounded-full bg-slate-900/50 border border-slate-700/50 flex items-center justify-center text-slate-400 hover:text-cyan-400 hover:border-cyan-400/50 hover:bg-cyan-500/10 transition-all hover:scale-110 shadow-lg backdrop-blur-sm"
+          >
+            <Linkedin className="w-5 h-5" />
+          </a>
+          <a
+            href="https://github.com/gitkrypton18"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-10 h-10 rounded-full bg-slate-900/50 border border-slate-700/50 flex items-center justify-center text-slate-400 hover:text-purple-400 hover:border-purple-400/50 hover:bg-purple-500/10 transition-all hover:scale-110 shadow-lg backdrop-blur-sm"
+          >
+            <Github className="w-5 h-5" />
+          </a>
         </div>
       </div>
     </div>

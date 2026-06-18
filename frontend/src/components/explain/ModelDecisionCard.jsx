@@ -13,7 +13,7 @@ export default function ModelDecisionCard({ transaction }) {
       bg: 'bg-red-500/10',
       border: 'border-red-500/20',
       title: 'Balance Zeroed',
-      desc: 'Originator balance dropped to exactly zero after transaction — strong fraud indicator from Day 2 EDA'
+      desc: 'Originator balance dropped to exactly zero after transaction — strong fraud indicator'
     });
   }
 

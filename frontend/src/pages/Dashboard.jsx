@@ -190,6 +190,7 @@ export default function Dashboard() {
 
     const recentTransactions = (recentTx || []).map((tx) => ({
         id: `#${tx.id || tx.transaction_id || "—"}`,
+        rawId: tx.id || tx.transaction_id,
         type: tx.type,
         amount: tx.amount ? `$${tx.amount.toLocaleString()}` : "—",
         score: tx.risk_score || 0,
@@ -326,7 +327,11 @@ export default function Dashboard() {
                         </thead>
                         <tbody className="divide-y divide-border-subtle">
                             {recentTransactions.map((tx, i) => (
-                                <tr key={i} className="hover:bg-background-tertiary/30 transition-colors">
+                                <tr
+                                    key={i}
+                                    onClick={() => tx.rawId && navigate(`/explain?id=${tx.rawId}`)}
+                                    className="hover:bg-background-tertiary/30 transition-colors cursor-pointer group"
+                                >
                                     <td className="px-4 lg:px-5 py-3">
                                         <span className="text-sm font-mono text-text-primary">{tx.id}</span>
                                     </td>
