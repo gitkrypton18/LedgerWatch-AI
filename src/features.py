@@ -111,7 +111,7 @@ def engineer_categorical_features(df: pd.DataFrame) -> pd.DataFrame:
         "CASH_IN": 1,
         "DEBIT": 0,
     }
-    df["type_encoded"] = df["type"].map(type_risk_map)
+    df["type_encoded"] = df["type"].map(type_risk_map).fillna(2.0)
     type_dummies = pd.get_dummies(df["type"], prefix="type", dtype=int)
     df = pd.concat([df, type_dummies], axis=1)
     return df
