@@ -30,6 +30,14 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
     (response) => response,
     (error) => {
+        if (error.response && error.response.status === 401) {
+            localStorage.removeItem('ledgerwatch_token');
+            // If we are not already on the login or register page, reload to trigger the App.jsx auth check
+            if (!window.location.pathname.startsWith('/login') && !window.location.pathname.startsWith('/register')) {
+                window.location.href = '/login';
+            }
+        }
+        
         if (!error.response) {
             error.userMessage = 'Unable to connect to the server. It might be starting up or offline.';
         } else {
