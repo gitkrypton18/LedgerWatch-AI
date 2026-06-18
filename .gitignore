@@ -45,16 +45,8 @@ ENV/
 *.db-journal
 
 # === DATA FILES ===
-# Block all data folders except sample.csv
-data/processed/
-data/raw/
-data/interim/
-data/external/
-# Allow sample.csv for Render seeding
-!data/sample.csv
-# Block all CSV/Parquet/Excel except sample
+data/
 *.csv
-!data/sample.csv
 *.parquet
 *.xlsx
 
@@ -75,9 +67,10 @@ frontend/dist/
 frontend/.vite/
 *.tsbuildinfo
 
-# === JUPYTER ===
+# === JUPYTER & DOCS ===
 .ipynb_checkpoints/
 notebooks/
+docs/
 
 # === OS ===
 .DS_Store
