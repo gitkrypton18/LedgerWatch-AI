@@ -314,7 +314,7 @@ const ChangePasswordSection = () => {
 // ─── Main Settings Page ─────────────────────────────────────
 export default function SettingsPage() {
   const [settings, setSettings] = useState({
-    apiUrl: 'https://ledgerwatch-api.onrender.com',
+    apiUrl: 'https://ledgerwatch-ai.onrender.com',
     apiKey: import.meta.env.VITE_API_KEY || 'demo-key-123',
     theme: 'dark',
     pageSize: '10',
@@ -454,7 +454,7 @@ export default function SettingsPage() {
             label="Backend API URL"
             value={settings.apiUrl}
             onChange={(v) => updateSetting('apiUrl', v)}
-            placeholder="https://ledgerwatch-api.onrender.com"
+            placeholder="https://ledgerwatch-ai.onrender.com"
             description="FastAPI backend endpoint"
           />
           <InputField
