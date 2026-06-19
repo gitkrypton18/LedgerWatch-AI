@@ -24,6 +24,7 @@ import {
 } from 'recharts';
 import { usePredict, useTransactions } from '../hooks/useApi';
 import { useSearchParams } from 'react-router-dom';
+import { getTransactionById } from '../lib/axios';
 
 // ─── Mock fallback transactions ───────────────────────────────
 const MOCK_TRANSACTIONS = [
@@ -341,6 +342,11 @@ export default function ExplainabilityPage() {
 
   const transactions = useMock ? MOCK_TRANSACTIONS : (apiTransactions || []);
 
+  // Reset auto-selected status when urlId changes
+  useEffect(() => {
+    setHasAutoSelected(false);
+  }, [urlId]);
+
   // Auto-select transaction from URL ?id= param, then fall back to first
   useEffect(() => {
     if (transactions.length > 0 && !hasAutoSelected) {
@@ -350,13 +356,34 @@ export default function ExplainabilityPage() {
           setSelectedTx(match);
           setHasAutoSelected(true);
           return;
+        } else if (!useMock) {
+          // If the transaction with urlId is not in the first page of transactions, fetch it directly
+          setExplainLoading(true);
+          setExplainError(null);
+          getTransactionById(urlId)
+            .then(tx => {
+              if (tx) {
+                setSelectedTx(tx);
+              } else {
+                setSelectedTx(transactions[0]);
+              }
+            })
+            .catch(err => {
+              console.error('Failed to fetch transaction by ID:', err);
+              setSelectedTx(transactions[0]);
+            })
+            .finally(() => {
+              setHasAutoSelected(true);
+              setExplainLoading(false);
+            });
+          return;
         }
       }
       // fallback: select first transaction
       setSelectedTx(transactions[0]);
       setHasAutoSelected(true);
     }
-  }, [transactions, urlId, hasAutoSelected]);
+  }, [transactions, urlId, hasAutoSelected, useMock]);
 
   // Fetch SHAP explanation when transaction changes
   useEffect(() => {
