@@ -72,6 +72,7 @@ frontend/.vite/
 notebooks/
 docs/*
 !docs/LedgerWatch_Complete_Documentation.md
+!docs/*.png
 
 # === OS ===
 .DS_Store
