@@ -40,29 +40,41 @@ Coupled with a robust **OCR Invoice Parsing** engine and a production-ready **Re
 
 ---
 
-## 📸 Frontend Pages & Screenshots
+## 📸 Frontend Pages & Walkthrough
 
-*(Drop your screenshots in the `docs/screenshots/` folder and name them as shown below, or replace the paths with your own!)*
+Here is a visual walkthrough of the **LedgerWatch AI** platform, demonstrating the end-to-end user workflow:
 
-### 1. Main Dashboard
-![Dashboard Screenshot](docs/screenshots/dashboard.png)
-*High-level KPIs, global anomaly trend graphs, and dynamic risk score rings.*
+### 1. Secure Access (Login Page)
+![Login Screen](docs/login_page.png)
+*Modern, secure authentication screen guarding the financial ledger data.*
 
-### 2. Transaction Monitoring
-![Transactions Screenshot](docs/screenshots/transactions.png)
-*Comprehensive data table with complex filtering, sorting, and pagination.*
+### 2. Control Dashboard (Before Upload)
+![Dashboard Empty State](docs/dashboard_before_upload.png)
+*Initial clean state of the dashboard upon logging in, showing no active data.*
 
-### 3. AI Explainability (SHAP)
-![Explainability Screenshot](docs/screenshots/explainability.png)
-*Visual waterfall charts showing exactly why a transaction was flagged.*
+### 3. CSV & PDF Invoice Upload
+![Data Ingestion](docs/upload_page.png)
+*Drag-and-drop batch processing interface supporting CSV ledger uploads and PDF invoices parsed via Tesseract OCR.*
 
-### 4. Batch Upload & OCR Invoice Parsing
-![Upload Screenshot](docs/screenshots/upload.png)
-*Drag-and-drop interface for importing CSV transaction logs and PDF invoices.*
+### 4. Control Dashboard (After Upload & ML Inferences)
+![Dashboard Active State](docs/dashboard_after_upload.png)
+*Real-time active state with overall risk indicators, processed transaction volumes, and key anomaly scores.*
 
-### 5. Analytics & Risk Distributions
-![Analytics Screenshot](docs/screenshots/analytics.png)
-*Aggregated data trends, fraud distributions, and ML performance curves.*
+### 5. Audit Ledger & Transaction Monitoring
+![Audit Ledger](docs/transaction_page.png)
+*Interactive tabular view of all ingested transactions with real-time risk calibration badges, sorting, and advanced filters.*
+
+### 6. Transaction Inspector
+![Individual Transaction](docs/individual_transaction_page.png)
+*Deep-dive inspector pane displaying full structured metadata and properties of a selected transaction.*
+
+### 7. Explainable AI (SHAP Waterfall)
+![SHAP Explainability](docs/explainability_page.png)
+*Interactive local explainability page visualizing exactly which features pushed the transaction score towards normal or anomalous.*
+
+### 8. Analytics & Risk Distributions
+![Analytics Page](docs/analytics_page.png)
+*Aggregated risk curves, data trends, and machine learning model metrics for audit reports.*
 
 ---
 
