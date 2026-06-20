@@ -69,7 +69,7 @@ frontend/.vite/
 
 # === JUPYTER & DOCS ===
 .ipynb_checkpoints/
-notebooks/
+notebooks/saved_models
 docs/*
 !docs/LedgerWatch_Complete_Documentation.md
 !docs/*.png

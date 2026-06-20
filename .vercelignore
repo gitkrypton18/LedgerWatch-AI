@@ -1,0 +1,16 @@
+# Ignore backend code, datasets, documentation, environments, and notebooks for Vercel frontend deployments
+backend/
+data/
+docs/
+notebooks/
+venv/
+test_env/
+.pytest_cache/
+*.db
+*.log
+.git/
+.github/
+.vscode/
+.pytest_cache/
+postcss.config.js
+render.yaml
