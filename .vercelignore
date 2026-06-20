@@ -8,9 +8,4 @@ test_env/
 .pytest_cache/
 *.db
 *.log
-.git/
-.github/
-.vscode/
-.pytest_cache/
-postcss.config.js
 render.yaml
