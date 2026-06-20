@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 
 # Verify project structure
-PROJECT_ROOT = Path(__file__).parent.parent.resolve()
+PROJECT_ROOT = Path(__file__).parent.parent.parent.resolve()
 
 
 def test_project_structure():
@@ -22,11 +22,11 @@ def test_project_structure():
         "frontend/src/components",
         "frontend/src/hooks",
         "frontend/src/lib",
-        "src",
-        "tests",
+        "backend/src",
+        "backend/tests",
         "data/raw",
         "data/processed",
-        "saved_models",
+        "backend/saved_models",
         "notebooks",
         "docs",
     ]
@@ -42,16 +42,16 @@ def test_backend_files():
     required_files = [
         "backend/__init__.py",
         "backend/main.py",
-        "src/database.py",
-        "src/config.py",
-        "src/schemas.py",
-        "src/features.py",
-        "src/train.py",
-        "src/evaluate.py",
-        "src/risk_engine.py",
-        "src/explain.py",
-        "src/ocr_service.py",
-        "src/data_ingest.py",
+        "backend/src/database.py",
+        "backend/src/config.py",
+        "backend/src/schemas.py",
+        "backend/src/features.py",
+        "backend/src/train.py",
+        "backend/src/evaluate.py",
+        "backend/src/risk_engine.py",
+        "backend/src/explain.py",
+        "backend/src/ocr_service.py",
+        "backend/src/data_ingest.py",
     ]
 
     for file_path in required_files:
@@ -86,8 +86,8 @@ def test_frontend_files():
 def test_model_files():
     """Verify saved models exist"""
     model_files = [
-        "saved_models/isolation_forest_v1.0.0.joblib",
-        "saved_models/risk_engine_v1.0.0.joblib",
+        "backend/saved_models/isolation_forest_v1.0.0.joblib",
+        "backend/saved_models/risk_engine_v1.0.0.joblib",
     ]
 
     for file_path in model_files:
@@ -115,15 +115,15 @@ def test_data_files():
 def test_config_files():
     """Verify config files"""
     config_files = [
-        "requirements.txt",
+        "backend/requirements.txt",
         ".env.example",
-        "render.yaml",
+        "backend/render.yaml",
         "frontend/vercel.json",
         "frontend/.env.example",
-        "pytest.ini",
-        "tests/conftest.py",
-        "tests/test_api.py",
-        "tests/test_pipeline.py",
+        "backend/pytest.ini",
+        "backend/tests/conftest.py",
+        "backend/tests/test_api.py",
+        "backend/tests/test_pipeline.py",
     ]
 
     for file_path in config_files:
@@ -180,8 +180,8 @@ def test_model_loading():
     """Test that ML models can be loaded"""
     import joblib
 
-    model_path = PROJECT_ROOT / "saved_models/isolation_forest_v1.0.0.joblib"
-    risk_path = PROJECT_ROOT / "saved_models/risk_engine_v1.0.0.joblib"
+    model_path = PROJECT_ROOT / "backend/saved_models/isolation_forest_v1.0.0.joblib"
+    risk_path = PROJECT_ROOT / "backend/saved_models/risk_engine_v1.0.0.joblib"
 
     if model_path.exists():
         model = joblib.load(model_path)
@@ -197,7 +197,7 @@ def test_model_loading():
 def test_api_endpoints_list():
     """Verify all expected API endpoints exist in main.py"""
     backend_main = PROJECT_ROOT / "backend/main.py"
-    content = backend_main.read_text()
+    content = backend_main.read_text(encoding="utf-8")
 
     expected_endpoints = [
         '"/health"',
@@ -217,7 +217,7 @@ def test_api_endpoints_list():
 def test_frontend_routes():
     """Verify all routes exist in App.jsx"""
     app_jsx = PROJECT_ROOT / "frontend/src/App.jsx"
-    content = app_jsx.read_text()
+    content = app_jsx.read_text(encoding="utf-8")
 
     expected_routes = [
         "Dashboard",
