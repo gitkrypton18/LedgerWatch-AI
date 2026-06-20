@@ -1,29 +1,28 @@
 // frontend/src/tests/hooks/useApi.test.js
 // Tests for React hooks in useApi.js
 
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useHealth, useStats, useTransactions } from '../../hooks/useApi';
 
-// Mock axios
-vi.mock('../../lib/axios', () => ({
-    default: {
+// Mock axios methods and config module exports
+vi.mock('../../lib/axios', () => {
+    const mockApi = {
         get: vi.fn(),
         post: vi.fn(),
-    },
-}));
+    };
+    return {
+        default: mockApi,
+        checkHealth: vi.fn(),
+        getTransactions: vi.fn(),
+        getTransactionById: vi.fn(),
+        predict: vi.fn(),
+        batchPredict: vi.fn(),
+        ocrUpload: vi.fn(),
+    };
+});
 
-import axios from '../../lib/axios';
-
-const createWrapper = () => {
-    const queryClient = new QueryClient({
-        defaultOptions: { queries: { retry: false } },
-    });
-    return ({ children }) => (
-        <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-    );
-};
+import api, { checkHealth, getTransactions } from '../../lib/axios';
 
 describe('useHealth', () => {
     beforeEach(() => {
@@ -31,36 +30,36 @@ describe('useHealth', () => {
     });
 
     it('returns health data on success', async () => {
-        axios.get.mockResolvedValueOnce({
-            data: { status: 'ok', version: '1.0.0', model_loaded: true },
-        });
+        const mockHealth = { status: 'ok', version: '1.0.0', model_loaded: true };
+        checkHealth.mockResolvedValueOnce(mockHealth);
 
-        const { result } = renderHook(() => useHealth(), {
-            wrapper: createWrapper(),
-        });
+        const { result } = renderHook(() => useHealth(999999));
 
-        await waitFor(() => expect(result.current.isSuccess).toBe(true));
+        await waitFor(() => expect(result.current.loading).toBe(false));
 
-        expect(result.current.data).toEqual({
-            status: 'ok',
-            version: '1.0.0',
-            model_loaded: true,
-        });
+        expect(result.current.online).toBe(true);
+        expect(result.current.data).toEqual(mockHealth);
+        expect(result.current.error).toBeNull();
     });
 
     it('returns error on failure', async () => {
-        axios.get.mockRejectedValueOnce(new Error('Network Error'));
+        checkHealth.mockRejectedValueOnce(new Error('Network Error'));
 
-        const { result } = renderHook(() => useHealth(), {
-            wrapper: createWrapper(),
-        });
+        const { result } = renderHook(() => useHealth(999999));
 
-        await waitFor(() => expect(result.current.isError).toBe(true));
-        expect(result.current.error).toBeDefined();
+        await waitFor(() => expect(result.current.loading).toBe(false));
+
+        expect(result.current.online).toBe(false);
+        expect(result.current.error).toBe('Network Error');
+        expect(result.current.data).toBeNull();
     });
 });
 
 describe('useStats', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+    });
+
     it('fetches stats successfully', async () => {
         const mockStats = {
             total_transactions: 1000,
@@ -69,18 +68,21 @@ describe('useStats', () => {
             avg_risk_score: 42.5,
         };
 
-        axios.get.mockResolvedValueOnce({ data: mockStats });
+        api.get.mockResolvedValueOnce({ data: mockStats });
 
-        const { result } = renderHook(() => useStats(), {
-            wrapper: createWrapper(),
-        });
+        const { result } = renderHook(() => useStats());
 
-        await waitFor(() => expect(result.current.isSuccess).toBe(true));
+        await waitFor(() => expect(result.current.loading).toBe(false));
         expect(result.current.data).toEqual(mockStats);
+        expect(result.current.error).toBeNull();
     });
 });
 
 describe('useTransactions', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+    });
+
     it('fetches paginated transactions', async () => {
         const mockData = {
             transactions: [
@@ -90,14 +92,13 @@ describe('useTransactions', () => {
             count: 2,
         };
 
-        axios.get.mockResolvedValueOnce({ data: mockData });
+        getTransactions.mockResolvedValueOnce(mockData);
 
-        const { result } = renderHook(() => useTransactions(10, 0), {
-            wrapper: createWrapper(),
-        });
+        const { result } = renderHook(() => useTransactions(10, 0));
 
-        await waitFor(() => expect(result.current.isSuccess).toBe(true));
-        expect(result.current.data.transactions).toHaveLength(2);
-        expect(result.current.data.count).toBe(2);
+        await waitFor(() => expect(result.current.loading).toBe(false));
+        expect(result.current.transactions).toHaveLength(2);
+        expect(result.current.count).toBe(2);
+        expect(result.current.error).toBeNull();
     });
 });
