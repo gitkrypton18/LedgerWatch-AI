@@ -101,6 +101,8 @@ def fetch_all_data(db, limit: int = None) -> pd.DataFrame:
                 "newbalanceDest": tx.newbalanceDest,
                 "isFraud": is_fraud_val,
                 "isFlaggedFraud": tx.isFlaggedFraud,
+                "is_anomaly": tx.is_anomaly or False,
+                "risk_score": tx.risk_score or 0.0,
             }
         )
 
@@ -242,6 +244,13 @@ def retrain_model(
     try:
         # 1. Fetch data (LIMITED for memory efficiency)
         db_data = fetch_all_data(db, limit=max_rows)
+        if not db_data.empty:
+            # Filter out database records that are already flagged as anomalous (is_anomaly == True)
+            # or high risk (risk_score >= 70) to prevent model contamination.
+            # Unsupervised models trained on anomalies learn to normalize them, leading to underfitting of outliers.
+            db_data_clean = db_data[(db_data["is_anomaly"] == False) & (db_data["risk_score"] < 70)]
+            logger.info(f"Retraining data: filtered out {len(db_data) - len(db_data_clean)} anomalies/high-risk transactions from DB training set (remaining: {len(db_data_clean)})")
+            db_data = db_data_clean
         original_data = fetch_original_data(sample_size=max_rows)
 
         # Combine

@@ -24,7 +24,7 @@ export default function ShapWaterfallChart({ shapValues, baseValue }) {
       .sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]))
       .slice(0, 10)
       .map(([feature, value]) => ({
-        feature: feature.replace(/_/g, ' ').replace(/\w/g, l => l.toUpperCase()),
+        feature: feature.replace(/_/g, ' ').replace(/ [a-zA-Z]/g, l => l.toUpperCase()),
         value: value,
         absValue: Math.abs(value),
       }));
@@ -35,8 +35,6 @@ export default function ShapWaterfallChart({ shapValues, baseValue }) {
       ...entries
     ];
   }, [shapValues, baseValue]);
-
-  const maxVal = Math.max(...data.map(d => d.absValue));
 
   return (
     <div className="h-[400px] w-full">

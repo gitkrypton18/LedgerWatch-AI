@@ -10,39 +10,39 @@ const typeIcons = {
   DEBIT: Banknote,
 };
 
+const SortIcon = ({ column, sortConfig }) => {
+  if (sortConfig.key !== column) return <ArrowUpDown size={12} className="text-slate-600 opacity-0 group-hover:opacity-50" />;
+  return sortConfig.direction === 'asc' 
+    ? <ArrowUp size={12} className="text-cyan-400" /> 
+    : <ArrowDown size={12} className="text-cyan-400" />;
+};
+
+const SortHeader = ({ column, children, sortConfig, onSort, className = '' }) => (
+  <th 
+    onClick={() => onSort(column)}
+    className={`group cursor-pointer select-none ${className}`}
+  >
+    <div className="flex items-center gap-1.5">
+      {children}
+      <SortIcon column={column} sortConfig={sortConfig} />
+    </div>
+  </th>
+);
+
 export default function TransactionTable({ transactions, sortConfig, onSort, onViewDetail }) {
-  const SortIcon = ({ column }) => {
-    if (sortConfig.key !== column) return <ArrowUpDown size={12} className="text-slate-600 opacity-0 group-hover:opacity-50" />;
-    return sortConfig.direction === 'asc' 
-      ? <ArrowUp size={12} className="text-cyan-400" /> 
-      : <ArrowDown size={12} className="text-cyan-400" />;
-  };
-
-  const SortHeader = ({ column, children, className = '' }) => (
-    <th 
-      onClick={() => onSort(column)}
-      className={`group cursor-pointer select-none ${className}`}
-    >
-      <div className="flex items-center gap-1.5">
-        {children}
-        <SortIcon column={column} />
-      </div>
-    </th>
-  );
-
   return (
     <div className="overflow-x-auto">
       <table className="w-full">
         <thead>
           <tr className="border-b border-slate-700/50 text-left text-xs uppercase tracking-wider text-slate-500 font-medium">
-            <SortHeader column="id" className="px-6 py-3.5">ID</SortHeader>
+            <SortHeader column="id" sortConfig={sortConfig} onSort={onSort} className="px-6 py-3.5">ID</SortHeader>
             <th className="px-4 py-3.5">Type</th>
-            <SortHeader column="amount" className="px-4 py-3.5">Amount</SortHeader>
+            <SortHeader column="amount" sortConfig={sortConfig} onSort={onSort} className="px-4 py-3.5">Amount</SortHeader>
             <th className="px-4 py-3.5">Origin → Dest</th>
-            <SortHeader column="risk_score" className="px-4 py-3.5">Risk</SortHeader>
+            <SortHeader column="risk_score" sortConfig={sortConfig} onSort={onSort} className="px-4 py-3.5">Risk</SortHeader>
             <th className="px-4 py-3.5">Band</th>
             <th className="px-4 py-3.5">Status</th>
-            <SortHeader column="step" className="px-4 py-3.5">Time</SortHeader>
+            <SortHeader column="step" sortConfig={sortConfig} onSort={onSort} className="px-4 py-3.5">Time</SortHeader>
             <th className="px-6 py-3.5 text-right">Actions</th>
           </tr>
         </thead>

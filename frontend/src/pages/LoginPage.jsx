@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { Rocket, Key, AlertCircle, Mail, Hexagon, UserPlus } from 'lucide-react';
 import api from '../lib/axios';
 
@@ -11,7 +10,6 @@ export default function LoginPage() {
   const [successMsg, setSuccessMsg] = useState('');
   const [loading, setLoading] = useState(false);
   const [isLaunching, setIsLaunching] = useState(false);
-  const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();

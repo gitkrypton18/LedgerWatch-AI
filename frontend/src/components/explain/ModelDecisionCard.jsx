@@ -1,5 +1,5 @@
 import React from 'react';
-import { Brain, CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
+import { Brain, CheckCircle, AlertTriangle } from 'lucide-react';
 
 export default function ModelDecisionCard({ transaction }) {
   if (!transaction) return null;

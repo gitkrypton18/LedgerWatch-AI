@@ -62,19 +62,17 @@ const ShapWaterfallChart = ({ shapValues, baseValue = -0.1 }) => {
     .sort(([, a], [, b]) => Math.abs(b) - Math.abs(a))
     .slice(0, 10);
 
-  let cumulative = baseValue;
-  const data = [
-    { feature: 'Base Value', value: baseValue, cumulative: baseValue, color: '#3B82F6' },
-    ...entries.map(([feature, value]) => {
-      cumulative += value;
-      return {
-        feature: feature.replace(/_/g, ' '),
-        value,
-        cumulative,
-        color: value > 0 ? '#EF4444' : '#10B981',
-      };
-    }),
-  ];
+  let currentCumulative = baseValue;
+  const data = [{ feature: 'Base Value', value: baseValue, cumulative: baseValue, color: '#3B82F6' }];
+  for (const [feature, value] of entries) {
+    currentCumulative += value;
+    data.push({
+      feature: feature.replace(/_/g, ' '),
+      value,
+      cumulative: currentCumulative,
+      color: value > 0 ? '#EF4444' : '#10B981',
+    });
+  }
 
   return (
     <div className="h-80">
@@ -329,7 +327,7 @@ export default function ExplainabilityPage() {
   const [searchParams] = useSearchParams();
   const urlId = searchParams.get('id');
 
-  const { transactions: apiTransactions, loading: txLoading, error: txError } = useTransactions(200, 0);
+  const { transactions: apiTransactions, error: txError } = useTransactions(200, 0);
   const { predict } = usePredict();
 
   // Auto-fallback to mock on API error

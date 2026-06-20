@@ -200,7 +200,7 @@ export default function UploadPage() {
     const fileInputRef = useRef(null);
 
     const { upload: batchUpload, loading: batchLoading, progress: batchProgress } = useBatchPredict();
-    const { upload: ocrUpload, loading: ocrLoading, progress: ocrProgress } = useOCR();
+    const { loading: ocrLoading, progress: ocrProgress } = useOCR();
 
     const isLoading = batchLoading || ocrLoading;
 
@@ -364,7 +364,7 @@ export default function UploadPage() {
         for (const fileObj of pending) {
             try {
                 await processFile(fileObj);
-            } catch (err) {
+            } catch {
                 // Individual errors handled in processFile
             }
         }
