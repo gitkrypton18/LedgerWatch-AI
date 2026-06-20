@@ -16,7 +16,9 @@ import {
   XCircle
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api, { checkHealth } from '../lib/axios';
+import { useSettings } from '../context/SettingsContext';
 
 // ─── Toggle Switch ──────────────────────────────────────────
 const ToggleSwitch = ({ label, checked, onChange, disabled = false, description }) => (
@@ -313,39 +315,19 @@ const ChangePasswordSection = () => {
 
 // ─── Main Settings Page ─────────────────────────────────────
 export default function SettingsPage() {
-  const [settings, setSettings] = useState({
-    apiUrl_clean: 'https://ledgerwatch-ai.onrender.com',
-    apiKey: import.meta.env.VITE_API_KEY || 'demo-key-123',
-    theme: 'dark',
-    pageSize: '10',
-    autoRefresh: false,
-    refreshInterval: '30',
-    soundAlerts: true,
-    emailAlerts: false,
-    criticalOnly: true,
-    showShap: true,
-    compactMode: false,
-    highContrast: false,
-  });
-
+  const { settings: globalSettings, updateSettings } = useSettings();
+  const navigate = useNavigate();
+  
+  const [settings, setSettings] = useState(globalSettings);
   const [saved, setSaved] = useState(false);
   const [connStatus, setConnStatus] = useState('idle');
   const [connMessage, setConnMessage] = useState('Not tested');
   const [showAdBlockerWarning, setShowAdBlockerWarning] = useState(false);
 
-  // Load settings from localStorage on mount
+  // Keep local state in sync if globalSettings changes (e.g. on mount or load)
   useEffect(() => {
-    const stored = {};
-    Object.keys(settings).forEach(key => {
-      const val = localStorage.getItem(`ledgerwatch_${key}`);
-      if (val !== null) {
-        if (val === 'true') stored[key] = true;
-        else if (val === 'false') stored[key] = false;
-        else stored[key] = val;
-      }
-    });
-    setSettings(prev => ({ ...prev, ...stored }));
-  }, []);
+    setSettings(globalSettings);
+  }, [globalSettings]);
 
   const updateSetting = (key, value) => {
     setSettings(prev => ({ ...prev, [key]: value }));
@@ -353,9 +335,7 @@ export default function SettingsPage() {
   };
 
   const saveSettings = () => {
-    Object.entries(settings).forEach(([key, value]) => {
-      localStorage.setItem(`ledgerwatch_${key}`, value);
-    });
+    updateSettings(settings);
     setSaved(true);
     setTimeout(() => setSaved(false), 3000);
   };
@@ -395,9 +375,13 @@ export default function SettingsPage() {
   };
 
   const clearCache = () => {
+    const token = localStorage.getItem('ledgerwatch_token');
     Object.keys(settings).forEach(key => {
       localStorage.removeItem(`ledgerwatch_${key}`);
     });
+    if (token) {
+      localStorage.setItem('ledgerwatch_token', token);
+    }
     window.location.reload();
   };
 
@@ -416,8 +400,12 @@ export default function SettingsPage() {
   };
 
   const deleteAll = () => {
+    const token = localStorage.getItem('ledgerwatch_token');
     localStorage.clear();
-    window.location.reload();
+    if (token) {
+      localStorage.setItem('ledgerwatch_token', token);
+    }
+    navigate('/upload');
   };
 
   return (

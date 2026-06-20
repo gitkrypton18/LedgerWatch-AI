@@ -22,6 +22,7 @@ import {
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useStats, useTransactions } from '../hooks/useApi';
+import { useSettings } from '../context/SettingsContext';
 
 const TYPE_CONFIG = {
   TRANSFER: { color: 'bg-purple-500/20 text-purple-400', icon: '↔' },
@@ -84,6 +85,13 @@ const formatTime = (timestamp) => {
 
 const DetailDrawer = ({ transaction, onClose }) => {
   if (!transaction) return null;
+  const { settings } = useSettings();
+  const [expanded, setExpanded] = useState(settings.showShap);
+
+  useEffect(() => {
+    setExpanded(settings.showShap);
+  }, [settings.showShap]);
+
   const score = transaction.risk_score || 0;
   const color = score >= 95 ? '#EF4444' : score >= 85 ? '#F97316' : score >= 60 ? '#F59E0B' : score >= 30 ? '#3B82F6' : '#10B981';
   return (
@@ -119,9 +127,17 @@ const DetailDrawer = ({ transaction, onClose }) => {
             ))}
           </div>
           {transaction.shap_values && (
-            <div className="mt-4 lg:mt-6">
-              <h3 className="text-text-primary font-semibold mb-3">SHAP Explanation</h3>
-              <ShapMiniChart shapValues={transaction.shap_values} />
+            <div className="mt-4 lg:mt-6 border-t border-border-subtle/20 pt-4">
+              <button 
+                onClick={() => setExpanded(!expanded)} 
+                className="w-full flex items-center justify-between text-text-primary font-semibold mb-3 hover:text-accent-info transition-all cursor-pointer"
+              >
+                <span>SHAP Explanation</span>
+                <span className="text-xs text-text-muted font-normal bg-background-tertiary/80 px-2 py-0.5 rounded-md border border-border-subtle/5">
+                  {expanded ? 'Hide ▲' : 'Show ▼'}
+                </span>
+              </button>
+              {expanded && <ShapMiniChart shapValues={transaction.shap_values} />}
             </div>
           )}
           <div className="mt-6">
@@ -139,8 +155,11 @@ const DetailDrawer = ({ transaction, onClose }) => {
 };
 
 export default function TransactionsPage() {
+  const { settings } = useSettings();
+  const defaultPageSize = parseInt(settings.pageSize, 10) || 10;
+
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(50);
+  const [pageSize, setPageSize] = useState(defaultPageSize);
   const [search, setSearch] = useState('');
   const [sortField, setSortField] = useState('risk_score');
   const [sortDir, setSortDir] = useState('desc');
@@ -149,8 +168,13 @@ export default function TransactionsPage() {
   const [selectedTx, setSelectedTx] = useState(null);
   const [useMock, setUseMock] = useState(false);
 
+  useEffect(() => {
+    setPageSize(parseInt(settings.pageSize, 10) || 10);
+    setPage(1);
+  }, [settings.pageSize]);
+
   const offset = (page - 1) * pageSize;
-  const { transactions: apiTransactions, count: totalCount, loading, error, refetch } = useTransactions(50, offset);
+  const { transactions: apiTransactions, count: totalCount, loading, error, refetch } = useTransactions(pageSize, offset);
   const { data: statsData } = useStats();
 
   useEffect(() => {

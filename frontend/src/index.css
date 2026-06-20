@@ -24,6 +24,99 @@
   --font-family-mono: 'JetBrains Mono', monospace;
 }
 
+/* Theme overrides */
+html[data-theme="darker"] {
+  --color-background-primary: #020308;
+  --color-background-secondary: #050710;
+  --color-background-tertiary: #0b0e1a;
+  --color-background-elevated: #080b16;
+
+  --color-text-primary: #f8fafc;
+  --color-text-secondary: #cbd5e1;
+  --color-text-muted: #94a3b8;
+  
+  --color-border-subtle: rgba(0, 229, 255, 0.08);
+  --color-border-accent: rgba(0, 229, 255, 0.18);
+}
+
+html[data-theme="midnight"] {
+  --color-background-primary: #020716;
+  --color-background-secondary: #060e22;
+  --color-background-tertiary: #0c1630;
+  --color-background-elevated: #09122a;
+
+  --color-text-primary: #e0f2fe;
+  --color-text-secondary: #93c5fd;
+  --color-text-muted: #38bdf8;
+  
+  --color-border-subtle: rgba(56, 189, 248, 0.12);
+  --color-border-accent: rgba(56, 189, 248, 0.25);
+}
+
+/* High Contrast theme overrides */
+html[data-high-contrast="true"] {
+  --color-background-primary: #000000;
+  --color-background-secondary: #000000;
+  --color-background-tertiary: #111111;
+  --color-background-elevated: #111111;
+
+  --color-text-primary: #ffffff;
+  --color-text-secondary: #00ffff;
+  --color-text-muted: #ffff00;
+
+  --color-border-subtle: #ffffff;
+  --color-border-accent: #00ffff;
+  
+  --color-accent-success: #00ff00;
+  --color-accent-warning: #ffff00;
+  --color-accent-danger: #ff0000;
+  --color-accent-info: #00ffff;
+  --color-accent-purple: #ff00ff;
+}
+
+/* Compact mode rules */
+html[data-compact-mode="true"] main {
+  padding: 0.75rem !important;
+}
+
+html[data-compact-mode="true"] th,
+html[data-compact-mode="true"] td {
+  padding-top: 0.5rem !important;
+  padding-bottom: 0.5rem !important;
+  padding-left: 0.75rem !important;
+  padding-right: 0.75rem !important;
+}
+
+html[data-compact-mode="true"] .glass-panel {
+  padding: 1rem !important;
+}
+
+html[data-compact-mode="true"] .space-y-4 > :not([hidden]) ~ :not([hidden]) {
+  margin-top: 0.5rem !important;
+}
+
+html[data-compact-mode="true"] .space-y-6 > :not([hidden]) ~ :not([hidden]) {
+  margin-top: 0.75rem !important;
+}
+
+html[data-compact-mode="true"] .py-3 {
+  padding-top: 0.5rem !important;
+  padding-bottom: 0.5rem !important;
+}
+
+html[data-compact-mode="true"] .py-4 {
+  padding-top: 0.625rem !important;
+  padding-bottom: 0.625rem !important;
+}
+
+html[data-compact-mode="true"] .gap-4 {
+  gap: 0.75rem !important;
+}
+
+html[data-compact-mode="true"] .gap-6 {
+  gap: 1rem !important;
+}
+
 @layer base {
   body {
     background-color: var(--color-background-primary);

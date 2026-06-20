@@ -7,6 +7,7 @@ import SettingsPage from './pages/SettingsPage';
 import TransactionsPage from './pages/TransactionsPage';
 import UploadPage from './pages/UploadPage';
 import LoginPage from './pages/LoginPage';
+import { SettingsProvider } from './context/SettingsContext';
 
 // ─────────────────────────────────────────────────────────────
 // LedgerWatch AI — App Router
@@ -23,20 +24,22 @@ const ProtectedRoute = ({ children }) => {
 
 function App() {
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/login" element={<LoginPage />} />
-        <Route path='/' element={<ProtectedRoute><Layout /></ProtectedRoute>}>
-          <Route index element={<Dashboard />} />
-          <Route path='/dashboard' element={<Dashboard />} />
-          <Route path='/upload' element={<UploadPage />} />
-          <Route path='/transactions' element={<TransactionsPage />} />
-          <Route path='/explain' element={<ExplainabilityPage />} />
-          <Route path='/analytics' element={<AnalyticsPage />} />
-          <Route path='/settings' element={<SettingsPage />} />
-        </Route>
-      </Routes>
-    </BrowserRouter>
+    <SettingsProvider>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/login" element={<LoginPage />} />
+          <Route path='/' element={<ProtectedRoute><Layout /></ProtectedRoute>}>
+            <Route index element={<Dashboard />} />
+            <Route path='/dashboard' element={<Dashboard />} />
+            <Route path='/upload' element={<UploadPage />} />
+            <Route path='/transactions' element={<TransactionsPage />} />
+            <Route path='/explain' element={<ExplainabilityPage />} />
+            <Route path='/analytics' element={<AnalyticsPage />} />
+            <Route path='/settings' element={<SettingsPage />} />
+          </Route>
+        </Routes>
+      </BrowserRouter>
+    </SettingsProvider>
   );
 }
 

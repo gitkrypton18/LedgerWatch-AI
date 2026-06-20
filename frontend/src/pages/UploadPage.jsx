@@ -16,6 +16,8 @@ import {
 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useBatchPredict, useOCR } from '../hooks/useApi';
+import { useSettings } from '../context/SettingsContext';
+import { playAlertSound } from '../lib/audio';
 
 /* ─────────────────────────────────────────────
    Upload Page — Final Merged Version
@@ -191,6 +193,7 @@ function FileItem({ file, onRemove, onRetry }) {
 
 /* ─── Main Upload Page ─── */
 export default function UploadPage() {
+    const { settings } = useSettings();
     const [files, setFiles] = useState([]);
     const [isDragOver, setIsDragOver] = useState(false);
     const [globalError, setGlobalError] = useState(null);
@@ -323,6 +326,23 @@ export default function UploadPage() {
             );
 
             saveRecentUpload(file.name, file.size, 'success', result);
+
+            // Play alert sound if enabled
+            if (settings.soundAlerts) {
+                const hasAnomaly = result.anomalies_detected > 0;
+                const hasCritical = result.results?.some(r => r.risk_band === 'Critical');
+                
+                if (settings.criticalOnly) {
+                    if (hasCritical) {
+                        playAlertSound();
+                    }
+                } else {
+                    if (hasAnomaly) {
+                        playAlertSound();
+                    }
+                }
+            }
+
             return result;
         } catch (err) {
             setFiles((prev) =>

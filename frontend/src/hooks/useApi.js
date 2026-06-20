@@ -44,7 +44,7 @@ export const useHealth = (pollInterval = 30000) => {
 
 // ─── useStats ─────────────────────────────────────────────────
 // ✅ FIX: Use axios instance instead of hardcoded fetch
-export const useStats = () => {
+export const useStats = (trigger) => {
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -69,13 +69,13 @@ export const useStats = () => {
 
         fetchStats();
         return () => { cancelled = true; };
-    }, []);
+    }, [trigger]);
 
     return { data, loading, error };
 };
 
 // ─── useTransactions ──────────────────────────────────────────
-export const useTransactions = (limit = 10, offset = 0) => {
+export const useTransactions = (limit = 10, offset = 0, trigger) => {
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -97,7 +97,7 @@ export const useTransactions = (limit = 10, offset = 0) => {
 
         fetch();
         return () => { cancelled = true; };
-    }, [limit, offset]);
+    }, [limit, offset, trigger]);
 
     return {
         transactions: data?.transactions || [],

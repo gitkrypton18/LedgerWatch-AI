@@ -8,8 +8,10 @@ import {
     Wifi,
     WifiOff,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useSettings } from "../context/SettingsContext";
+import { playAlertSound } from "../lib/audio";
 import {
     Area,
     AreaChart,
@@ -127,12 +129,38 @@ const CustomTooltip = ({ active, payload, label }) => {
 export default function Dashboard() {
     const [mounted, setMounted] = useState(false);
     const [useMock, setUseMock] = useState(false);
+    const { settings } = useSettings();
+    const [refreshTrigger, setRefreshTrigger] = useState(0);
+    const prevCount = useRef(null);
 
-    const { online, data: healthData } = useHealth(30000);
-    const { data: statsData, loading: statsLoading } = useStats();
-    const { transactions: recentTx } = useTransactions(5, 0);
+    // Dynamic background polling based on refresh interval setting
+    useEffect(() => {
+        if (!settings.autoRefresh) return;
+        const intervalMs = (parseInt(settings.refreshInterval, 10) || 30) * 1000;
+        const interval = setInterval(() => {
+            setRefreshTrigger(prev => prev + 1);
+        }, intervalMs);
+        return () => clearInterval(interval);
+    }, [settings.autoRefresh, settings.refreshInterval]);
+
+    const { online, data: healthData } = useHealth(settings.autoRefresh ? (parseInt(settings.refreshInterval, 10) || 30) * 1000 : 30000);
+    const { data: statsData, loading: statsLoading } = useStats(refreshTrigger);
+    const { transactions: recentTx } = useTransactions(5, 0, refreshTrigger);
 
     const navigate = useNavigate();
+
+    // Trigger sound alerts if new anomalies are detected
+    useEffect(() => {
+        const currentCount = settings.criticalOnly ? statsData?.critical_count : statsData?.anomalies_detected;
+        if (currentCount !== undefined && currentCount !== null) {
+            if (prevCount.current !== null && currentCount > prevCount.current) {
+                if (settings.soundAlerts) {
+                    playAlertSound();
+                }
+            }
+            prevCount.current = currentCount;
+        }
+    }, [statsData?.critical_count, statsData?.anomalies_detected, settings.soundAlerts, settings.criticalOnly]);
 
     useEffect(() => { setMounted(true); }, []);
     if (!mounted) return null;
