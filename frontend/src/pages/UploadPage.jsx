@@ -193,8 +193,7 @@ function FileItem({ file, onRemove, onRetry }) {
 
 /* ─── Main Upload Page ─── */
 export default function UploadPage() {
-    const { settings } = useSettings();
-    const [files, setFiles] = useState([]);
+    const { settings, files, setFiles } = useSettings();
     const [isDragOver, setIsDragOver] = useState(false);
     const [globalError, setGlobalError] = useState(null);
     const [recentUploads, setRecentUploads] = useState([]);

@@ -33,6 +33,8 @@ export function SettingsProvider({ children }) {
     return loaded;
   });
 
+  const [files, setFiles] = useState([]);
+
   // Apply visual settings to document element
   useEffect(() => {
     const root = document.documentElement;
@@ -66,7 +68,7 @@ export function SettingsProvider({ children }) {
   };
 
   return (
-    <SettingsContext.Provider value={{ settings, updateSettings }}>
+    <SettingsContext.Provider value={{ settings, updateSettings, files, setFiles }}>
       {children}
     </SettingsContext.Provider>
   );
