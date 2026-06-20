@@ -1048,18 +1048,51 @@ async def list_models():
 @app.post("/models/swap", dependencies=[Depends(verify_api_key)])
 async def swap_model(request: ModelSwapRequest):
     version = request.version
-    model_filename = f"isolation_forest_{version}.joblib"
-    risk_filename = f"risk_engine_{version}.joblib"
+    clean_version = version.lstrip('v')
 
     models_dir = Path("saved_models")
     if not models_dir.exists():
         models_dir = Path("backend/saved_models")
 
-    model_path = models_dir / model_filename
-    risk_path = models_dir / risk_filename
+    # Try multiple filename permutations for the model file
+    model_candidates = [
+        models_dir / f"isolation_forest_{version}.joblib",
+        models_dir / f"isolation_forest_v{version}.joblib",
+        models_dir / f"isolation_forest_{clean_version}.joblib",
+        models_dir / f"isolation_forest_v{clean_version}.joblib"
+    ]
 
-    if not model_path.exists():
-        raise HTTPException(status_code=404, detail=f"Model version {version} not found in saved models.")
+    model_path = None
+    for candidate in model_candidates:
+        if candidate.exists():
+            model_path = candidate
+            break
+
+    if not model_path:
+        raise HTTPException(
+            status_code=404, 
+            detail=f"Model version {version} not found in saved models."
+        )
+
+    # Resolve risk engine path. Start by checking matching risk engine file suffixes,
+    # and default/fallback to name substitution of the found model.
+    risk_candidates = [
+        model_path.parent / model_path.name.replace("isolation_forest_", "risk_engine_"),
+        models_dir / f"risk_engine_{version}.joblib",
+        models_dir / f"risk_engine_v{version}.joblib",
+        models_dir / f"risk_engine_{clean_version}.joblib",
+        models_dir / f"risk_engine_v{clean_version}.joblib"
+    ]
+    
+    risk_path = None
+    for candidate in risk_candidates:
+        if candidate.exists():
+            risk_path = candidate
+            break
+            
+    if not risk_path:
+        # Default to the most logical name if none exist
+        risk_path = risk_candidates[0]
 
     try:
         # Load and update FastAPI state model

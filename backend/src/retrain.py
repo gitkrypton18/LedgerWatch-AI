@@ -43,10 +43,23 @@ logger = logging.getLogger("retrain")
 
 
 def get_next_version() -> str:
-    """Auto-increment version: v1.0.0 -> v1.0.1 -> v1.0.2"""
-    current = getattr(settings, "MODEL_VERSION", "v1.0.0")
-    parts = current.replace("v", "").split(".")
-    major, minor, patch = int(parts[0]), int(parts[1]), int(parts[2])
+    """Auto-increment version by checking the highest version in saved_models: v1.0.0 -> v1.0.1 -> v1.0.2"""
+    import re
+    models_dir = Path("saved_models")
+    if not models_dir.exists():
+        models_dir = Path("backend/saved_models")
+
+    highest_version = [1, 0, 0]
+
+    if models_dir.exists():
+        for file in models_dir.glob("isolation_forest_*.joblib"):
+            match = re.search(r"isolation_forest_v?(\d+)\.(\d+)\.(\d+)", file.name)
+            if match:
+                version_parts = [int(x) for x in match.groups()]
+                if version_parts > highest_version:
+                    highest_version = version_parts
+
+    major, minor, patch = highest_version
     patch += 1
     return f"v{major}.{minor}.{patch}"
 

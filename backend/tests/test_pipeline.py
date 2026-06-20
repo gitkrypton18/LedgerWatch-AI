@@ -117,7 +117,7 @@ def test_config_files():
     config_files = [
         "backend/requirements.txt",
         ".env.example",
-        "backend/render.yaml",
+        "render.yaml",
         "frontend/vercel.json",
         "frontend/.env.example",
         "backend/pytest.ini",
