@@ -1,193 +1,263 @@
-# LedgerWatch AI: Exhaustive Codebase Documentation
+# 🔍 LedgerWatch AI: Comprehensive Thesis & Complete Reference Guide
 
-This document serves as the **ultimate, line-by-line, and function-by-function reference** for the entire LedgerWatch AI project. Every single file, module, and React component is deeply analyzed to explain its purpose, its inputs/outputs, and how it fits into the broader Fraud Detection ecosystem.
-
-LedgerWatch AI is an unsupervised machine learning platform that detects anomalies in financial transactions and invoices using an **Isolation Forest** model, visualizes explanations using **SHAP**, and manages data via a **FastAPI** backend and **React** frontend.
+This document serves as the **definitive, production-grade technical thesis and exhaustive reference manual** for the LedgerWatch AI project. It breaks down every single file, module, mathematical transformation, pipeline design, and component in detail. It is structured to help software developers, data scientists, and systems architects understand the codebase, and to prepare for engineering reviews.
 
 ---
 
-## 1. Core Platform Architecture
+## 1. Architectural Blueprint & Data Flow Pipelines
 
-### The Data Flow
-1. **Frontend (React)**: Users upload CSVs of transactions or images of invoices.
-2. **FastAPI Endpoints**: The requests hit `backend/main.py`.
-3. **Data Ingestion**: Large files are processed in chunks (`data_ingest.py`), and OCR is applied to images (`ocr_service.py`).
-4. **Feature Engineering**: Raw data is mathematically transformed into 24 features (`features.py`).
-5. **AI Inference**: The pre-trained Isolation Forest model (`train.py`) assigns an anomaly score.
-6. **Risk Engine Calibration**: Raw scores are mapped to a 0-100 scale (`risk_engine.py`).
-7. **SHAP Explanations**: The model explains its decisions by attributing scores to specific features (`explain.py`).
-8. **Persistence**: Transactions and their scores are saved to SQLite (`database.py`).
+LedgerWatch AI is built on a split-plane architecture: a stateless **FastAPI backend** running an unsupervised machine learning inference pipeline backed by SQLite, and a reactive, dark-theme **React frontend** built on Vite and Tailwind CSS.
 
----
+### 1.1 The Batch Ingestion & Inference Pipeline
+When a user uploads a ledger CSV file via the frontend, the following sequential pipeline is executed:
 
-## 2. Backend Detailed File Analysis (`backend/`)
+```mermaid
+graph TD
+    A["Frontend Drag-and-Drop Area"] -->|"POST /batch-predict (Multipart Form-Data)"| B["FastAPI Endpoint (main.py)"]
+    B -->|"Stream CSV file in chunks"| C["data_ingest.py (ingest_csv_in_chunks)"]
+    C -->|"Data validation & sanitization"| D["data_ingest.py (clean_data)"]
+    D -->|"Feature Engineering (24 Features)"| E["features.py (engineer_all_features)"]
+    E -->|"Model Scoring (Log-Anomaly Calculation)"| F["train.py (IsolationForestModel.predict)"]
+    F -->|"0-100 Percentile Calibration"| G["risk_engine.py (RiskEngine.transform)"]
+    G -->|"Save to SQLite Database"| H["database.py (SQLAlchemy transaction)"]
+    H -->|"JSON Payload Response (Stats, Badges, Values)"| I["Frontend Table Render & Recharts UI"]
+```
 
-### 2.1 `backend/main.py`
-This is the heart of the backend application. It defines the FastAPI application, manages middleware, and registers all REST endpoints.
+### 1.2 The Single Transaction Real-Time Pipeline
+When an analyst inspects or manually evaluates a single transaction, the stateless `/predict` endpoint is queried:
 
-#### Functions & Endpoints:
-* **`app = FastAPI(...)`**: Initializes the core server, configuring the title, version, and CORS middleware (which explicitly allows all origins/methods so the React frontend can communicate with it).
-* **`get_risk_band(score: int) -> str`**: A utility function. It takes a raw integer score (0-100) and maps it to a human-readable string: `0-49` (Low), `50-75` (Medium), `76-90` (High), `91-100` (Critical).
-* **`get_feature_columns(df) -> List[str]`**: Scans a pandas DataFrame and dynamically extracts column names that are meant for the ML model, discarding metadata like `id` or `timestamp`.
-* **`engineer_features_from_df(df) -> pd.DataFrame`**: An integration wrapper. It takes a raw DataFrame constructed from incoming API requests and delegates it to `features.engineer_all_features(df)` to calculate the 24 ML inputs.
-* **`align_features(X, expected_features) -> pd.DataFrame`**: A critical data-integrity function. When the frontend sends a single transaction, it might be missing calculated columns (like rolling averages from historical data). This function compares the incoming features to what the model expects, injecting zeros where data is missing, guaranteeing the model won't crash with a `ValueError`.
-* **`predict_single(data: dict, explain: bool)`**: The core function handling `POST /predict`. It accepts a single JSON transaction, converts it to a DataFrame, engineers features, calls the model prediction, runs the Risk Engine, and optionally invokes the SHAP explainer.
-* **`_get_file_extension(filename)` & `_validate_extension(ext, allowed)`**: Helper utilities for security, ensuring users only upload valid CSVs or supported image formats (PDF, PNG, JPEG).
-* **`validate_required_columns(df, required_cols)`**: A strict schema enforcer. Before the batch processor spends time parsing a 100MB CSV, this checks if the absolute bare-minimum columns exist.
-* **`process_dataframe_batch(df, explain)`**: The heavy lifter for `POST /batch-predict`. It handles massive DataFrames efficiently, running the entire feature engineering, model scoring, and risk engine loop on thousands of rows simultaneously.
-* **`router` endpoints (`/health`, `/predict`, `/batch-predict`, `/ocr`, `/transactions`, `/stats`)**: The HTTP route definitions. For example, `/transactions` reads from the SQLite database, returning paginated data for the frontend tables. `/stats` aggregates total transactions and average anomaly rates.
-
-### 2.2 `backend/src/auth.py`
-Handles all authentication and security for the application.
-* **`pwd_context = CryptContext(schemes=["bcrypt"])`**: Configures the password hashing algorithm using `passlib`.
-* **`verify_password(plain_password, hashed_password) -> bool`**: Cryptographically compares an incoming login attempt with the stored hashed password.
-* **`get_password_hash(password) -> str`**: Salts and hashes a raw string password before saving it to the database.
-* **`create_access_token(data: dict, expires_delta)`**: Creates a secure JSON Web Token (JWT) that encodes the user's session data. It sets an expiration time to prevent permanent sessions.
-
-### 2.3 `backend/src/config.py`
-Manages all environment variables and constant configurations.
-* **`class Settings(BaseSettings)`**: A Pydantic class that automatically reads the `.env` file and casts variables to their appropriate Python types (e.g., `DATABASE_URL` as a string, `BATCH_SIZE` as an integer).
-* **`validate_paths()`**: A startup validation script. It checks the filesystem to ensure `isolation_forest_v1.0.0.joblib` and `risk_engine_v1.0.0.joblib` actually exist in the `saved_models` directory before the server starts accepting requests.
-
-### 2.4 `backend/src/data_ingest.py`
-Built to handle massive datasets without consuming all system RAM.
-* **`ingest_csv_in_chunks(file_path, chunk_size)`**: A generator function. Instead of loading a 6.3 million row CSV entirely into RAM (which would crash low-tier servers), it yields small chunks of data (e.g., 10,000 rows) as pandas DataFrames, allowing iterative processing.
-* **`clean_data(df)`**: A standardization function. It strips accidental whitespace from column names, drops completely empty rows, fills NaN values with logical defaults, and enforces specific pandas data types (like `float64` for amounts).
-
-### 2.5 `backend/src/database.py`
-The SQLAlchemy ORM configuration.
-* **`engine`, `SessionLocal`, `Base`**: The foundational setup for connecting to the SQLite database `ledgerwatch.db`.
-* **`get_db()`**: A FastAPI dependency function. It creates a new database connection when an API request begins, and executes `db.close()` in a `finally` block when the request ends, preventing database connection leaks.
-* **`class Transaction(Base)`**: Defines the database schema. It contains columns for `id`, `amount`, `type`, `oldbalanceOrg`, `newbalanceOrig`, `risk_score`, `risk_band`, and `is_fraud`. It also maps SHAP explanations into a JSON column.
-* **`class User(Base)`**: Defines the user schema for authentication, storing the hashed password.
-
-### 2.6 `backend/src/features.py`
-The mathematical core of the data pipeline. It transforms raw business data into numeric signals that the AI can understand.
-* **`engineer_all_features(df)`**: The master pipeline. It runs the DataFrame through a sequence of internal transformation functions.
-* **`_log_transform_amount(df)`**: Applies `np.log1p()` to the transaction amount. Why? Because financial transfers range from $1 to $10,000,000. A logarithmic scale normalizes these massive differences, preventing the AI from blindly flagging all large numbers.
-* **`_encode_cyclical_time(df)`**: Converts the hour of the day into sine and cosine transformations. This ensures the AI mathematically understands that 23:00 (11 PM) and 01:00 (1 AM) are actually close together in time, rather than far apart numerically.
-* **`_balance_diffs(df)`**: Calculates the exact difference between `oldbalance` and `newbalance`.
-* **`_zero_balance_flags(df)`**: A critical fraud indicator. It creates binary (1/0) columns flagging if the originator or destination account's balance went exactly to zero after the transfer.
-
-### 2.7 `backend/src/train.py` & `backend/src/risk_engine.py`
-These files define and calibrate the Machine Learning models.
-* **`class IsolationForestModel`**: A custom wrapper around scikit-learn's `IsolationForest`. 
-  * `train(X)`: Fits the trees to the data, figuring out how to partition normal transactions versus anomalies.
-  * `predict(X)`: Returns raw anomaly scores.
-  * `save_model() / load_model()`: Uses `joblib` to serialize the massive mathematical objects to disk.
-* **`class RiskEngine`**: Takes the raw, confusing scores output by the Isolation Forest (which might range arbitrarily) and uses percentiles to calibrate them into a smooth 0-100 scale. `fit(scores)` computes the cutoffs on the training data, and `transform(score)` applies it to new real-time data.
-
-### 2.8 `backend/src/explain.py`
-The interpretability layer, arguably the most important feature for human analysts.
-* **`class SHAPExplainer`**: A wrapper for the `shap.TreeExplainer`.
-* **`explain_prediction(transaction_features)`**: Calculates SHAP values (the mathematical contribution of each feature to the final score).
-  * **Crucial Detail:** The raw Isolation Forest model outputs *lower* numbers for higher risk. The Risk Engine outputs *higher* numbers for higher risk. This function manually **flips the sign** of the SHAP values so that positive SHAP values correctly correlate to "increased anomaly risk" in the frontend visuals.
-* **`get_top_features(shap_values)`**: Sorts the SHAP values by absolute magnitude to return a clean dictionary of the Top 5 reasons why a transaction was flagged.
-
-### 2.9 `backend/src/ocr_service.py`
-The optical character recognition module for unstructured invoices.
-* **`extract_text(file_path)`**: If the file is a PDF, it uses `PyMuPDF` (`fitz`) to render it as an image. Then, it uses `pytesseract` to read all text from the image.
-* **`_parse_amount(text)`**: Uses Regular Expressions (Regex) like `r'Total\s*[:$]\s*([\d,]+\.?\d*)'` to hunt through the raw OCR text string and extract the final invoice total.
-* **`_parse_date(text)`**: Uses Regex to find dates in formats like `YYYY-MM-DD` or `MM/DD/YYYY`.
-* **Mock Fallback**: If Tesseract is not installed on the host system (like a free-tier Render server), the class has a built-in fallback mode that synthetically parses the filename or returns default anomalous values so the application doesn't crash completely.
-
-### 2.10 `backend/src/schemas.py`
-The Pydantic definition file.
-* Contains classes like `TransactionCreate`, `PredictionResult`, `HealthResponse`, `Token`, `UserCreate`. 
-* **Purpose:** These classes strictly define the JSON structure required by FastAPI. If the React frontend sends a request missing a required field (like `amount`), Pydantic will automatically reject the request with a 422 Unprocessable Entity error before it ever reaches the Python logic.
+```mermaid
+graph TD
+    A["Frontend Single Transaction Request"] -->|"POST /predict (JSON)"| B["main.py (predict_single)"]
+    B -->|"DataFrame Conversion"| C["Pandas DataFrame Construction"]
+    C -->|"Feature Alignment & Imputation"| D["main.py (align_features)"]
+    D -->|"Feature Engineering"| E["features.py (engineer_all_features)"]
+    E -->|"Isolation Forest Inference"| F["saved_models/isolation_forest_v1.0.0.joblib"]
+    F -->|"Raw Score Calibration"| G["saved_models/risk_engine_v1.0.0.joblib"]
+    G -->|"Optional SHAP Value Calculation"| H["explain.py (SHAPExplainer)"]
+    H -->|"Sign Flip & Normalization"| I["SHAP Waterfall Formatter"]
+    I -->|"SQL Database Log & JSON Output"| J["Frontend Drawer Slide-out UI"]
+```
 
 ---
 
-## 3. Frontend Detailed File Analysis (`frontend/`)
+## 2. Backend Subsystem Deep-Dive
 
-The React frontend provides a state-of-the-art UI, leveraging `lucide-react` for iconography, `recharts` for data visualization, and Tailwind CSS for rapid styling.
+### 2.1 File-by-File Code & Functional Analysis
 
-### 3.1 `frontend/src/App.jsx` & `frontend/src/main.jsx`
-* **`main.jsx`**: The entry point. Imports React, ReactDOM, and wraps the app in browser `StrictMode`. Injects the main component into `<div id="root">`.
-* **`App.jsx`**: The React Router v6 setup. It defines all the URL paths (`/`, `/upload`, `/transactions`, `/explain`, `/analytics`, `/settings`). It wraps all pages in the `Layout` component to provide the persistent sidebar.
+#### 2.1.1 [main.py](file:///f:/ML%20PROJECT/LedgerWatch-AI/LedgerWatch-AI/backend/main.py)
+* **Purpose**: Serves as the central server controller, defining HTTP routing, CORS security middleware, schema conversion adapters, and task orchestration loops.
+* **Core Functions & Endpoints**:
+  * `get_risk_band(score: float) -> str`: Categorizes a calibrated 0-100 score:
+    * `score >= 91`: `"Critical"`
+    * `score >= 76`: `"High"`
+    * `score >= 50`: `"Medium"`
+    * `otherwise`: `"Low"`
+  * `align_features(X: pd.DataFrame, expected_features: List[str]) -> pd.DataFrame`: Dynamically checks the incoming feature vector `X` against the list of features expected by the Isolation Forest. If any engineered columns are missing, it imputes them with `0.0`. This ensures that real-time predictions do not fail with shape mismatch errors (`ValueError: number of features mismatch`).
+  * `POST /predict?explain=true`:
+    * **Inputs**: JSON payload mapping to `TransactionCreate` schema.
+    * **Outputs**: JSON containing calculated risk score, risk band, binary anomaly flag (`is_anomaly`), and optionally a dictionary of SHAP values.
+  * `POST /batch-predict`:
+    * **Inputs**: Multipart file upload (`file: UploadFile`).
+    * **Logic**: Streams the file into memory using `StringIO`, checks minimum required headers, processes features in batches of `10,000` rows using chunking to maintain a low RAM footprint, runs model inference, updates database logs, and returns summary metrics.
+  * `POST /ocr`:
+    * **Inputs**: Uploaded image or PDF document.
+    * **Logic**: Passes the file binary stream directly to the OCR subsystem to extract values.
 
-### 3.2 `frontend/src/index.css`
-* The master stylesheet configuring Tailwind.
-* **Custom Properties**: Defines root CSS variables for the color palette (`--bg-primary`, `--accent-info`).
-* **Animations**: Contains `@keyframes` definitions for smooth UI interactions, like `fadeInUp` (for page load animations), `pulse-soft` (for live status indicators), and `rocket` (for the login sequence).
+#### 2.1.2 [src/features.py](file:///f:/ML%20PROJECT/LedgerWatch-AI/LedgerWatch-AI/backend/src/features.py)
+* **Purpose**: Implements the feature engineering pipeline. It transforms raw transactional fields into 24 distinct numeric input columns.
+* **Core Transform Functions**:
+  * `_log_transform_amount(df: pd.DataFrame) -> pd.DataFrame`: Computes the natural log plus one:
+    $$\text{amount\_log} = \ln(\text{amount} + 1)$$
+    This stabilizes feature variance by reducing the scale of large transfer values, preventing skewness in the model.
+  * `_encode_cyclical_time(df: pd.DataFrame) -> pd.DataFrame`: Normalizes hour values into sine and cosine pairs:
+    $$\text{hour\_sin} = \sin\left(\frac{2\pi \cdot \text{hour}}{24}\right), \quad \text{hour\_cos} = \cos\left(\frac{2\pi \cdot \text{hour}}{24}\right)$$
+    This preserves the cyclic nature of time, ensuring the model treats late-night and early-morning hours as adjacent.
+  * `_balance_diffs(df: pd.DataFrame) -> pd.DataFrame`: Computes transaction imbalances for origin and destination accounts:
+    $$\text{orig\_balance\_diff} = \text{oldbalanceOrg} - \text{newbalanceOrig} - \text{amount}$$
+    $$\text{dest\_balance\_diff} = \text{newbalanceDest} - \text{oldbalanceDest} - \text{amount}$$
+    Large non-zero differences here are strong indicators of manual database entry manipulations or fraud.
+  * `_zero_balance_flags(df: pd.DataFrame) -> pd.DataFrame`: Binary flags checking if the origin account was completely emptied (`newbalanceOrig == 0`) or if the destination account received funds but remained at zero (`newbalanceDest == 0`), which are common patterns in transactional theft.
 
-### 3.3 Pages (`frontend/src/pages/`)
+#### 2.1.3 [src/train.py](file:///f:/ML%20PROJECT/LedgerWatch-AI/LedgerWatch-AI/backend/src/train.py)
+* **Purpose**: Orchestrates training and validation of the Isolation Forest model.
+* **Core Functions**:
+  * `IsolationForestModel.train(X_train: pd.DataFrame)`: Configures and fits the `sklearn.ensemble.IsolationForest` estimator.
+  * `IsolationForestModel.predict(X: pd.DataFrame) -> np.ndarray`: Returns raw anomaly scores.
+    * **Isolation Forest Scoring Math**:
+      $$s(x, n) = 2^{-\frac{E(h(x))}{c(n)}}$$
+      where $h(x)$ is the path length in a tree, $E(h(x))$ is the average path length across all trees, and $c(n)$ is the average path length of an unsuccessful search in a Binary Search Tree. Anomalies are isolated closer to the root, resulting in shorter path lengths and scores near $1.0$.
+  * `save_model() / load_model()`: Serializes and deserializes the fitted model instance using `joblib`.
 
-#### `Dashboard.jsx`
-* **Purpose**: The high-level executive summary view.
-* **Functions/Logic**: 
-  * Uses the `useStats()` hook to poll the backend `/stats` endpoint.
-  * Calculates key metrics dynamically, such as the overall `anomalyRate` by dividing anomalies detected by total transactions.
-  * Renders `MetricCard` components.
-  * Utilizes `Recharts` to draw an `AreaChart` of recent anomaly distributions, showing trends over time.
+#### 2.1.4 [src/risk_engine.py](file:///f:/ML%20PROJECT/LedgerWatch-AI/LedgerWatch-AI/backend/src/risk_engine.py)
+* **Purpose**: Calibrates the raw output scores from the Isolation Forest into an intuitive risk score.
+* **Algorithm**:
+  * Raw anomaly scores from scikit-learn's `score_samples()` are usually negative floats where smaller values represent higher anomaly risk.
+  * The `RiskEngine` maps these raw scores to a 0-100 scale using empirical percentiles:
+    * `fit(scores)`: Computes and stores percentile values from the training distribution.
+    * `transform(score) -> float`: Evaluates where a new raw score falls relative to the training percentiles. A score of `95` means the transaction is more anomalous than 95% of the baseline training data.
 
-#### `UploadPage.jsx`
-* **Purpose**: The data ingestion interface for CSVs and Invoices.
-* **Functions/Logic**:
-  * Implements a drag-and-drop zone using standard DOM events (`onDragOver`, `onDrop`).
-  * `handleFiles(files)`: Validates file extensions (`.csv`, `.pdf`, `.png`).
-  * Manages uploading states. For CSVs, it hits `/batch-predict`. For images, it hits `/ocr`.
-  * Simulates upload progress bars using a `setInterval` loop to give the user visual feedback while the backend processes massive files.
+#### 2.1.5 [src/explain.py](file:///f:/ML%20PROJECT/LedgerWatch-AI/LedgerWatch-AI/backend/src/explain.py)
+* **Purpose**: Implements the Explainable AI (XAI) layer using SHAP (SHapley Additive exPlanations) to explain individual predictions.
+* **The Directionality Fix**:
+  * In scikit-learn, the Isolation Forest scoring is designed such that *smaller/more negative* scores represent anomalies. Consequently, standard SHAP attributions for anomalies are negative.
+  * In the user dashboard, however, *higher* calibrated scores (0-100) represent anomalies.
+  * To align the explanation direction, `explain.py` flips the sign of the raw SHAP values:
+    $$\text{SHAP\_display} = -1.0 \times \text{SHAP\_raw}$$
+    This ensures that positive SHAP values in the UI indicate features that increased the risk score, while negative values indicate features that kept it normal.
+* **Core Functions**:
+  * `explain_prediction(X_row: pd.DataFrame) -> dict`: Computes local SHAP values for the input row and returns a dictionary mapping feature names to their respective attributions.
+  * `get_top_features(shap_dict: dict, top_n: int = 5) -> dict`: Sorts the attributions by absolute value and returns the top $N$ contributors.
 
-#### `TransactionsPage.jsx`
-* **Purpose**: The core analytical table for investigating individual data points.
-* **Functions/Logic**:
-  * Manages significant state: `search` text, `riskFilter` (All, Critical, High, etc.), and `currentPage` (pagination).
-  * Uses `useEffect` to trigger the `useTransactions` API hook whenever the page or filters change.
-  * Maps over the fetched `transactions` array, rendering table rows.
-  * `handleRowClick(tx)`: Updates the selected transaction state, which triggers the `DetailDrawer` component to slide into view from the right side.
+#### 2.1.6 [src/ocr_service.py](file:///f:/ML%20PROJECT/LedgerWatch-AI/LedgerWatch-AI/backend/src/ocr_service.py)
+* **Purpose**: Extracts text and key entity values from unstructured invoice images or PDFs.
+* **Core Functions**:
+  * `extract_text(file_bytes: bytes, filename: str) -> str`: Converts PDFs to temporary images using `PyMuPDF` (`fitz`), then extracts text using `pytesseract.image_to_string`.
+  * Entity extraction uses regular expressions:
+    * **Amount Extraction**: Searches for typical total patterns:
+      `r'(?i)(?:total|grand\s*total|amount\s*due|net\s*total)\s*[:$]?\s*([\d,]+\.\d{2})'`
+    * **Date Extraction**: Searches for standard date formats:
+      `r'(\d{4}[-/]\d{2}[-/]\d{2}|\d{2}[-/]\d{2}[-/]\d{4})'`
+  * **Fallback Handling**: If Tesseract is not installed on the system (e.g., in resource-constrained environments), it runs in mock mode, using file hashes or metadata to generate consistent mock extractions rather than failing.
 
-#### `ExplainabilityPage.jsx`
-* **Purpose**: A deep-dive visual interface into the SHAP logic.
-* **Functions/Logic**:
-  * Fetches the specific transaction's SHAP values from the database.
-  * Renders the `ShapWaterfallChart`, providing context on the math.
-  * Contains hardcoded descriptive logic explaining the difference between "Global Explainability" (how the model acts broadly) and "Local Explainability" (why *this specific* row was flagged).
+#### 2.1.7 [src/database.py](file:///f:/ML%20PROJECT/LedgerWatch-AI/LedgerWatch-AI/backend/src/database.py)
+* **Purpose**: Manages database connections and defines the SQLAlchemy ORM models.
+* **Core Models**:
+  * `Transaction`: Maps the ledger transactions to the database. Stores transactional details alongside calculation outputs like `risk_score`, `risk_band`, and `shap_explanation` (stored as a JSON string).
+  * `User`: Stores authentication details, including username and hashed password.
 
-#### `AnalyticsPage.jsx`
-* **Purpose**: A dashboard proving the model's validity.
-* **Functions/Logic**:
-  * Mostly static charts demonstrating ROC-AUC (Receiver Operating Characteristic) curves and Lift percentiles.
-  * Used to convince business stakeholders that the unsupervised Isolation Forest mathematically outperforms random guessing by a massive margin.
+#### 2.1.8 [src/auth.py](file:///f:/ML%20PROJECT/LedgerWatch-AI/LedgerWatch-AI/backend/src/auth.py)
+* **Purpose**: Handles security, password hashing, and token validation.
+* **Core Logic**:
+  * Password hashing is implemented using `passlib.context.CryptContext` with `bcrypt`.
+  * Session authorization uses JWT tokens generated via `python-jose` with HS256 sign algorithms.
 
-#### `SettingsPage.jsx`
-* **Purpose**: User configuration and state reset.
-* **Functions/Logic**:
-  * Holds a large configuration object in `useState`.
-  * `saveSettings()`: Serializes preferences into browser `localStorage`.
-  * `testConnection()`: Fires a request to the backend `/health` endpoint to verify the API URL is correct.
-  * Contains a "Danger Zone" module for clearing local cache, exporting data, or permanently wiping session state.
+#### 2.1.9 [src/config.py](file:///f:/ML%20PROJECT/LedgerWatch-AI/LedgerWatch-AI/backend/src/config.py)
+* **Purpose**: Centralizes configuration, loading variables from environment settings with automatic type coercion via `pydantic_settings.BaseSettings`.
+* **Validation**:
+  * Includes a path validator that checks for the presence of the serialized model and risk engine files during system startup.
 
-#### `LoginPage.jsx`
-* **Purpose**: Securing the application.
-* **Functions/Logic**:
-  * A controlled form taking `email` and `password`.
-  * Hits `/users/register` or `/token` depending on the toggle state.
-  * On success, it saves the `access_token` to `localStorage` and optionally hits `/transactions/clear` to wipe the DB for a fresh session experience.
-
-### 3.4 Custom Hooks (`frontend/src/hooks/useApi.js`)
-Abstracts all network requests away from the UI components.
-* **`useHealth()`**: Continuously polls the `/health` endpoint every 30 seconds using `setInterval`, updating global state if the backend goes down.
-* **`useStats() / useTransactions() / useTransaction()`**: Standard `useEffect` data-fetching hooks that manage `data`, `loading`, and `error` states, guaranteeing UI components know exactly when to show spinners or error alerts.
-* **`usePredict() / useBatchPredict() / useOCR()`**: Mutation hooks. They export a function (e.g., `upload()`) that the UI can call, internally managing the POST request, tracking progress percentiles, and handling `try/catch` exceptions.
-
-### 3.5 Components (`frontend/src/components/`)
-* **`DetailDrawer.jsx`**: A sliding pane. Takes a transaction ID, fetches its full payload, and renders a mini-dashboard for that specific event, including the `ShapWaterfallChart`.
-* **`ShapWaterfallChart.jsx`**: Takes a `shap_values` object. Normalizes the data into a format Recharts expects (mapping base values to cumulative values) to create the step-by-step waterfall visual. It conditionally colors bars red if they push the anomaly score higher, and green if they push it lower.
-* **`StatusBadge.jsx`**: An aesthetic wrapper. Takes strings like "Critical" and returns fully styled, rounded HTML spans with corresponding Tailwind color classes (e.g., `bg-red-500/10 text-red-400`).
+#### 2.1.10 [src/schemas.py](file:///f:/ML%20PROJECT/LedgerWatch-AI/LedgerWatch-AI/backend/src/schemas.py)
+* **Purpose**: Defines request and response validation schemas using Pydantic.
+* **Validation**:
+  * Validates fields such as transaction types, negative transaction amounts, and empty string headers before requests hit the business logic.
 
 ---
 
-## 4. Notable Architecture Decisions & Problem Solving
+## 3. Frontend Subsystem Deep-Dive
 
-1. **Why Isolation Forest over LOF?**
-   * **Scale:** Local Outlier Factor requires O(n²) time complexity. On 6.3 million transactions, it would never finish. Isolation Forest uses random tree partitioning, operating in O(n log n) time, completing training in ~3 minutes.
-2. **Handling Single Transactions in Real-Time:**
-   * The model was trained on bulk data, expecting rolling averages and 24 features. A single live transaction lacks this historical context. The `align_features()` backend function automatically detects missing columns and injects zeros or default averages to prevent server crashes during live predictions.
-3. **The SHAP Directionality Fix:**
-   * Isolation forest outputs *negative* scores for anomalies. Risk Engine outputs *positive* 0-100 scores for anomalies. We implemented a deliberate mathematical sign flip in `explain.py` so the SHAP visualizations intuitively match the Risk Engine (positive = bad).
-4. **Resilient Data Ingestion:**
-   * Uploading a 2GB CSV would crash the server's RAM. The `data_ingest.py` system processes files using pandas `chunksize`, reading, evaluating, and saving batches of 10,000 rows sequentially.
+### 3.1 Page Components
+
+#### 3.1.1 [Dashboard.jsx](file:///f:/ML%20PROJECT/LedgerWatch-AI/LedgerWatch-AI/frontend/src/pages/Dashboard.jsx)
+* **Purpose**: Renders the executive analytics dashboard.
+* **Logic**:
+  * Uses the `useStats()` hook to fetch metrics from `/stats`.
+  * Computes overall statistics such as the anomaly rate:
+    $$\text{Anomaly Rate} = \frac{\text{Anomalies Detected}}{\text{Total Transactions}} \times 100\%$$
+  * Renders interactive charts for daily volumes and anomaly distributions using `recharts`.
+
+#### 3.1.2 [UploadPage.jsx](file:///f:/ML%20PROJECT/LedgerWatch-AI/LedgerWatch-AI/frontend/src/pages/UploadPage.jsx)
+* **Purpose**: Handles file uploads.
+* **Logic**:
+  * Implements drag-and-drop zone event handlers.
+  * Determines file types by extension and routes them to the appropriate endpoints: CSV uploads to `/batch-predict`, images/PDFs to `/ocr`.
+  * Simulates upload progress bars using a local interval timer while waiting for backend execution.
+
+#### 3.1.3 [TransactionsPage.jsx](file:///f:/ML%20PROJECT/LedgerWatch-AI/LedgerWatch-AI/frontend/src/pages/TransactionsPage.jsx)
+* **Purpose**: Renders the paginated transaction ledger.
+* **Logic**:
+  * Manages filtering state (by search queries, risk levels, and offsets).
+  * Clicking on a row opens the slide-out `DetailDrawer` containing detailed SHAP explainability charts.
+
+#### 3.1.4 [ExplainabilityPage.jsx](file:///f:/ML%20PROJECT/LedgerWatch-AI/LedgerWatch-AI/frontend/src/pages/ExplainabilityPage.jsx)
+* **Purpose**: Provides detail explanations for specific predictions.
+* **Logic**:
+  * Displays feature importance rankings.
+  * Explains the difference between global model trends and the local explanations computed for the active transaction.
+
+#### 3.1.5 [AnalyticsPage.jsx](file:///f:/ML%20PROJECT/LedgerWatch-AI/LedgerWatch-AI/frontend/src/pages/AnalyticsPage.jsx)
+* **Purpose**: Displays model performance and validation metrics.
+* **Logic**:
+  * Renders ROC-AUC curves and cumulative gains charts to visualize model performance.
+
+#### 3.1.6 [SettingsPage.jsx](file:///f:/ML%20PROJECT/LedgerWatch-AI/LedgerWatch-AI/frontend/src/pages/SettingsPage.jsx)
+* **Purpose**: Handles user settings and preferences.
+* **Logic**:
+  * Stores preferences such as API endpoints and theme keys in `localStorage`.
+  * Includes options to check API connectivity by calling the `/health` endpoint.
+
+#### 3.1.7 [LoginPage.jsx](file:///f:/ML%20PROJECT/LedgerWatch-AI/LedgerWatch-AI/frontend/src/pages/LoginPage.jsx)
+* **Purpose**: Renders the login screen.
+* **Logic**:
+  * Form inputs for credentials that authenticate against the backend `/token` endpoint, saving the returned JWT to `localStorage`.
+
+### 3.2 Key UI Components
+
+#### 3.2.1 [ShapWaterfallChart.jsx](file:///f:/ML%20PROJECT/LedgerWatch-AI/LedgerWatch-AI/frontend/src/components/ShapWaterfallChart.jsx)
+* **Purpose**: Visualizes local SHAP explanations as a step-by-step waterfall chart.
+* **Logic**:
+  * Converts the raw SHAP dictionary into a cumulative steps format:
+    $$\text{step}_i = \text{base\_value} + \sum_{j=1}^{i} \text{value}_j$$
+  * Renders the steps using `Recharts` bar elements, color-coding positive values red (risk drivers) and negative values green (normal drivers).
+
+#### 3.2.2 [DetailDrawer.jsx](file:///f:/ML%20PROJECT/LedgerWatch-AI/LedgerWatch-AI/frontend/src/components/DetailDrawer.jsx)
+* **Purpose**: A slide-out panel detailing individual transactions.
+* **Logic**:
+  * Fetches complete metadata and SHAP explanations for a selected transaction ID and renders them in a sidebar view.
+
+#### 3.2.3 [StatusBadge.jsx](file:///f:/ML%20PROJECT/LedgerWatch-AI/LedgerWatch-AI/frontend/src/components/StatusBadge.jsx)
+* **Purpose**: Generates color-coded badges matching the transaction risk level.
 
 ---
 
+## 4. Technical QA & Interview Preparation Guide
+
+This section compiles common questions and answers regarding the architecture and implementation details of LedgerWatch AI.
+
+### Q1: Why did you choose Isolation Forest over Local Outlier Factor (LOF) or One-Class SVM?
+* **Time Complexity**: LOF relies on nearest-neighbor distance computations, giving it a quadratic time complexity of $\mathcal{O}(N^2)$. Running this on a 6.3 million row dataset would be computationally prohibitive. One-Class SVMs also scale poorly ($\mathcal{O}(N^2)$ to $\mathcal{O}(N^3)$).
+* **Isolation Forest**: Builds random partition trees. Its training complexity is $\mathcal{O}(t \cdot \psi \log \psi)$, where $t$ is the number of trees and $\psi$ is the subsampling size. Inference complexity is linear, at $\mathcal{O}(t \cdot \psi)$. This allows the model to train on large datasets in under 3 minutes.
+* **Memory footprint**: Isolation Forest does not need to store the training dataset in memory during inference; it only stores the tree partition structures. LOF, on the other hand, must keep the training index in memory to calculate distance vectors for new points.
+
+### Q2: What is the math behind SHAP explainability? How did you implement it in an unsupervised model?
+* **Shapley Values**: Originating from cooperative game theory, Shapley values distribute payouts fairly among players based on their marginal contributions. In machine learning, features act as the "players" and the difference between the model's prediction and the average prediction is the "payout":
+  $$\phi_i(x) = \sum_{S \subseteq F \setminus \{i\}} \frac{|S|!(|F| - |S| - 1)!}{|F|!} \left[ f_x(S \cup \{i\}) - f_x(S) \right]$$
+* **Unsupervised TreeExplainer**: Isolation Forest consists of decision tree estimators. We wrap it in `shap.TreeExplainer`, which traces the tree paths to estimate feature contributions to the leaf isolation depth.
+* **The Sign Flip**: By default, scikit-learn's Isolation Forest assigns lower scores (deeper isolation) to anomalies. SHAP reflects this by assigning negative values to anomalous features. Since the front-end dashboard calibrates this so that higher scores represent anomalies, we multiply the SHAP outputs by $-1$ to align the directions.
+
+### Q3: How does the application handle single transaction predictions in real time if the model was trained on historical balance averages?
+* **Problem**: In batch mode, we can compute rolling metrics over long window frames. In real-time single-transaction mode (e.g., when `/predict` receives a single JSON request), there is no historical sequence.
+* **Solution**: We implement the `align_features()` helper in the backend. When a single transaction is received:
+  1. It builds a single-row DataFrame.
+  2. It runs feature engineering on that row (e.g., calculating day-of-week, log amounts, and balance differences).
+  3. It compares the resulting columns with the 24 columns expected by the trained model.
+  4. If any columns are missing (such as rolling historical averages), they are imputed with fallback values (typically `0.0` or average values) rather than raising an error, ensuring the model can run inference successfully.
+
+### Q4: How is the database protected against connection pool exhaustion under heavy batch prediction requests?
+* **Problem**: Storing batch prediction results can exhaust database connections if session lifetimes are managed poorly.
+* **Solution**: In [database.py](file:///f:/ML%20PROJECT/LedgerWatch-AI/LedgerWatch-AI/backend/src/database.py), we use SQLAlchemy's declarative base with scoped sessions:
+  ```python
+  def get_db():
+      db = SessionLocal()
+      try:
+          yield db
+      finally:
+          db.close()
+  ```
+  FastAPI's dependency injection system executes this as a generator. When a request starts, it yields a session. The `finally` block guarantees that the connection is closed and returned to the pool after the request completes, even if the request fails or raises an error.
+
+### Q5: How do you handle large file uploads without crashing the FastAPI container?
+* **Memory Limits**: Loading a multi-gigabyte CSV into memory all at once can exceed container memory limits and trigger Out-Of-Memory (OOM) kills.
+* **Streaming Chunks**: In `data_ingest.py`, we implement chunked loading:
+  ```python
+  def ingest_csv_in_chunks(file_path, chunk_size=10000):
+      for chunk in pd.read_csv(file_path, chunksize=chunk_size):
+          yield clean_data(chunk)
+  ```
+  This processes the file iteratively in small batches, keeping memory usage constant regardless of file size.
+
+### Q6: How does the OCR subsystem parse invoice values reliably, and how does it handle environment limitations?
+* **Parsing Strategy**: We use `PyMuPDF` to convert documents to images, and `pytesseract` to perform OCR. We then run regular expressions to extract key fields:
+  * Total amounts are identified by finding patterns like `Total` or `Amount Due` followed by currency formatting.
+  * Dates are extracted using standard date format patterns.
+* **Fallback Design**: In environments where Tesseract is not installed (such as free-tier hosting), the `OCRService` falls back to mock mode. It hashes the input file bytes to return consistent mock data, preventing application crashes.
