@@ -6,6 +6,7 @@ Pydantic-settings with .env loading. All paths validated at startup.
 import os
 from pathlib import Path
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -55,6 +56,18 @@ class Settings(BaseSettings):
     OCR_LANGUAGES: str = "en"
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+
+    @model_validator(mode="after")
+    def resolve_paths(self) -> "Settings":
+        for attr in ["MODEL_PATH", "RISK_ENGINE_PATH", "DATA_DIR", "PROCESSED_DIR", "RAW_DATA_PATH", "PROCESSED_DATA_PATH"]:
+            if hasattr(self, attr):
+                path_str = getattr(self, attr)
+                path = Path(path_str)
+                if not path.exists():
+                    backend_path = Path("backend") / path_str
+                    if backend_path.exists():
+                        setattr(self, attr, str(backend_path))
+        return self
 
     # ─── Path Validation ────────────────────────────────────────────────────
     def validate_paths(self) -> None:

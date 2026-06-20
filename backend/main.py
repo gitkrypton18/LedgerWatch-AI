@@ -447,7 +447,7 @@ def _get_file_extension(filename: str) -> str:
 def _validate_extension(ext: str) -> None:
     if ext not in SUPPORTED_ALL_EXTS:
         raise HTTPException(
-            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Unsupported file type: .{ext}. Supported: {sorted(SUPPORTED_ALL_EXTS)}",
         )
 
@@ -920,7 +920,7 @@ async def ocr_parse(
     ext = _get_file_extension(file.filename)
     if ext not in SUPPORTED_IMAGE_EXTS and ext not in SUPPORTED_DOC_EXTS:
         raise HTTPException(
-            status_code=415,
+            status_code=400,
             detail=f"Unsupported file type: .{ext}. Supported images: {sorted(SUPPORTED_IMAGE_EXTS)} | PDF: {sorted(SUPPORTED_DOC_EXTS)}",
         )
 
