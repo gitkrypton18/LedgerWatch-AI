@@ -399,13 +399,14 @@ export default function SettingsPage() {
     URL.revokeObjectURL(url);
   };
 
-  const deleteAll = () => {
-    const token = localStorage.getItem('ledgerwatch_token');
-    localStorage.clear();
-    if (token) {
-      localStorage.setItem('ledgerwatch_token', token);
+  const deleteAll = async () => {
+    try {
+      await api.delete('/transactions/clear');
+      navigate('/upload');
+    } catch (err) {
+      console.error(err);
+      alert(err.userMessage || err.message || 'Failed to delete transaction data from the database.');
     }
-    navigate('/upload');
   };
 
   return (
