@@ -84,13 +84,16 @@ const formatTime = (timestamp) => {
 };
 
 const DetailDrawer = ({ transaction, onClose }) => {
-  if (!transaction) return null;
   const { settings } = useSettings();
-  const [expanded, setExpanded] = useState(settings.showShap);
+  const [expanded, setExpanded] = useState(settings?.showShap);
 
   useEffect(() => {
-    setExpanded(settings.showShap);
-  }, [settings.showShap]);
+    if (settings) {
+      setExpanded(settings.showShap);
+    }
+  }, [settings?.showShap]);
+
+  if (!transaction) return null;
 
   const score = transaction.risk_score || 0;
   const color = score >= 95 ? '#EF4444' : score >= 85 ? '#F97316' : score >= 60 ? '#F59E0B' : score >= 30 ? '#3B82F6' : '#10B981';

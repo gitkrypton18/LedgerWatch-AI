@@ -393,7 +393,7 @@ export default function AnalyticsPage() {
             </>
           ) : (
             <div className="flex items-center justify-center h-[220px] text-slate-500 text-sm">
-              {txLoading ? 'Loading...' : 'No data available'}
+              {statsLoading ? 'Loading...' : 'No data available'}
             </div>
           )}
         </div>
@@ -454,7 +454,7 @@ export default function AnalyticsPage() {
             </ResponsiveContainer>
           ) : (
             <div className="flex items-center justify-center h-[220px] text-slate-500 text-sm">
-              {txLoading ? 'Loading...' : 'No data available'}
+              {statsLoading ? 'Loading...' : 'No data available'}
             </div>
           )}
           <div className="mt-3 text-xs text-slate-500 text-center">
