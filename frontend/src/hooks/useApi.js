@@ -219,6 +219,32 @@ export const useOCR = () => {
     return { result: data, loading, error, progress, upload };
 };
 
+// ─── useRetrain ───────────────────────────────────────────────
+export const useRetrain = () => {
+    const [data, setData] = useState(null);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState(null);
+
+    const retrain = useCallback(async (params = {}) => {
+        setLoading(true);
+        setError(null);
+        try {
+            const query = new URLSearchParams(params).toString();
+            const url = `/retrain${query ? `?${query}` : ''}`;
+            const result = await api.post(url);
+            setData(result.data);
+            return result.data;
+        } catch (err) {
+            setError(err.userMessage || err.message || 'Retraining failed');
+            throw err;
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    return { result: data, loading, error, retrain };
+};
+
 // ─── useMockFallback ──────────────────────────────────────────
 export const useMockFallback = (apiData, mockData) => {
     const [useMock, setUseMock] = useState(false);

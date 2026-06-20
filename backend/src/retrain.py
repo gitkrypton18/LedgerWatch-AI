@@ -67,6 +67,14 @@ def fetch_all_data(db, limit: int = None) -> pd.DataFrame:
 
     data = []
     for tx in txs:
+        is_fraud_val = tx.isFraud
+        # Infer isFraud from analyst feedback if available
+        if is_fraud_val is None and tx.feedback_correct is not None:
+            if tx.is_anomaly:
+                is_fraud_val = 1 if tx.feedback_correct else 0
+            else:
+                is_fraud_val = 0 if tx.feedback_correct else 1
+
         data.append(
             {
                 "step": tx.step,
@@ -78,7 +86,7 @@ def fetch_all_data(db, limit: int = None) -> pd.DataFrame:
                 "nameDest": tx.nameDest,
                 "oldbalanceDest": tx.oldbalanceDest,
                 "newbalanceDest": tx.newbalanceDest,
-                "isFraud": tx.isFraud,
+                "isFraud": is_fraud_val,
                 "isFlaggedFraud": tx.isFlaggedFraud,
             }
         )
@@ -158,6 +166,33 @@ def basic_feature_engineering(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def update_env_file(model_path: str, risk_path: str):
+    """Programmatically update MODEL_PATH and RISK_ENGINE_PATH in the .env file."""
+    env_path = Path(".env")
+    if not env_path.exists():
+        # Fall back if run from backend/src or backend/ subdirectory
+        env_path = Path("backend") / ".env"
+    if not env_path.exists():
+        env_path = Path(__file__).resolve().parent.parent / ".env"
+        
+    if env_path.exists():
+        try:
+            content = env_path.read_text()
+            lines = content.splitlines()
+            new_lines = []
+            for line in lines:
+                if line.startswith("MODEL_PATH="):
+                    new_lines.append(f"MODEL_PATH={model_path}")
+                elif line.startswith("RISK_ENGINE_PATH="):
+                    new_lines.append(f"RISK_ENGINE_PATH={risk_path}")
+                else:
+                    new_lines.append(line)
+            env_path.write_text("\n".join(new_lines) + "\n")
+            logger.info("Updated .env file with new paths")
+        except Exception as e:
+            logger.warning(f"Failed to update .env file: {e}")
+
+
 def retrain_model(
     contamination: float = None,
     n_estimators: int = None,
@@ -165,17 +200,20 @@ def retrain_model(
     random_state: int = None,
     max_rows: int = 500000,  # Limit rows for memory efficiency
     dry_run: bool = False,
-) -> Tuple[IsolationForest, RiskEngine, str]:
+) -> Tuple[IsolationForest, RiskEngine, str, bool, float, float, bool]:
     """
-    Retrain Isolation Forest on sampled data.
+    Retrain Isolation Forest on sampled data and evaluate against current primary model.
 
     Args:
         max_rows: Maximum rows to use for training (default 500K)
         dry_run: If True, train but don't save model
 
     Returns:
-        (model, risk_engine, version_string)
+        (model, risk_engine, version_string, promoted, candidate_auc, current_auc, has_labels)
     """
+    from sklearn.metrics import roc_auc_score
+    from sklearn.model_selection import train_test_split
+
     db = SessionLocal()
     try:
         # 1. Fetch data (LIMITED for memory efficiency)
@@ -250,10 +288,26 @@ def retrain_model(
         features = features.fillna(0.0)
         features = features.replace([np.inf, -np.inf], 0.0)
 
-        X = features[feature_cols]
-        logger.info(f"Feature matrix: {X.shape}")
+        # 3. Train-test split for validation & champion-challenger comparison
+        y = features["isFraud"] if "isFraud" in features.columns else pd.Series(np.zeros(len(features)))
+        y = y.fillna(0).astype(int)
 
-        # 3. Train Isolation Forest
+        stratify_y = y.values if len(np.unique(y)) > 1 else None
+
+        train_idx, val_idx = train_test_split(
+            np.arange(len(features)),
+            test_size=0.2,
+            random_state=42,
+            stratify=stratify_y
+        )
+
+        train_features = features.iloc[train_idx]
+        val_features = features.iloc[val_idx]
+
+        X_train = train_features[feature_cols]
+        logger.info(f"Training feature matrix: {X_train.shape}")
+
+        # 4. Train Isolation Forest Candidate
         contamination = contamination or float(
             getattr(settings, "CONTAMINATION", 0.0013)
         )
@@ -262,7 +316,7 @@ def retrain_model(
         random_state = random_state or getattr(settings, "RANDOM_STATE", 42)
 
         logger.info(
-            f"Training Isolation Forest: n_estimators={n_estimators}, contamination={contamination}, samples={len(X)}"
+            f"Training Isolation Forest Candidate: n_estimators={n_estimators}, contamination={contamination}, samples={len(X_train)}"
         )
 
         model = IsolationForest(
@@ -273,14 +327,68 @@ def retrain_model(
             n_jobs=-1,
             bootstrap=False,
         )
-        model.fit(X)
+        model.fit(X_train)
 
-        # 4. Create new Risk Engine
-        scores = model.score_samples(X)
+        # 5. Create Candidate Risk Engine
+        scores = model.score_samples(X_train)
         risk_engine = RiskEngine(percentile_bins=100)
         risk_engine.fit(-scores)  # Negate: higher score = more anomalous
 
-        # 5. Save with new version (unless dry_run)
+        # 6. Evaluation and Champion-Challenger check
+        X_val = val_features[feature_cols]
+        y_val = val_features["isFraud"].fillna(0).astype(int).values
+
+        # Candidate scores on validation split
+        candidate_scores = -model.decision_function(X_val)
+
+        # Load and score current model for comparison
+        current_model = None
+        current_feature_names = []
+        if os.path.exists(settings.MODEL_PATH):
+            try:
+                current_data = joblib.load(settings.MODEL_PATH)
+                if isinstance(current_data, dict) and "model" in current_data:
+                    current_model = current_data["model"]
+                    current_feature_names = current_data.get("feature_names", [])
+                else:
+                    current_model = current_data
+            except Exception as e:
+                logger.warning(f"Could not load current model for comparison: {e}")
+
+        current_scores = None
+        if current_model is not None:
+            try:
+                if current_feature_names:
+                    # Filter and align validation features for the current model
+                    X_val_current = val_features[[c for c in current_feature_names if c in val_features.columns]].copy()
+                    for col in current_feature_names:
+                        if col not in X_val_current.columns:
+                            X_val_current[col] = 0.0
+                    X_val_current = X_val_current[current_feature_names]
+                else:
+                    X_val_current = X_val
+                current_scores = -current_model.decision_function(X_val_current)
+            except Exception as e:
+                logger.warning(f"Failed to score current model on validation set: {e}")
+
+        candidate_auc = 0.5
+        current_auc = 0.5
+        has_labels = len(np.unique(y_val)) > 1
+
+        if has_labels:
+            try:
+                candidate_auc = float(roc_auc_score(y_val, candidate_scores))
+                if current_scores is not None:
+                    current_auc = float(roc_auc_score(y_val, current_scores))
+            except Exception as e:
+                logger.warning(f"Failed to calculate AUC comparison: {e}")
+
+        # Champion-Challenger logic: Promote candidate if AUC is higher (or equal), or if no current model exists
+        promoted = True
+        if current_scores is not None and has_labels:
+            promoted = candidate_auc >= current_auc
+
+        # 7. Save with new version (unless dry_run)
         version = get_next_version()
 
         if not dry_run:
@@ -299,8 +407,9 @@ def retrain_model(
                     "feature_names": feature_cols,
                     "version": version,
                     "trained_at": datetime.utcnow().isoformat(),
-                    "n_samples": len(X),
+                    "n_samples": len(X_train),
                     "contamination": contamination,
+                    "val_auc": candidate_auc,
                 },
                 model_path,
             )
@@ -309,15 +418,24 @@ def retrain_model(
 
             logger.info(f"✅ Model saved: {model_path}")
             logger.info(f"✅ Risk engine saved: {risk_path}")
+
+            if promoted:
+                # Update persistent environment configuration
+                update_env_file(str(model_path.as_posix()), str(risk_path.as_posix()))
+                settings.MODEL_PATH = str(model_path.as_posix())
+                settings.RISK_ENGINE_PATH = str(risk_path.as_posix())
+                logger.info(f"🏆 Promoted Candidate {version} as new primary model (AUC: {candidate_auc:.4f} vs Current AUC: {current_auc:.4f})")
+            else:
+                logger.info(f"Candidate {version} trained but NOT promoted (AUC: {candidate_auc:.4f} vs Current AUC: {current_auc:.4f})")
         else:
             logger.info(
                 f"✅ Dry run complete — model NOT saved (version would be: {version})"
             )
 
         logger.info(f"✅ Version: {version}")
-        logger.info(f"✅ Samples trained: {len(X)}")
+        logger.info(f"✅ Samples trained: {len(X_train)}")
 
-        return model, risk_engine, version
+        return model, risk_engine, version, promoted, candidate_auc, current_auc, has_labels
 
     finally:
         db.close()
@@ -333,11 +451,11 @@ if __name__ == "__main__":
     parser.add_argument("--dry-run", action="store_true", help="Train but don't save")
     args = parser.parse_args()
 
-    model, risk_engine, version = retrain_model(
+    model, risk_engine, version, promoted, candidate_auc, current_auc, has_labels = retrain_model(
         contamination=args.contamination,
         n_estimators=args.n_estimators,
         max_rows=args.max_rows,
         dry_run=args.dry_run,
     )
 
-    logger.info(f"Retraining complete! Version: {version}")
+    logger.info(f"Retraining complete! Version: {version} | Promoted: {promoted} (New AUC: {candidate_auc:.4f} vs Current: {current_auc:.4f})")

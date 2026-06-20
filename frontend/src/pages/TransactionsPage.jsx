@@ -4,6 +4,7 @@ import {
   ArrowDown,
   ArrowUp,
   ArrowUpDown,
+  Brain,
   ChevronLeft,
   ChevronRight,
   ChevronsLeft,
@@ -21,7 +22,7 @@ import {
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useStats, useTransactions } from '../hooks/useApi';
+import { useStats, useTransactions, useRetrain } from '../hooks/useApi';
 import { useSettings } from '../context/SettingsContext';
 
 const TYPE_CONFIG = {
@@ -170,6 +171,29 @@ export default function TransactionsPage() {
   const [showFilters, setShowFilters] = useState(false);
   const [selectedTx, setSelectedTx] = useState(null);
   const [useMock, setUseMock] = useState(false);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+
+  const { retrain, loading: retrainLoading } = useRetrain();
+  const [retrainStatus, setRetrainStatus] = useState(null);
+
+  const handleRetrain = async () => {
+    setRetrainStatus({ type: 'info', message: 'Retraining model using combined dataset...' });
+    try {
+      const res = await retrain();
+      setRetrainStatus({
+        type: res.promoted ? 'success' : 'warning',
+        message: res.message,
+      });
+      setTimeout(() => setRetrainStatus(null), 10000);
+      setRefreshTrigger(prev => prev + 1);
+    } catch (err) {
+      setRetrainStatus({
+        type: 'error',
+        message: err.userMessage || err.message || 'Failed to retrain model.',
+      });
+      setTimeout(() => setRetrainStatus(null), 10000);
+    }
+  };
 
   useEffect(() => {
     setPageSize(parseInt(settings.pageSize, 10) || 10);
@@ -177,8 +201,8 @@ export default function TransactionsPage() {
   }, [settings.pageSize]);
 
   const offset = (page - 1) * pageSize;
-  const { transactions: apiTransactions, count: totalCount, loading, error, refetch } = useTransactions(pageSize, offset);
-  const { data: statsData } = useStats();
+  const { transactions: apiTransactions, count: totalCount, loading, error, refetch } = useTransactions(pageSize, offset, refreshTrigger);
+  const { data: statsData } = useStats(refreshTrigger);
 
   useEffect(() => {
     if (totalCount > 0 && page > 1 && (page - 1) * pageSize >= totalCount) setPage(1);
@@ -243,11 +267,50 @@ export default function TransactionsPage() {
           <button onClick={() => setUseMock(!useMock)} className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${useMock ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' : 'bg-background-tertiary text-text-muted border-border-subtle hover:text-text-primary'}`}>
             {useMock ? 'Mock' : 'Live'}
           </button>
+          {!useMock && (
+            <button
+              onClick={handleRetrain}
+              disabled={retrainLoading}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+                retrainLoading
+                  ? 'bg-slate-800 text-slate-500 border-slate-700 cursor-not-allowed'
+                  : 'bg-cyan-500/15 border border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/25 cursor-pointer'
+              }`}
+            >
+              {retrainLoading ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Brain className="w-3.5 h-3.5" />
+              )}
+              {retrainLoading ? 'Retraining...' : 'Retrain Model'}
+            </button>
+          )}
           <button onClick={refetch} className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-background-tertiary border border-border-subtle text-text-muted text-xs hover:text-text-primary transition-colors">
             <RefreshCw className="w-3 h-3" /> Refresh
           </button>
         </div>
       </div>
+
+      {/* Retrain Status Banner */}
+      {retrainStatus && (
+        <div className={`p-4 rounded-xl text-sm border flex items-center justify-between transition-all animate-fade-in ${
+          retrainStatus.type === 'info'
+            ? 'bg-blue-500/10 text-blue-400 border-blue-500/20'
+            : retrainStatus.type === 'success'
+              ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+              : retrainStatus.type === 'warning'
+                ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                : 'bg-red-500/10 text-red-400 border-red-500/20'
+        }`}>
+          <div className="flex items-center gap-2">
+            {retrainStatus.type === 'info' && <Loader2 className="w-4 h-4 animate-spin" />}
+            <span>{retrainStatus.message}</span>
+          </div>
+          <button onClick={() => setRetrainStatus(null)} className="text-slate-400 hover:text-slate-200">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
       {/* Stats Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">

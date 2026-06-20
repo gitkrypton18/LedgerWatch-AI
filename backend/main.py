@@ -1083,11 +1083,11 @@ async def retrain(
 
     logger.info("Starting model retraining...")
     try:
-        model, risk_engine, version = retrain_model(
+        model, risk_engine, version, promoted, candidate_auc, current_auc, has_labels = retrain_model(
             contamination=contamination, n_estimators=n_estimators, dry_run=dry_run
         )
 
-        if not dry_run:
+        if not dry_run and promoted:
             app.state.model = model
             app.state.risk_engine = risk_engine
             if app.state.model is not None:
@@ -1100,11 +1100,23 @@ async def retrain(
                     app.state.explainer = None
             logger.info(f"Hot-swapped to new model version: {version}")
 
+        # Construct response message based on promotion
+        if promoted:
+            msg = f"Model retrained and promoted. Version {version} is the new primary model (AUC: {candidate_auc:.4f} vs Current: {current_auc:.4f})."
+        else:
+            msg = f"Model retrained. Version {version} was NOT promoted (AUC: {candidate_auc:.4f} vs Current: {current_auc:.4f})."
+
         return {
             "status": "success",
             "version": version,
             "dry_run": dry_run,
-            "message": f"Model retrained successfully. New version: {version}",
+            "promoted": promoted,
+            "metrics": {
+                "candidate_auc": round(candidate_auc, 4),
+                "current_auc": round(current_auc, 4),
+                "has_labels": has_labels
+            },
+            "message": msg,
             "model_path": f"saved_models/isolation_forest_{version}.joblib",
             "risk_engine_path": f"saved_models/risk_engine_{version}.joblib",
             "retrain_available": RETRAIN_AVAILABLE,
