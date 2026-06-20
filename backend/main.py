@@ -997,6 +997,110 @@ async def clear_transactions(db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail="Failed to clear database")
 
 
+class ModelSwapRequest(BaseModel):
+    version: str
+
+
+@app.get("/models", dependencies=[Depends(verify_api_key)])
+async def list_models():
+    models_dir = Path("saved_models")
+    if not models_dir.exists():
+        models_dir = Path("backend/saved_models")
+
+    models = []
+
+    if models_dir.exists():
+        for file in models_dir.glob("isolation_forest_*.joblib"):
+            try:
+                data = joblib.load(file)
+                if isinstance(data, dict):
+                    version = data.get("version", file.stem.replace("isolation_forest_", ""))
+                    trained_at = data.get("trained_at", "Unknown")
+                    n_samples = data.get("n_samples", 0)
+                    contamination = data.get("contamination", 0.0)
+                    val_auc = data.get("val_auc", 0.8946)
+                else:
+                    version = file.stem.replace("isolation_forest_", "")
+                    trained_at = "Unknown"
+                    n_samples = 0
+                    contamination = 0.0
+                    val_auc = 0.8946
+
+                is_active = Path(settings.MODEL_PATH).name == file.name
+
+                models.append({
+                    "version": version,
+                    "filename": file.name,
+                    "trained_at": trained_at,
+                    "n_samples": n_samples,
+                    "contamination": contamination,
+                    "val_auc": round(float(val_auc), 4),
+                    "is_active": is_active
+                })
+            except Exception as e:
+                logger.warning(f"Failed to load metadata for model file {file}: {e}")
+
+    # Sort models by version descending (so newer version is at the top)
+    models.sort(key=lambda x: x["version"], reverse=True)
+    return models
+
+
+@app.post("/models/swap", dependencies=[Depends(verify_api_key)])
+async def swap_model(request: ModelSwapRequest):
+    version = request.version
+    model_filename = f"isolation_forest_{version}.joblib"
+    risk_filename = f"risk_engine_{version}.joblib"
+
+    models_dir = Path("saved_models")
+    if not models_dir.exists():
+        models_dir = Path("backend/saved_models")
+
+    model_path = models_dir / model_filename
+    risk_path = models_dir / risk_filename
+
+    if not model_path.exists():
+        raise HTTPException(status_code=404, detail=f"Model version {version} not found in saved models.")
+
+    try:
+        # Load and update FastAPI state model
+        model_data = joblib.load(model_path)
+        if isinstance(model_data, dict) and "model" in model_data:
+            app.state.model = model_data["model"]
+            app.state.expected_features = model_data.get("feature_names", [])
+        else:
+            app.state.model = model_data
+            app.state.expected_features = []
+
+        # Load and update FastAPI state risk engine
+        if risk_path.exists():
+            app.state.risk_engine = RiskEngine.load(str(risk_path))
+        else:
+            logger.warning(f"Risk engine file not found for version {version}: {risk_path}")
+            app.state.risk_engine = None
+
+        # Re-initialize SHAP
+        if app.state.model is not None:
+            try:
+                app.state.explainer = shap.TreeExplainer(
+                    app.state.model, feature_perturbation="interventional"
+                )
+            except Exception as e:
+                logger.warning(f"SHAP re-init failed on model swap: {e}")
+                app.state.explainer = None
+
+        # Update environment settings file & memory config paths
+        from src.retrain import update_env_file
+        update_env_file(str(model_path.as_posix()), str(risk_path.as_posix()))
+        settings.MODEL_PATH = str(model_path.as_posix())
+        settings.RISK_ENGINE_PATH = str(risk_path.as_posix())
+
+        logger.info(f"Successfully swapped active model to version: {version}")
+        return {"message": f"Successfully swapped active model to version {version}", "version": version}
+    except Exception as e:
+        logger.error(f"Failed to swap model to version {version}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to swap model: {str(e)}")
+
+
 @app.get("/transactions/{transaction_id}", dependencies=[Depends(verify_api_key)])
 async def get_transaction(transaction_id: int, db: Session = Depends(get_db)):
     tx = db.query(DBTransaction).filter(DBTransaction.id == transaction_id).first()

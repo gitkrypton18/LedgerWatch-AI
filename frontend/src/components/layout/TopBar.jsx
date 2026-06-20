@@ -1,5 +1,6 @@
-import { Bell, Search, User } from 'lucide-react';
+import { Bell, Search, User, Loader2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../../lib/axios';
 
 const routeTitles = {
@@ -17,6 +18,52 @@ export default function TopBar({ isMobile }) {
     const [searchOpen, setSearchOpen] = useState(false);
     const [profileOpen, setProfileOpen] = useState(false);
     const intervalRef = useRef(null);
+
+    const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
+    const [searchVal, setSearchVal] = useState(searchParams.get('search') || '');
+    const [notificationsOpen, setNotificationsOpen] = useState(false);
+    const [notifications, setNotifications] = useState([]);
+    const [loadingNotifications, setLoadingNotifications] = useState(false);
+    const notificationRef = useRef(null);
+
+    useEffect(() => {
+        setSearchVal(searchParams.get('search') || '');
+    }, [searchParams]);
+
+    const fetchNotifications = async () => {
+        setLoadingNotifications(true);
+        try {
+            const response = await api.get('/transactions', {
+                params: { limit: 5, is_anomaly: true }
+            });
+            setNotifications(response.data?.transactions || []);
+        } catch (err) {
+            console.error('Failed to fetch notifications:', err);
+        } finally {
+            setLoadingNotifications(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchNotifications();
+        const t = setInterval(fetchNotifications, 60000);
+        return () => clearInterval(t);
+    }, []);
+
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (notificationRef.current && !notificationRef.current.contains(event.target)) {
+                setNotificationsOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    const handleSearchSubmit = (val) => {
+        navigate(`/transactions?search=${encodeURIComponent(val)}`);
+    };
 
     useEffect(() => {
         const handlePopState = () => setPathname(window.location.pathname);
@@ -69,6 +116,13 @@ export default function TopBar({ isMobile }) {
                         <input
                             type="text"
                             placeholder="Search transactions..."
+                            value={searchVal}
+                            onChange={(e) => setSearchVal(e.target.value)}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                    handleSearchSubmit(searchVal);
+                                }
+                            }}
                             className="bg-background-tertiary border border-border-subtle rounded-lg pl-9 pr-4 py-2 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent-info focus:ring-1 focus:ring-accent-info/20 w-64 transition-all"
                         />
                     </div>
@@ -81,12 +135,23 @@ export default function TopBar({ isMobile }) {
                                     type="text"
                                     placeholder="Search..."
                                     autoFocus
+                                    value={searchVal}
+                                    onChange={(e) => setSearchVal(e.target.value)}
                                     className="bg-background-tertiary border border-border-subtle rounded-lg pl-3 pr-8 py-1.5 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent-info w-40"
-                                    onBlur={() => setSearchOpen(false)}
+                                    onBlur={() => setTimeout(() => setSearchOpen(false), 200)}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                            handleSearchSubmit(searchVal);
+                                            setSearchOpen(false);
+                                        }
+                                    }}
                                 />
                                 <button
                                     className="absolute right-2 top-1/2 -translate-y-1/2"
-                                    onClick={() => setSearchOpen(false)}
+                                    onClick={() => {
+                                        handleSearchSubmit(searchVal);
+                                        setSearchOpen(false);
+                                    }}
                                 >
                                     <Search className="w-4 h-4 text-text-muted" />
                                 </button>
@@ -103,10 +168,78 @@ export default function TopBar({ isMobile }) {
                 )}
 
                 {/* Notifications */}
-                <button className="action-btn-icon relative p-2 rounded-lg hover:bg-background-tertiary transition-colors">
-                    <Bell className="w-5 h-5 text-text-secondary" />
-                    <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-accent-danger rounded-full" />
-                </button>
+                <div className="relative" ref={notificationRef}>
+                    <button 
+                        onClick={() => {
+                            setNotificationsOpen(!notificationsOpen);
+                            if (!notificationsOpen) {
+                                fetchNotifications();
+                            }
+                        }}
+                        className="action-btn-icon relative p-2 rounded-lg hover:bg-background-tertiary transition-colors cursor-pointer"
+                    >
+                        <Bell className="w-5 h-5 text-text-secondary" />
+                        {notifications.length > 0 && (
+                            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-accent-danger rounded-full animate-pulse" />
+                        )}
+                    </button>
+
+                    {notificationsOpen && (
+                        <div className="absolute right-0 mt-2 w-80 bg-[#111827] border border-slate-800 rounded-xl shadow-xl overflow-hidden z-50 animate-in fade-in slide-in-from-top-2">
+                            {/* Header */}
+                            <div className="flex items-center justify-between p-4 border-b border-slate-800 bg-[#111827]/60">
+                                <span className="text-xs font-bold text-slate-200">Flagged Anomalies</span>
+                                <span className="px-2 py-0.5 rounded-full text-[10px] bg-red-500/10 text-red-400 border border-red-500/20 font-bold">
+                                    {notifications.length} alerts
+                                </span>
+                            </div>
+
+                            {/* List */}
+                            <div className="max-h-64 overflow-y-auto divide-y divide-slate-800/60 custom-scrollbar animate-fade-in">
+                                {loadingNotifications && notifications.length === 0 ? (
+                                    <div className="flex items-center justify-center py-8">
+                                        <Loader2 className="w-5 h-5 animate-spin text-cyan-400" />
+                                    </div>
+                                ) : notifications.length === 0 ? (
+                                    <div className="p-4 text-center text-xs text-slate-500">
+                                        No flagged anomalies found.
+                                    </div>
+                                ) : (
+                                    notifications.map((tx) => (
+                                        <a 
+                                            key={tx.id} 
+                                            href={`/explain?id=${tx.id}`}
+                                            className="block p-3.5 hover:bg-[#1a2332] transition-colors border-b border-slate-800/40"
+                                            onClick={() => setNotificationsOpen(false)}
+                                        >
+                                            <div className="flex items-center justify-between gap-2">
+                                                <span className="text-[11px] font-mono text-slate-400">#{tx.id}</span>
+                                                <span className="text-xs font-bold font-mono text-red-400">${tx.amount?.toLocaleString()}</span>
+                                            </div>
+                                            <div className="flex items-center justify-between gap-2 mt-1">
+                                                <span className="text-[10px] text-slate-500 uppercase">{tx.type}</span>
+                                                <span className="inline-flex items-center gap-1 text-[10px] text-orange-400 font-semibold">
+                                                    Risk: {tx.risk_score}
+                                                </span>
+                                            </div>
+                                        </a>
+                                    ))
+                                )}
+                            </div>
+
+                            {/* Footer */}
+                            <div className="p-2 border-t border-slate-800 bg-[#111827]/40 text-center">
+                                <a 
+                                    href="/transactions?status=anomaly" 
+                                    className="block py-1.5 text-xs text-cyan-400 hover:text-cyan-300 transition-colors font-medium"
+                                    onClick={() => setNotificationsOpen(false)}
+                                >
+                                    View All Anomalies
+                                </a>
+                            </div>
+                        </div>
+                    )}
+                </div>
 
                 {/* User Profile */}
                 <div className="relative">

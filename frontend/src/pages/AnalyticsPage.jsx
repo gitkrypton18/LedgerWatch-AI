@@ -2,6 +2,7 @@ import {
   Activity,
   BarChart3,
   Brain,
+  Download,
   Layers,
   Loader2,
   Shield,
@@ -106,6 +107,117 @@ const MetricCard = ({ icon: Icon, title, value, subtitle, trend, trendValue, col
 export default function AnalyticsPage() {
   const { data: statsData, loading: statsLoading, error: statsError } = useStats();
 
+  const downloadChartAsJpeg = (containerId, filename) => {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    const svgElement = container.querySelector('svg');
+    if (!svgElement) {
+      alert('Could not locate chart SVG.');
+      return;
+    }
+    
+    const clonedSvg = svgElement.cloneNode(true);
+    const width = svgElement.clientWidth || svgElement.getBoundingClientRect().width || 600;
+    const height = svgElement.clientHeight || svgElement.getBoundingClientRect().height || 300;
+    clonedSvg.setAttribute('width', width);
+    clonedSvg.setAttribute('height', height);
+    
+    const styleEl = document.createElement('style');
+    styleEl.textContent = `
+      svg { font-family: sans-serif; background-color: #0b0f19; }
+      text { fill: #94a3b8; font-size: 11px; }
+      path.recharts-cartesian-grid-horizontal, path.recharts-cartesian-grid-vertical { stroke: #1e293b; }
+      line.recharts-reference-line-line { stroke: #334155; }
+    `;
+    clonedSvg.appendChild(styleEl);
+
+    const svgString = new XMLSerializer().serializeToString(clonedSvg);
+    const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+    const URL = window.URL || window.webkitURL || window;
+    const blobURL = URL.createObjectURL(svgBlob);
+    const image = new Image();
+    image.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const context = canvas.getContext('2d');
+      
+      context.fillStyle = '#0b0f19'; 
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      context.drawImage(image, 0, 0);
+      
+      try {
+        const jpeg = canvas.toDataURL('image/jpeg', 1.0);
+        const link = document.createElement('a');
+        link.download = filename;
+        link.href = jpeg;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      } catch (err) {
+        console.error("Canvas draw failed:", err);
+        alert("Failed to save as JPEG: " + err.message);
+      }
+      URL.revokeObjectURL(blobURL);
+    };
+    image.src = blobURL;
+  };
+
+  const handleExportAnalytics = () => {
+    try {
+      const csvSections = [];
+
+      csvSections.push("ANALYTICS SUMMARY METRICS");
+      csvSections.push("Metric,Value,Context");
+      csvSections.push(`ROC-AUC Score,${rocAuc.toFixed(4)},Model discrimination capability`);
+      csvSections.push(`Lift Ratio @ Top 1%,${liftAt1}x,vs random baseline detection rate`);
+      csvSections.push(`Anomaly Detection Rate,${anomalyRate}%,Percentage of transactions flagged`);
+      csvSections.push(`Total Transactions Flagged,${anomaliesDetected},Count of flagged anomalies`);
+      csvSections.push(`Total Transactions Processed,${totalTx},Database volume to date`);
+      csvSections.push("");
+
+      if (fraudTypeData.length > 0) {
+        csvSections.push("FRAUD BREAKDOWN BY TRANSACTION TYPE");
+        csvSections.push("Transaction Type,Anomalies Detected,Total Volume,Percentage of Total");
+        fraudTypeData.forEach(item => {
+          csvSections.push(`${item.name},${item.fraud},${item.total},${item.pct}%`);
+        });
+        csvSections.push("");
+      }
+
+      if (featureData.length > 0) {
+        csvSections.push("MODEL FEATURE IMPORTANCE BREAKDOWN (SHAP VALUES)");
+        csvSections.push("Feature Name,Fraud Impact (Score),Normal Impact (Score)");
+        featureData.forEach(item => {
+          csvSections.push(`${item.feature},${item.fraud?.toFixed(4)},${item.normal?.toFixed(4)}`);
+        });
+        csvSections.push("");
+      }
+
+      if (riskDistData.length > 0) {
+        csvSections.push("RISK SCORE DISTRIBUTION");
+        csvSections.push("Risk Score Range,Anomalous Count,Normal Count");
+        riskDistData.forEach(item => {
+          csvSections.push(`${item.score},${item.fraud},${item.normal}`);
+        });
+      }
+
+      const csvContent = "\uFEFF" + csvSections.join("\n");
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement("a");
+      const url = URL.createObjectURL(blob);
+      link.setAttribute("href", url);
+      link.setAttribute("download", `ledgerwatch_analytics_report_${new Date().toISOString().slice(0, 10)}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (err) {
+      console.error("Failed to export analytics:", err);
+      alert("Failed to export analytics: " + err.message);
+    }
+  };
+
   const isLoading = statsLoading;
 
   // ROC is model-static, always mock
@@ -160,6 +272,15 @@ export default function AnalyticsPage() {
           </p>
         </div>
         <div className="flex items-center gap-3">
+          {!statsLoading && (
+            <button
+              onClick={handleExportAnalytics}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-emerald-500/35 bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25 cursor-pointer transition-all"
+            >
+              <Download className="w-3.5 h-3.5" />
+              Export Data (Excel)
+            </button>
+          )}
           {statsLoading && (
             <span className="text-cyan-400 text-xs flex items-center gap-1">
               <Loader2 className="w-3 h-3 animate-spin" /> Loading...
@@ -225,14 +346,18 @@ export default function AnalyticsPage() {
 
       {/* Charts Row 1 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* ROC Curve */}
-        <div className="bg-slate-900/30 border border-slate-700/30 rounded-xl p-5">
+        <div id="roc-chart" className="bg-slate-900/30 border border-slate-700/30 rounded-xl p-5">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               <Activity size={16} className="text-cyan-400" />
               <h3 className="text-sm font-semibold text-slate-200">ROC Curve</h3>
             </div>
-            <span className="text-xs text-slate-500">Isolation Forest vs Random</span>
+            <button 
+              onClick={() => downloadChartAsJpeg('roc-chart', 'roc_curve.jpg')}
+              className="text-[10px] text-cyan-400 hover:text-cyan-300 flex items-center gap-1 hover:underline cursor-pointer border border-cyan-500/20 bg-cyan-500/5 px-2 py-1 rounded transition-all"
+            >
+              <Download size={11} /> Download JPEG
+            </button>
           </div>
           <ResponsiveContainer width="100%" height={280}>
             <LineChart data={rocData}>
@@ -307,14 +432,18 @@ export default function AnalyticsPage() {
           </div>
         </div>
 
-        {/* Feature Importance */}
-        <div className="bg-slate-900/30 border border-slate-700/30 rounded-xl p-5">
+        <div id="feature-chart" className="bg-slate-900/30 border border-slate-700/30 rounded-xl p-5">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               <Layers size={16} className="text-cyan-400" />
               <h3 className="text-sm font-semibold text-slate-200">Feature Importance</h3>
             </div>
-            <span className="text-xs text-slate-500">Mean |SHAP| — Fraud vs Normal</span>
+            <button 
+              onClick={() => downloadChartAsJpeg('feature-chart', 'feature_importance.jpg')}
+              className="text-[10px] text-cyan-400 hover:text-cyan-300 flex items-center gap-1 hover:underline cursor-pointer border border-cyan-500/20 bg-cyan-500/5 px-2 py-1 rounded transition-all"
+            >
+              <Download size={11} /> Download JPEG
+            </button>
           </div>
           {featureData.length > 0 ? (
             <ResponsiveContainer width="100%" height={280}>
@@ -347,11 +476,18 @@ export default function AnalyticsPage() {
 
       {/* Charts Row 2 */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Fraud by Type */}
-        <div className="bg-slate-900/30 border border-slate-700/30 rounded-xl p-5">
-          <div className="flex items-center gap-2 mb-4">
-            <TrendingUp size={16} className="text-cyan-400" />
-            <h3 className="text-sm font-semibold text-slate-200">Fraud by Type</h3>
+        <div id="fraud-type-chart" className="bg-slate-900/30 border border-slate-700/30 rounded-xl p-5">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <TrendingUp size={16} className="text-cyan-400" />
+              <h3 className="text-sm font-semibold text-slate-200">Fraud by Type</h3>
+            </div>
+            <button 
+              onClick={() => downloadChartAsJpeg('fraud-type-chart', 'fraud_by_type.jpg')}
+              className="text-[10px] text-cyan-400 hover:text-cyan-300 flex items-center gap-1 hover:underline cursor-pointer border border-cyan-500/20 bg-cyan-500/5 px-2 py-1 rounded transition-all"
+            >
+              <Download size={11} /> Download JPEG
+            </button>
           </div>
           {fraudTypeData.length > 0 ? (
             <>
@@ -398,11 +534,18 @@ export default function AnalyticsPage() {
           )}
         </div>
 
-        {/* Lift Chart */}
-        <div className="bg-slate-900/30 border border-slate-700/30 rounded-xl p-5">
-          <div className="flex items-center gap-2 mb-4">
-            <Zap size={16} className="text-cyan-400" />
-            <h3 className="text-sm font-semibold text-slate-200">Precision by Percentile</h3>
+        <div id="lift-chart" className="bg-slate-900/30 border border-slate-700/30 rounded-xl p-5">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <Zap size={16} className="text-cyan-400" />
+              <h3 className="text-sm font-semibold text-slate-200">Precision by Percentile</h3>
+            </div>
+            <button 
+              onClick={() => downloadChartAsJpeg('lift-chart', 'lift_percentiles.jpg')}
+              className="text-[10px] text-cyan-400 hover:text-cyan-300 flex items-center gap-1 hover:underline cursor-pointer border border-cyan-500/20 bg-cyan-500/5 px-2 py-1 rounded transition-all"
+            >
+              <Download size={11} /> Download JPEG
+            </button>
           </div>
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={MOCK_LIFT_DATA}>
@@ -419,11 +562,18 @@ export default function AnalyticsPage() {
           </div>
         </div>
 
-        {/* Risk Distribution */}
-        <div className="bg-slate-900/30 border border-slate-700/30 rounded-xl p-5">
-          <div className="flex items-center gap-2 mb-4">
-            <Shield size={16} className="text-cyan-400" />
-            <h3 className="text-sm font-semibold text-slate-200">Risk Score Distribution</h3>
+        <div id="risk-dist-chart" className="bg-slate-900/30 border border-slate-700/30 rounded-xl p-5">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <Shield size={16} className="text-cyan-400" />
+              <h3 className="text-sm font-semibold text-slate-200">Risk Score Distribution</h3>
+            </div>
+            <button 
+              onClick={() => downloadChartAsJpeg('risk-dist-chart', 'risk_distribution.jpg')}
+              className="text-[10px] text-cyan-400 hover:text-cyan-300 flex items-center gap-1 hover:underline cursor-pointer border border-cyan-500/20 bg-cyan-500/5 px-2 py-1 rounded transition-all"
+            >
+              <Download size={11} /> Download JPEG
+            </button>
           </div>
           {riskDistData.length > 0 ? (
             <ResponsiveContainer width="100%" height={220}>

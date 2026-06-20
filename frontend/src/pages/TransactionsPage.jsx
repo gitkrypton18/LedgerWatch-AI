@@ -10,6 +10,7 @@ import {
   ChevronsLeft,
   ChevronsRight,
   Clock,
+  Download,
   Eye,
   Filter,
   Loader2,
@@ -21,9 +22,11 @@ import {
   X,
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { useStats, useTransactions, useRetrain } from '../hooks/useApi';
+import { Link, useSearchParams } from 'react-router-dom';
+import { useStats, useTransactions } from '../hooks/useApi';
 import { useSettings } from '../context/SettingsContext';
+import ModelManagementModal from '../components/modals/ModelManagementModal';
+import api from '../lib/axios';
 
 const TYPE_CONFIG = {
   TRANSFER: { color: 'bg-purple-500/20 text-purple-400', icon: '↔' },
@@ -173,25 +176,101 @@ export default function TransactionsPage() {
   const [useMock, setUseMock] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
-  const { retrain, loading: retrainLoading } = useRetrain();
-  const [retrainStatus, setRetrainStatus] = useState(null);
+  const [isModelModalOpen, setIsModelModalOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
-  const handleRetrain = async () => {
-    setRetrainStatus({ type: 'info', message: 'Retraining model using combined dataset...' });
+  const [searchParams, setSearchParams] = useSearchParams();
+  const urlSearch = searchParams.get('search') || '';
+
+  // Synchronize with TopBar URL searches
+  useEffect(() => {
+    setSearch(urlSearch);
+  }, [urlSearch]);
+
+  const handleSearchChange = (value) => {
+    setSearch(value);
+    setPage(1);
+    setSearchParams(prev => {
+      if (value) prev.set('search', value);
+      else prev.delete('search');
+      return prev;
+    }, { replace: true });
+  };
+
+  const handleExportExcel = async () => {
+    setExporting(true);
     try {
-      const res = await retrain();
-      setRetrainStatus({
-        type: res.promoted ? 'success' : 'warning',
-        message: res.message,
-      });
-      setTimeout(() => setRetrainStatus(null), 10000);
-      setRefreshTrigger(prev => prev + 1);
+      const params = {
+        limit: 10000,
+        offset: 0,
+      };
+      if (search) params.search = search;
+      if (filters.type) params.type = filters.type;
+      if (filters.riskBand) params.risk_band = filters.riskBand;
+      if (filters.status === 'anomaly') params.is_anomaly = true;
+      else if (filters.status === 'normal') params.is_anomaly = false;
+
+      const response = await api.get('/transactions', { params });
+      const txs = response.data?.transactions || [];
+
+      if (txs.length === 0) {
+        alert("No transaction records found to export.");
+        return;
+      }
+
+      const csvHeaders = [
+        "Transaction ID",
+        "Step",
+        "Transaction Type",
+        "Amount",
+        "Origin Account",
+        "Old Balance Orig",
+        "New Balance Orig",
+        "Destination Account",
+        "Old Balance Dest",
+        "New Balance Dest",
+        "Anomaly Flagged",
+        "Risk Score",
+        "Risk Band",
+        "Timestamp"
+      ];
+
+      const csvRows = txs.map(tx => [
+        `"${tx.id}"`,
+        tx.step,
+        `"${tx.type}"`,
+        tx.amount,
+        `"${tx.nameOrig}"`,
+        tx.oldbalanceOrg,
+        tx.newbalanceOrig,
+        `"${tx.nameDest}"`,
+        tx.oldbalanceDest,
+        tx.newbalanceDest,
+        tx.is_anomaly ? "Yes" : "No",
+        tx.risk_score || 0,
+        `"${tx.risk_band || 'Low'}"`,
+        `"${tx.created_at || ''}"`
+      ]);
+
+      const csvContent = "\uFEFF" + [
+        csvHeaders.join(","),
+        ...csvRows.map(row => row.join(","))
+      ].join("\n");
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement("a");
+      const url = URL.createObjectURL(blob);
+      link.setAttribute("href", url);
+      link.setAttribute("download", `ledgerwatch_transactions_${new Date().toISOString().slice(0, 10)}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
     } catch (err) {
-      setRetrainStatus({
-        type: 'error',
-        message: err.userMessage || err.message || 'Failed to retrain model.',
-      });
-      setTimeout(() => setRetrainStatus(null), 10000);
+      console.error("Export failed:", err);
+      alert("Failed to export transactions data: " + (err.message || err));
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -268,49 +347,30 @@ export default function TransactionsPage() {
             {useMock ? 'Mock' : 'Live'}
           </button>
           {!useMock && (
-            <button
-              onClick={handleRetrain}
-              disabled={retrainLoading}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
-                retrainLoading
-                  ? 'bg-slate-800 text-slate-500 border-slate-700 cursor-not-allowed'
-                  : 'bg-cyan-500/15 border border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/25 cursor-pointer'
-              }`}
-            >
-              {retrainLoading ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              ) : (
+            <>
+              <button
+                onClick={() => setIsModelModalOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border bg-cyan-500/15 border border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/25 cursor-pointer transition-all"
+              >
                 <Brain className="w-3.5 h-3.5" />
-              )}
-              {retrainLoading ? 'Retraining...' : 'Retrain Model'}
-            </button>
+                Manage Models
+              </button>
+              
+              <button
+                onClick={handleExportExcel}
+                disabled={exporting}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-emerald-500/35 bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25 cursor-pointer transition-all disabled:opacity-50"
+              >
+                <Download className="w-3.5 h-3.5" />
+                {exporting ? 'Exporting...' : 'Export Excel'}
+              </button>
+            </>
           )}
           <button onClick={refetch} className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-background-tertiary border border-border-subtle text-text-muted text-xs hover:text-text-primary transition-colors">
             <RefreshCw className="w-3 h-3" /> Refresh
           </button>
         </div>
       </div>
-
-      {/* Retrain Status Banner */}
-      {retrainStatus && (
-        <div className={`p-4 rounded-xl text-sm border flex items-center justify-between transition-all animate-fade-in ${
-          retrainStatus.type === 'info'
-            ? 'bg-blue-500/10 text-blue-400 border-blue-500/20'
-            : retrainStatus.type === 'success'
-              ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-              : retrainStatus.type === 'warning'
-                ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
-                : 'bg-red-500/10 text-red-400 border-red-500/20'
-        }`}>
-          <div className="flex items-center gap-2">
-            {retrainStatus.type === 'info' && <Loader2 className="w-4 h-4 animate-spin" />}
-            <span>{retrainStatus.message}</span>
-          </div>
-          <button onClick={() => setRetrainStatus(null)} className="text-slate-400 hover:text-slate-200">
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-      )}
 
       {/* Stats Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
@@ -331,7 +391,7 @@ export default function TransactionsPage() {
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
-          <input type="text" placeholder="Search by ID, name, or amount..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} className="w-full pl-10 pr-4 py-2.5 bg-background-tertiary border border-border-subtle rounded-lg text-text-primary text-sm placeholder:text-text-muted focus:outline-none focus:border-accent-info focus:ring-1 focus:ring-accent-info/20" />
+          <input type="text" placeholder="Search by ID, name, or amount..." value={search} onChange={(e) => handleSearchChange(e.target.value)} className="w-full pl-10 pr-4 py-2.5 bg-background-tertiary border border-border-subtle rounded-lg text-text-primary text-sm placeholder:text-text-muted focus:outline-none focus:border-accent-info focus:ring-1 focus:ring-accent-info/20" />
         </div>
         <button onClick={() => setShowFilters(!showFilters)} className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium border transition-colors flex-shrink-0 ${showFilters || activeFilterCount > 0 ? 'bg-accent-info/10 text-accent-info border-accent-info/30' : 'bg-background-tertiary text-text-primary border-border-subtle hover:border-border-accent'}`}>
           <Filter className="w-4 h-4" /> Filters {activeFilterCount > 0 && `(${activeFilterCount})`}
@@ -490,6 +550,12 @@ export default function TransactionsPage() {
       </div>
 
       {selectedTx && <DetailDrawer transaction={selectedTx} onClose={() => setSelectedTx(null)} />}
+
+      <ModelManagementModal
+        isOpen={isModelModalOpen}
+        onClose={() => setIsModelModalOpen(false)}
+        onModelSwapped={() => setRefreshTrigger(prev => prev + 1)}
+      />
     </div>
   );
 }
