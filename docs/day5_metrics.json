@@ -1,0 +1,118 @@
+{
+  "model": {
+    "name": "Isolation Forest",
+    "version": "1.0.0",
+    "n_estimators": 200,
+    "contamination": 0.01,
+    "max_samples": "auto",
+    "max_features": 1.0,
+    "random_state": 42,
+    "feature_count": 24,
+    "features": [
+      "amount_log",
+      "is_round_amount",
+      "amount_to_balance_ratio",
+      "balance_diff_orig",
+      "balance_diff_dest",
+      "balance_change_orig",
+      "balance_change_dest",
+      "zero_balance_orig",
+      "zero_balance_dest",
+      "hour_of_step",
+      "hour_of_step_sin",
+      "hour_of_step_cos",
+      "type_encoded",
+      "type_CASH_IN",
+      "type_CASH_OUT",
+      "type_DEBIT",
+      "type_PAYMENT",
+      "type_TRANSFER",
+      "freq_orig",
+      "freq_dest",
+      "is_new_orig",
+      "is_new_dest",
+      "is_merchant_orig",
+      "is_merchant_dest"
+    ]
+  },
+  "dataset": {
+    "total_rows": 6362620,
+    "test_rows": 1272524,
+    "test_frauds": 1643,
+    "test_fraud_rate": 0.0012911347840983745,
+    "feature_columns": 32
+  },
+  "thresholds": {
+    "contamination": {
+      "threshold": 0.5953079161872732,
+      "precision": 0.040075436115040074,
+      "recall": 0.310407790626902,
+      "f1": 0.07098615074117892,
+      "flagged": 12726,
+      "tp": 510,
+      "fp": 12216,
+      "tn": 1258665,
+      "fn": 1133
+    },
+    "f1_optimized": {
+      "threshold": 0.6680410316570388,
+      "precision": 0.05992176386913229,
+      "recall": 0.20511259890444308,
+      "f1": 0.09274803904578138,
+      "flagged": 5624,
+      "tp": 337,
+      "fp": 5287,
+      "fn": 1306
+    },
+    "precision_optimized": {
+      "threshold": 0.6878279815281736,
+      "precision": 0.0614562458249833,
+      "recall": 0.16798539257455875,
+      "f1": 0.0899902184152944,
+      "flagged": 4491,
+      "tp": 276,
+      "fp": 4215,
+      "fn": 1367
+    },
+    "recall_optimized": {
+      "threshold": 0.48849885450833974,
+      "precision": 0.02,
+      "recall": 0.47900182592818014,
+      "f1": 0.03839679944587052,
+      "flagged": 39350,
+      "tp": 787,
+      "fp": 38563,
+      "fn": 856
+    }
+  },
+  "ranking_metrics": {
+    "roc_auc": 0.8760829368412556,
+    "pr_auc": 0.024039137696133174
+  },
+  "baselines": {
+    "random_classifier": {
+      "precision": 0.0005491488193300384,
+      "recall": 0.00426049908703591,
+      "f1": 0.0009728978254981522,
+      "flagged": 12747
+    },
+    "rule_perfect_balance": {
+      "precision": 0.003863746019492425,
+      "recall": 0.6092513694461351,
+      "f1": 0.007678794711809198,
+      "flagged": 259075
+    },
+    "rule_amount_transfer": {
+      "precision": 0.008298093034389213,
+      "recall": 0.06329884357881924,
+      "f1": 0.014672686209754853,
+      "flagged": 12533
+    }
+  },
+  "evaluation": {
+    "timestamp": "2026-06-12T14:42:26.553895",
+    "evaluated_by": "day5_evaluation.ipynb",
+    "python_version": "3.10.20",
+    "sklearn_version": "unknown"
+  }
+}

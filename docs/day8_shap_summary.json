@@ -1,0 +1,171 @@
+{
+  "metadata": {
+    "day": 8,
+    "module": "explain",
+    "feature_count": 24,
+    "top_feature": "type_TRANSFER"
+  },
+  "global_importance": [
+    {
+      "feature": "type_TRANSFER",
+      "mean_abs_shap": 0.26937260675001573,
+      "mean_abs_shap_pct": 8.879552845174969
+    },
+    {
+      "feature": "balance_diff_dest",
+      "mean_abs_shap": 0.2573217989250648,
+      "mean_abs_shap_pct": 8.482312063345939
+    },
+    {
+      "feature": "balance_change_orig",
+      "mean_abs_shap": 0.2511700391325544,
+      "mean_abs_shap_pct": 8.279526498668565
+    },
+    {
+      "feature": "is_new_dest",
+      "mean_abs_shap": 0.22424791059184054,
+      "mean_abs_shap_pct": 7.392070027254927
+    },
+    {
+      "feature": "zero_balance_dest",
+      "mean_abs_shap": 0.20150775186768954,
+      "mean_abs_shap_pct": 6.6424672983993
+    },
+    {
+      "feature": "amount_to_balance_ratio",
+      "mean_abs_shap": 0.17568558617264343,
+      "mean_abs_shap_pct": 5.791269815357485
+    },
+    {
+      "feature": "hour_of_step_sin",
+      "mean_abs_shap": 0.16563951744608804,
+      "mean_abs_shap_pct": 5.46011291258269
+    },
+    {
+      "feature": "type_CASH_IN",
+      "mean_abs_shap": 0.15691433319553852,
+      "mean_abs_shap_pct": 5.172497421269788
+    },
+    {
+      "feature": "hour_of_step_cos",
+      "mean_abs_shap": 0.15440780616691294,
+      "mean_abs_shap_pct": 5.08987269013224
+    },
+    {
+      "feature": "hour_of_step",
+      "mean_abs_shap": 0.13303338291212569,
+      "mean_abs_shap_pct": 4.385289833263818
+    },
+    {
+      "feature": "freq_dest",
+      "mean_abs_shap": 0.1288919465953342,
+      "mean_abs_shap_pct": 4.2487722301060336
+    },
+    {
+      "feature": "amount_log",
+      "mean_abs_shap": 0.1266197733128253,
+      "mean_abs_shap_pct": 4.1738726960411014
+    },
+    {
+      "feature": "zero_balance_orig",
+      "mean_abs_shap": 0.12567365841034778,
+      "mean_abs_shap_pct": 4.142685125131364
+    },
+    {
+      "feature": "balance_diff_orig",
+      "mean_abs_shap": 0.12422072228331466,
+      "mean_abs_shap_pct": 4.094790785479272
+    },
+    {
+      "feature": "type_encoded",
+      "mean_abs_shap": 0.10483080275446961,
+      "mean_abs_shap_pct": 3.4556247722853213
+    },
+    {
+      "feature": "balance_change_dest",
+      "mean_abs_shap": 0.10135235761749994,
+      "mean_abs_shap_pct": 3.3409618977435604
+    },
+    {
+      "feature": "type_CASH_OUT",
+      "mean_abs_shap": 0.08492740094928802,
+      "mean_abs_shap_pct": 2.799532416569755
+    },
+    {
+      "feature": "type_PAYMENT",
+      "mean_abs_shap": 0.07104231658535166,
+      "mean_abs_shap_pct": 2.34182685453499
+    },
+    {
+      "feature": "is_merchant_dest",
+      "mean_abs_shap": 0.07029393418200142,
+      "mean_abs_shap_pct": 2.3171573041336955
+    },
+    {
+      "feature": "is_round_amount",
+      "mean_abs_shap": 0.06777096497808834,
+      "mean_abs_shap_pct": 2.233990575923334
+    },
+    {
+      "feature": "type_DEBIT",
+      "mean_abs_shap": 0.028130281984536487,
+      "mean_abs_shap_pct": 0.9272818362825251
+    },
+    {
+      "feature": "freq_orig",
+      "mean_abs_shap": 0.0063249475552598815,
+      "mean_abs_shap_pct": 0.2084944966657678
+    },
+    {
+      "feature": "is_new_orig",
+      "mean_abs_shap": 0.00424821903955757,
+      "mean_abs_shap_pct": 0.14003757068972153
+    },
+    {
+      "feature": "is_merchant_orig",
+      "mean_abs_shap": 0.0,
+      "mean_abs_shap_pct": 0.0
+    }
+  ],
+  "sample_explanations": [
+    {
+      "prediction": -0.10630710351334716,
+      "top_3_features": [
+        "balance_diff_dest",
+        "is_round_amount",
+        "type_TRANSFER"
+      ],
+      "top_3_shap": [
+        1.4563815102845268,
+        1.268017623942704,
+        0.9737995647118874
+      ]
+    },
+    {
+      "prediction": 0.21555003347741886,
+      "top_3_features": [
+        "is_new_dest",
+        "zero_balance_orig",
+        "zero_balance_dest"
+      ],
+      "top_3_shap": [
+        -0.2794335031087358,
+        -0.2084242953796789,
+        -0.18088949917492947
+      ]
+    },
+    {
+      "prediction": 0.15108781398804005,
+      "top_3_features": [
+        "freq_dest",
+        "is_new_dest",
+        "zero_balance_orig"
+      ],
+      "top_3_shap": [
+        1.4207435596367728,
+        -0.2149451963451779,
+        -0.2015287077577606
+      ]
+    }
+  ]
+}
