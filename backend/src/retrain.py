@@ -98,16 +98,27 @@ def fetch_all_data(db, limit: int = None) -> pd.DataFrame:
 
 def fetch_original_data(sample_size: int = None) -> pd.DataFrame:
     """Fetch original training data with optional sampling. Must be raw data, not features."""
-    cleaned_path = Path(
-        getattr(settings, "PROCESSED_DATA_PATH", "data/processed/cleaned.csv")
-    )
-    if cleaned_path.exists():
-        logger.info(f"Loading cleaned data: {cleaned_path}")
-        if sample_size:
-            return pd.read_csv(cleaned_path, nrows=sample_size)
-        return pd.read_csv(cleaned_path)
-
-    logger.warning("Original raw training data not found")
+    possible_paths = [
+        Path(getattr(settings, "PROCESSED_DATA_PATH", "data/processed/cleaned.csv")),
+        Path("data/processed/cleaned.csv"),
+        Path("backend/data/processed/cleaned.csv"),
+        Path("data/processed/cleaned_sample.csv"),
+        Path("backend/data/processed/cleaned_sample.csv"),
+        Path("data/sample.csv"),
+        Path("backend/data/sample.csv")
+    ]
+    
+    for path in possible_paths:
+        if path.exists() and path.is_file():
+            logger.info(f"Loading baseline training data from: {path}")
+            try:
+                if sample_size:
+                    return pd.read_csv(path, nrows=sample_size)
+                return pd.read_csv(path)
+            except Exception as e:
+                logger.error(f"Failed to read dataset from {path}: {e}")
+                
+    logger.warning("Original baseline training data not found in any standard path")
     return pd.DataFrame()
 
 
@@ -315,61 +326,20 @@ def retrain_model(
         max_samples = max_samples or getattr(settings, "MAX_SAMPLES", "auto")
         random_state = random_state or getattr(settings, "RANDOM_STATE", 42)
 
-        # Check if we should use warm_start (incremental training) because baseline CSV is missing
-        is_warm_start = False
-        if original_data.empty and os.path.exists(settings.MODEL_PATH):
-            try:
-                current_data = joblib.load(settings.MODEL_PATH)
-                if isinstance(current_data, dict) and "model" in current_data:
-                    current_model = current_data["model"]
-                    current_features = current_data.get("feature_names", [])
-                else:
-                    current_model = current_data
-                    current_features = []
+        if len(X_train) < 5:
+            raise ValueError("Insufficient transaction records for retraining. Please upload or generate at least 5 transactions in the database first.")
 
-                if current_model is not None and hasattr(current_model, "estimators_"):
-                    if len(X_train) < 5:
-                        raise ValueError("Insufficient new transaction records in the database. Please upload or generate at least 5 transactions to start retraining.")
-
-                    logger.info("Baseline CSV not found. Utilizing warm_start to incrementally train on current model...")
-                    model = current_model
-                    model.warm_start = True
-                    # Dynamically add trees (e.g., 20 new trees)
-                    added_trees = 20
-                    model.n_estimators = len(model.estimators_) + added_trees
-                    is_warm_start = True
-                    
-                    # Align feature columns to current model features
-                    feature_cols = current_features
-                    X_train = train_features[[c for c in current_features if c in train_features.columns]].copy()
-                    for col in current_features:
-                        if col not in X_train.columns:
-                            X_train[col] = 0.0
-                    X_train = X_train[current_features]
-                    
-                    val_features_aligned = val_features[[c for c in current_features if c in val_features.columns]].copy()
-                    for col in current_features:
-                        if col not in val_features_aligned.columns:
-                            val_features_aligned[col] = 0.0
-                    val_features = val_features_aligned
-            except ValueError:
-                raise
-            except Exception as e:
-                logger.warning(f"Could not load model for warm_start: {e}. Falling back to clean training.")
-
-        if not is_warm_start:
-            logger.info(
-                f"Training Isolation Forest Candidate: n_estimators={n_estimators}, contamination={contamination}, samples={len(X_train)}"
-            )
-            model = IsolationForest(
-                n_estimators=n_estimators,
-                contamination=contamination,
-                max_samples=max_samples,
-                random_state=random_state,
-                n_jobs=-1,
-                bootstrap=False,
-            )
-
+        logger.info(
+            f"Training Isolation Forest Candidate: n_estimators={n_estimators}, contamination={contamination}, samples={len(X_train)}"
+        )
+        model = IsolationForest(
+            n_estimators=n_estimators,
+            contamination=contamination,
+            max_samples=max_samples,
+            random_state=random_state,
+            n_jobs=-1,
+            bootstrap=False,
+        )
         model.fit(X_train)
 
         # 5. Create Candidate Risk Engine
