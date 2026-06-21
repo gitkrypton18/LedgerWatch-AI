@@ -111,6 +111,9 @@ def engineer_categorical_features(df: pd.DataFrame) -> pd.DataFrame:
     }
     df["type_encoded"] = df["type"].map(type_risk_map).fillna(2.0)
     type_dummies = pd.get_dummies(df["type"], prefix="type", dtype=int)
+    for t in ["type_TRANSFER", "type_CASH_OUT", "type_PAYMENT", "type_CASH_IN", "type_DEBIT"]:
+        if t not in type_dummies.columns:
+            type_dummies[t] = 0
     df = pd.concat([df, type_dummies], axis=1)
     return df
 

@@ -189,7 +189,6 @@ class HealthResponse(BaseModel):
     model_loaded: bool
     risk_engine_loaded: bool
     ocr_available: bool = False
-    retrain_available: bool = False  # ✅ ADDED
     timestamp: str = ""
 
 

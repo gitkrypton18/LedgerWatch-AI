@@ -11,32 +11,12 @@ import {
     Database,
     ShieldAlert
 } from 'lucide-react';
-import { useModels, useRetrain, useSwapModel } from '../../hooks/useApi';
+import { useModels, useSwapModel } from '../../hooks/useApi';
 
 export default function ModelManagementModal({ isOpen, onClose, onModelSwapped }) {
     const [triggerFetch, setTriggerFetch] = useState(0);
     const { data: models, loading: loadingModels, error: fetchError } = useModels(triggerFetch);
-    const { retrain, loading: retraining, error: retrainError } = useRetrain();
-    const { swap, loading: swapping } = useSwapModel();
-    const [retrainResult, setRetrainResult] = useState(null);
-    const [actionMessage, setActionMessage] = useState(null);
 
-    if (!isOpen) return null;
-
-    const handleRetrain = async () => {
-        setRetrainResult(null);
-        setActionMessage(null);
-        try {
-            const res = await retrain();
-            setRetrainResult(res);
-            setTriggerFetch(prev => prev + 1);
-            if (onModelSwapped && res.promoted) {
-                onModelSwapped();
-            }
-        } catch (err) {
-            console.error(err);
-        }
-    };
 
     const handleSwap = async (version) => {
         setRetrainResult(null);
@@ -95,7 +75,7 @@ export default function ModelManagementModal({ isOpen, onClose, onModelSwapped }
                         </div>
                         <div>
                             <h2 className="text-lg font-bold text-slate-100">Model Management</h2>
-                            <p className="text-xs text-slate-500 mt-0.5">Retrain, evaluate, and swap Isolation Forest versions</p>
+                            <p className="text-xs text-slate-500 mt-0.5">Evaluate and swap Isolation Forest versions</p>
                         </div>
                     </div>
                     <button onClick={onClose} className="p-1.5 hover:bg-slate-800/60 text-slate-400 hover:text-slate-200 rounded-lg transition-colors">
@@ -118,85 +98,8 @@ export default function ModelManagementModal({ isOpen, onClose, onModelSwapped }
                         </div>
                     )}
 
-                    {/* Retrain Section */}
-                    <div className="bg-[#111827]/30 border border-slate-800/50 rounded-xl p-5">
-                        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-                            <div>
-                                <h3 className="text-sm font-semibold text-slate-200">Retrain Pipeline</h3>
-                                <p className="text-xs text-slate-500 mt-1">Trains a new challenger model on combined database data and original dataset. Auto-promotes only on performance improvement.</p>
-                            </div>
-                            <button
-                                onClick={handleRetrain}
-                                disabled={retraining || swapping}
-                                className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold font-sans tracking-wide uppercase transition-all flex-shrink-0 ${
-                                    retraining
-                                        ? "bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed"
-                                        : "bg-cyan-500 text-[#0a0e17] hover:bg-cyan-400 cursor-pointer shadow-lg shadow-cyan-500/10 hover:-translate-y-0.5"
-                                }`}
-                            >
-                                {retraining ? (
-                                    <>
-                                        <Loader2 className="w-4 h-4 animate-spin" />
-                                        Retraining...
-                                    </>
-                                ) : (
-                                    <>
-                                        <RefreshCw className="w-4 h-4" />
-                                        Retrain Model
-                                    </>
-                                )}
-                            </button>
-                        </div>
+                    {/* Retrain Section Disabled */}
 
-                        {/* Error Message */}
-                        {retrainError && (
-                            <div className="mt-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-xs text-red-400 flex items-center gap-2">
-                                <AlertTriangle className="w-4 h-4 shrink-0" />
-                                <span>{retrainError}</span>
-                            </div>
-                        )}
-
-                        {/* Retrain Metrics Results */}
-                        {retrainResult && (
-                            <div className="mt-4 border-t border-slate-800/40 pt-4 space-y-3">
-                                <div className={`p-3 rounded-lg flex items-start gap-2.5 border text-xs ${
-                                    retrainResult.promoted 
-                                        ? 'bg-emerald-500/15 border-emerald-500/35 text-emerald-400' 
-                                        : 'bg-amber-500/15 border-amber-500/35 text-amber-400'
-                                }`}>
-                                    {retrainResult.promoted ? (
-                                        <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0" />
-                                    ) : (
-                                        <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
-                                    )}
-                                    <div>
-                                        <p className="font-bold text-sm">{retrainResult.promoted ? 'Champion Promoted!' : 'Champion Retained'}</p>
-                                        <p className="mt-1 leading-relaxed text-[11px] opacity-90">{retrainResult.message}</p>
-                                    </div>
-                                </div>
-                                <div className="grid grid-cols-3 gap-3">
-                                    <div className="bg-[#111827]/40 border border-slate-800/50 rounded-lg p-3 text-center">
-                                        <p className="text-[10px] text-slate-500 uppercase tracking-wider">Candidate Version</p>
-                                        <p className="text-base font-bold font-mono text-slate-200 mt-1">{retrainResult.version}</p>
-                                    </div>
-                                    <div className="bg-[#111827]/40 border border-slate-800/50 rounded-lg p-3 text-center">
-                                        <p className="text-[10px] text-slate-500 uppercase tracking-wider">Candidate AUC</p>
-                                        <p className={`text-base font-bold font-mono mt-1 ${getAucColor(retrainResult.metrics.candidate_auc)}`}>
-                                            {retrainResult.metrics.candidate_auc.toFixed(4)}
-                                        </p>
-                                    </div>
-                                    <div className="bg-[#111827]/40 border border-slate-800/50 rounded-lg p-3 text-center">
-                                        <p className="text-[10px] text-slate-500 uppercase tracking-wider">Previous AUC</p>
-                                        <p className="text-base font-bold font-mono text-slate-400 mt-1">
-                                            {retrainResult.metrics.current_auc > 0.5 
-                                                ? retrainResult.metrics.current_auc.toFixed(4) 
-                                                : 'N/A'}
-                                        </p>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-                    </div>
 
                     {/* Saved Models List */}
                     <div className="space-y-3">
@@ -270,7 +173,7 @@ export default function ModelManagementModal({ isOpen, onClose, onModelSwapped }
                                                     {!m.is_active && (
                                                         <button
                                                             onClick={() => handleSwap(m.version)}
-                                                            disabled={swapping || retraining}
+                                                            disabled={swapping}
                                                             className="px-3 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-750 text-slate-200 rounded-md font-semibold text-[11px] hover:-translate-y-0.5 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                                                         >
                                                             Swap Model

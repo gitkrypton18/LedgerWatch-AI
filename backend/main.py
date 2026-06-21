@@ -53,14 +53,7 @@ from src.schemas import (
     TransactionRead,
 )
 
-try:
-    from src.retrain import retrain_model
-
-    RETRAIN_AVAILABLE = True
-except ImportError as e:
-    RETRAIN_AVAILABLE = False
-    logging.warning(f"Retraining module not available: {e}")
-
+# Retraining module removed
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
@@ -161,13 +154,21 @@ async def _load_model(app: FastAPI):
                 k: v for k, v in model_data.items() if k != "model"
             }
             app.state.expected_features = model_data.get("feature_names", [])
+            
+            # Use model's internal feature names if available (source of truth)
+            if hasattr(app.state.model, "feature_names_in_"):
+                app.state.expected_features = list(app.state.model.feature_names_in_)
+                
             logger.info(
                 f"Model loaded (dict): {len(app.state.expected_features)} features"
             )
         else:
             app.state.model = model_data
             app.state.model_metadata = {}
-            app.state.expected_features = []
+            if hasattr(app.state.model, "feature_names_in_"):
+                app.state.expected_features = list(app.state.model.feature_names_in_)
+            else:
+                app.state.expected_features = []
             logger.info("Model loaded (direct)")
     except Exception as e:
         logger.error(f"Model load failed: {e}")
@@ -664,7 +665,7 @@ async def docs_redirect():
             {"path": "/stats", "method": "GET", "auth": True},
             {"path": "/feedback-stats", "method": "GET", "auth": True},
             {"path": "/ocr", "method": "POST", "auth": True},
-            {"path": "/retrain", "method": "POST", "auth": True},
+
         ],
         "supported_formats": sorted(SUPPORTED_ALL_EXTS),
     }
@@ -689,7 +690,6 @@ async def health_check():
         model_loaded=app.state.model is not None,
         risk_engine_loaded=app.state.risk_engine is not None,
         ocr_available=not ocr_mock,
-        retrain_available=RETRAIN_AVAILABLE,
         timestamp=datetime.utcnow().isoformat(),
     )
 
@@ -906,7 +906,6 @@ def health_check():
         "model_loaded": IF_MODEL is not None,
         "risk_engine_loaded": RISK_ENGINE is not None,
         "ocr_available": bool(getattr(settings, "ENABLE_OCR", False)),
-        "retrain_available": True,
         "timestamp": datetime.utcnow().isoformat(),
     }
 
@@ -1200,70 +1199,9 @@ async def get_feedback_stats(db: Session = Depends(get_db)):
         "false_positives": incorrect,
         "review_rate": round(reviewed / total, 4) if total else 0.0,
         "accuracy": round(correct / reviewed, 4) if reviewed else None,
-        "needs_retraining": (
-            reviewed > 100 and (incorrect / reviewed) > 0.2 if reviewed else False
-        ),
+        "needs_retraining": False,
     }
 
-
-@app.post("/retrain", dependencies=[Depends(verify_api_key)])
-async def retrain(
-    contamination: Optional[float] = Query(default=None),
-    n_estimators: Optional[int] = Query(default=None),
-    dry_run: bool = Query(default=False),
-    db: Session = Depends(get_db),
-):
-    if not RETRAIN_AVAILABLE:
-        raise HTTPException(
-            status_code=503,
-            detail="Retraining module not available. Check src/retrain.py exists.",
-        )
-
-    logger.info("Starting model retraining...")
-    try:
-        model, risk_engine, version, promoted, candidate_auc, current_auc, has_labels = retrain_model(
-            contamination=contamination, n_estimators=n_estimators, dry_run=dry_run
-        )
-
-        if not dry_run and promoted:
-            app.state.model = model
-            app.state.risk_engine = risk_engine
-            if app.state.model is not None:
-                try:
-                    app.state.explainer = shap.TreeExplainer(
-                        app.state.model, feature_perturbation="interventional"
-                    )
-                except Exception as e:
-                    logger.warning(f"SHAP re-init failed: {e}")
-                    app.state.explainer = None
-            logger.info(f"Hot-swapped to new model version: {version}")
-
-        # Construct response message based on promotion
-        if promoted:
-            msg = f"Model retrained and promoted. Version {version} is the new primary model (AUC: {candidate_auc:.4f} vs Current: {current_auc:.4f})."
-        else:
-            msg = f"Model retrained. Version {version} was NOT promoted (AUC: {candidate_auc:.4f} vs Current: {current_auc:.4f})."
-
-        return {
-            "status": "success",
-            "version": version,
-            "dry_run": dry_run,
-            "promoted": promoted,
-            "metrics": {
-                "candidate_auc": round(candidate_auc, 4),
-                "current_auc": round(current_auc, 4),
-                "has_labels": has_labels
-            },
-            "message": msg,
-            "model_path": f"saved_models/isolation_forest_{version}.joblib",
-            "risk_engine_path": f"saved_models/risk_engine_{version}.joblib",
-            "retrain_available": RETRAIN_AVAILABLE,
-            "timestamp": datetime.utcnow().isoformat(),
-        }
-    except Exception as e:
-        logger.error(f"Retraining failed: {e}")
-        logger.error(traceback.format_exc())
-        raise HTTPException(status_code=500, detail=f"Retraining failed: {str(e)}")
 
 
 @app.get("/stats", dependencies=[Depends(verify_api_key)])

@@ -76,7 +76,12 @@ def explain_transaction(
             X_row = X_row.reshape(1, -1)
         X_row = pd.DataFrame(X_row, columns=feature_names)
 
-    X_sub = X_row[feature_names]
+    if len(X_row.columns) == len(feature_names) and list(X_row.columns) == list(feature_names):
+        X_sub = X_row
+    else:
+        # Warning: if X_row has duplicate column names and feature_names has duplicates, this blows up shape.
+        # But we only hit this if not already aligned.
+        X_sub = X_row[feature_names]
     X_arr = X_sub.values
 
     if explainer is None:
