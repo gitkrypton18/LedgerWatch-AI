@@ -661,11 +661,8 @@ async def docs_redirect():
             {"path": "/batch-predict", "method": "POST", "auth": True},
             {"path": "/transactions", "method": "GET", "auth": True},
             {"path": "/transactions/{id}", "method": "GET", "auth": True},
-            {"path": "/transactions/{id}/feedback", "method": "PATCH", "auth": True},
             {"path": "/stats", "method": "GET", "auth": True},
-            {"path": "/feedback-stats", "method": "GET", "auth": True},
             {"path": "/ocr", "method": "POST", "auth": True},
-
         ],
         "supported_formats": sorted(SUPPORTED_ALL_EXTS),
     }
@@ -997,142 +994,6 @@ async def clear_transactions(db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail="Failed to clear database")
 
 
-class ModelSwapRequest(BaseModel):
-    version: str
-
-
-@app.get("/models", dependencies=[Depends(verify_api_key)])
-async def list_models():
-    models_dir = Path("saved_models")
-    if not models_dir.exists():
-        models_dir = Path("backend/saved_models")
-
-    models = []
-
-    if models_dir.exists():
-        for file in models_dir.glob("isolation_forest_*.joblib"):
-            try:
-                data = joblib.load(file)
-                if isinstance(data, dict):
-                    version = data.get("version", file.stem.replace("isolation_forest_", ""))
-                    trained_at = data.get("trained_at", "Unknown")
-                    n_samples = data.get("n_samples", 0)
-                    contamination = data.get("contamination", 0.0)
-                    val_auc = data.get("val_auc", 0.8946)
-                else:
-                    version = file.stem.replace("isolation_forest_", "")
-                    trained_at = "Unknown"
-                    n_samples = 0
-                    contamination = 0.0
-                    val_auc = 0.8946
-
-                is_active = Path(settings.MODEL_PATH).name == file.name
-
-                models.append({
-                    "version": version,
-                    "filename": file.name,
-                    "trained_at": trained_at,
-                    "n_samples": n_samples,
-                    "contamination": contamination,
-                    "val_auc": round(float(val_auc), 4),
-                    "is_active": is_active
-                })
-            except Exception as e:
-                logger.warning(f"Failed to load metadata for model file {file}: {e}")
-
-    # Sort models by version descending (so newer version is at the top)
-    models.sort(key=lambda x: x["version"], reverse=True)
-    return models
-
-
-@app.post("/models/swap", dependencies=[Depends(verify_api_key)])
-async def swap_model(request: ModelSwapRequest):
-    version = request.version
-    clean_version = version.lstrip('v')
-
-    models_dir = Path("saved_models")
-    if not models_dir.exists():
-        models_dir = Path("backend/saved_models")
-
-    # Try multiple filename permutations for the model file
-    model_candidates = [
-        models_dir / f"isolation_forest_{version}.joblib",
-        models_dir / f"isolation_forest_v{version}.joblib",
-        models_dir / f"isolation_forest_{clean_version}.joblib",
-        models_dir / f"isolation_forest_v{clean_version}.joblib"
-    ]
-
-    model_path = None
-    for candidate in model_candidates:
-        if candidate.exists():
-            model_path = candidate
-            break
-
-    if not model_path:
-        raise HTTPException(
-            status_code=404, 
-            detail=f"Model version {version} not found in saved models."
-        )
-
-    # Resolve risk engine path. Start by checking matching risk engine file suffixes,
-    # and default/fallback to name substitution of the found model.
-    risk_candidates = [
-        model_path.parent / model_path.name.replace("isolation_forest_", "risk_engine_"),
-        models_dir / f"risk_engine_{version}.joblib",
-        models_dir / f"risk_engine_v{version}.joblib",
-        models_dir / f"risk_engine_{clean_version}.joblib",
-        models_dir / f"risk_engine_v{clean_version}.joblib"
-    ]
-    
-    risk_path = None
-    for candidate in risk_candidates:
-        if candidate.exists():
-            risk_path = candidate
-            break
-            
-    if not risk_path:
-        # Default to the most logical name if none exist
-        risk_path = risk_candidates[0]
-
-    try:
-        # Load and update FastAPI state model
-        model_data = joblib.load(model_path)
-        if isinstance(model_data, dict) and "model" in model_data:
-            app.state.model = model_data["model"]
-            app.state.expected_features = model_data.get("feature_names", [])
-        else:
-            app.state.model = model_data
-            app.state.expected_features = []
-
-        # Load and update FastAPI state risk engine
-        if risk_path.exists():
-            app.state.risk_engine = RiskEngine.load(str(risk_path))
-        else:
-            logger.warning(f"Risk engine file not found for version {version}: {risk_path}")
-            app.state.risk_engine = None
-
-        # Re-initialize SHAP
-        if app.state.model is not None:
-            try:
-                app.state.explainer = shap.TreeExplainer(
-                    app.state.model, feature_perturbation="interventional"
-                )
-            except Exception as e:
-                logger.warning(f"SHAP re-init failed on model swap: {e}")
-                app.state.explainer = None
-
-        # Update environment settings file & memory config paths
-        from src.retrain import update_env_file
-        update_env_file(str(model_path.as_posix()), str(risk_path.as_posix()))
-        settings.MODEL_PATH = str(model_path.as_posix())
-        settings.RISK_ENGINE_PATH = str(risk_path.as_posix())
-
-        logger.info(f"Successfully swapped active model to version: {version}")
-        return {"message": f"Successfully swapped active model to version {version}", "version": version}
-    except Exception as e:
-        logger.error(f"Failed to swap model to version {version}: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to swap model: {str(e)}")
-
 
 @app.get("/transactions/{transaction_id}", dependencies=[Depends(verify_api_key)])
 async def get_transaction(transaction_id: int, db: Session = Depends(get_db)):
@@ -1141,66 +1002,6 @@ async def get_transaction(transaction_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Transaction not found")
     return TransactionRead.model_validate(tx)
 
-
-@app.patch(
-    "/transactions/{transaction_id}/feedback", dependencies=[Depends(verify_api_key)]
-)
-async def add_feedback(
-    transaction_id: int,
-    feedback_correct: bool,
-    feedback_notes: Optional[str] = None,
-    reviewed_by: str = "analyst",
-    db: Session = Depends(get_db),
-):
-    tx = db.query(DBTransaction).filter(DBTransaction.id == transaction_id).first()
-    if not tx:
-        raise HTTPException(status_code=404, detail="Transaction not found")
-
-    tx.feedback_correct = feedback_correct
-    tx.feedback_notes = feedback_notes
-    tx.reviewed_at = datetime.utcnow()
-    tx.reviewed_by = reviewed_by
-    db.commit()
-    db.refresh(tx)
-
-    return {
-        "transaction_id": transaction_id,
-        "feedback_correct": feedback_correct,
-        "feedback_notes": feedback_notes,
-        "reviewed_at": tx.reviewed_at.isoformat() if tx.reviewed_at else None,
-        "reviewed_by": reviewed_by,
-        "message": "Feedback recorded for future retraining",
-    }
-
-
-@app.get("/feedback-stats", dependencies=[Depends(verify_api_key)])
-async def get_feedback_stats(db: Session = Depends(get_db)):
-    total = db.query(func.count(DBTransaction.id)).scalar() or 0
-    reviewed = (
-        db.query(func.count(DBTransaction.id))
-        .filter(DBTransaction.feedback_correct != None)
-        .scalar()
-    ) or 0
-    correct = (
-        db.query(func.count(DBTransaction.id))
-        .filter(DBTransaction.feedback_correct == True)
-        .scalar()
-    ) or 0
-    incorrect = (
-        db.query(func.count(DBTransaction.id))
-        .filter(DBTransaction.feedback_correct == False)
-        .scalar()
-    ) or 0
-
-    return {
-        "total_transactions": total,
-        "reviewed": reviewed,
-        "correct_predictions": correct,
-        "false_positives": incorrect,
-        "review_rate": round(reviewed / total, 4) if total else 0.0,
-        "accuracy": round(correct / reviewed, 4) if reviewed else None,
-        "needs_retraining": False,
-    }
 
 
 

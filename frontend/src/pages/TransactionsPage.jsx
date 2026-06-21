@@ -25,7 +25,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useStats, useTransactions } from '../hooks/useApi';
 import { useSettings } from '../context/SettingsContext';
-import ModelManagementModal from '../components/modals/ModelManagementModal';
+
 import api from '../lib/axios';
 
 const TYPE_CONFIG = {
@@ -176,7 +176,6 @@ export default function TransactionsPage() {
   const [useMock, setUseMock] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
-  const [isModelModalOpen, setIsModelModalOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
 
   const [searchParams, setSearchParams] = useSearchParams();
@@ -348,14 +347,6 @@ export default function TransactionsPage() {
           </button>
           {!useMock && (
             <>
-              <button
-                onClick={() => setIsModelModalOpen(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border bg-cyan-500/15 border border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/25 cursor-pointer transition-all"
-              >
-                <Brain className="w-3.5 h-3.5" />
-                Manage Models
-              </button>
-              
               <button
                 onClick={handleExportExcel}
                 disabled={exporting}
@@ -550,12 +541,6 @@ export default function TransactionsPage() {
       </div>
 
       {selectedTx && <DetailDrawer transaction={selectedTx} onClose={() => setSelectedTx(null)} />}
-
-      <ModelManagementModal
-        isOpen={isModelModalOpen}
-        onClose={() => setIsModelModalOpen(false)}
-        onModelSwapped={() => setRefreshTrigger(prev => prev + 1)}
-      />
     </div>
   );
 }

@@ -26,7 +26,6 @@ import {
     YAxis,
 } from "recharts";
 import { useHealth, useStats, useTransactions } from "../hooks/useApi";
-import ModelManagementModal from "../components/modals/ModelManagementModal";
 
 const MOCK_KPI = [
     { title: "Total Transactions", value: "5.0K", change: "+0%", trend: "neutral", icon: Database, color: "text-accent-info", bgColor: "bg-accent-info/10" },
@@ -134,7 +133,6 @@ export default function Dashboard() {
     const { settings } = useSettings();
     const [refreshTrigger, setRefreshTrigger] = useState(0);
     const prevCount = useRef(null);
-    const [isModelModalOpen, setIsModelModalOpen] = useState(false);
 
     // Dynamic background polling based on refresh interval setting
     useEffect(() => {
@@ -248,17 +246,7 @@ export default function Dashboard() {
                     <button onClick={() => setUseMock(!useMock)} className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${useMock ? "bg-amber-500/10 text-amber-400 border-amber-500/20" : "bg-background-tertiary text-text-muted border-border-subtle hover:text-text-primary"}`}>
                         {useMock ? "Mock" : "Live"}
                     </button>
-                    {!useMock && (
-                        <button
-                            onClick={() => setIsModelModalOpen(true)}
-                            disabled={!online}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border bg-cyan-500/15 border border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/25 cursor-pointer transition-all"
-                        >
-                            <Brain className="w-3.5 h-3.5" />
-                            Manage Models
-                        </button>
-                    )}
-                </div>
+                    </div>
             </div>
 
             {/* KPI Cards - Responsive Grid */}
@@ -403,11 +391,7 @@ export default function Dashboard() {
                 </div>
             </div>
 
-            <ModelManagementModal
-                isOpen={isModelModalOpen}
-                onClose={() => setIsModelModalOpen(false)}
-                onModelSwapped={() => setRefreshTrigger(prev => prev + 1)}
-            />
+
         </div>
     );
 }

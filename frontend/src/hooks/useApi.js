@@ -219,53 +219,7 @@ export const useOCR = () => {
     return { result: data, loading, error, progress, upload };
 };
 
-// ─── useModels ────────────────────────────────────────────────
-export const useModels = (trigger) => {
-    const [data, setData] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
 
-    const fetchModels = useCallback(async () => {
-        setLoading(true);
-        setError(null);
-        try {
-            const response = await api.get('/models');
-            setData(response.data);
-        } catch (err) {
-            setError(err.userMessage || err.message || 'Failed to fetch models');
-        } finally {
-            setLoading(false);
-        }
-    }, []);
-
-    useEffect(() => {
-        fetchModels();
-    }, [fetchModels, trigger]);
-
-    return { data, loading, error, refetch: fetchModels };
-};
-
-// ─── useSwapModel ─────────────────────────────────────────────
-export const useSwapModel = () => {
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState(null);
-
-    const swap = useCallback(async (version) => {
-        setLoading(true);
-        setError(null);
-        try {
-            const response = await api.post('/models/swap', { version });
-            return response.data;
-        } catch (err) {
-            setError(err.userMessage || err.message || 'Failed to swap model');
-            throw err;
-        } finally {
-            setLoading(false);
-        }
-    }, []);
-
-    return { swap, loading, error };
-};
 
 // ─── useMockFallback ──────────────────────────────────────────
 export const useMockFallback = (apiData, mockData) => {
