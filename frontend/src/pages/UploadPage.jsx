@@ -270,7 +270,7 @@ export default function UploadPage() {
         });
 
         setFiles((prev) => [...prev, ...validatedFiles]);
-    }, [files.length]);
+    }, [files.length, setFiles]);
 
     const handleDragOver = (e) => {
         e.preventDefault();
@@ -378,7 +378,7 @@ export default function UploadPage() {
                     : f
             ));
         }
-    }, [batchProgress, batchLoading]);
+    }, [batchProgress, batchLoading, setFiles]);
 
     useEffect(() => {
         if (ocrLoading && ocrProgress > 0) {
@@ -388,7 +388,7 @@ export default function UploadPage() {
                     : f
             ));
         }
-    }, [ocrProgress, ocrLoading]);
+    }, [ocrProgress, ocrLoading, setFiles]);
 
     const pendingCount = files.filter((f) => f.status === 'pending').length;
     const successCount = files.filter((f) => f.status === 'success').length;

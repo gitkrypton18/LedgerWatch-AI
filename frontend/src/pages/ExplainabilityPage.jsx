@@ -338,7 +338,7 @@ export default function ExplainabilityPage() {
     }
   }, [txError, useMock]);
 
-  const transactions = useMock ? MOCK_TRANSACTIONS : (apiTransactions || []);
+  const transactions = useMemo(() => useMock ? MOCK_TRANSACTIONS : (apiTransactions || []), [useMock, apiTransactions]);
 
   // Reset auto-selected status when urlId changes
   useEffect(() => {

@@ -1,7 +1,6 @@
 import {
     Activity,
     AlertTriangle,
-    Brain,
     Database,
     Shield,
     TrendingDown,

@@ -4,7 +4,7 @@ import {
   ArrowDown,
   ArrowUp,
   ArrowUpDown,
-  Brain,
+
   ChevronLeft,
   ChevronRight,
   ChevronsLeft,
@@ -95,7 +95,7 @@ const DetailDrawer = ({ transaction, onClose }) => {
     if (settings) {
       setExpanded(settings.showShap);
     }
-  }, [settings?.showShap]);
+  }, [settings, settings?.showShap]);
 
   if (!transaction) return null;
 
@@ -174,7 +174,7 @@ export default function TransactionsPage() {
   const [showFilters, setShowFilters] = useState(false);
   const [selectedTx, setSelectedTx] = useState(null);
   const [useMock, setUseMock] = useState(false);
-  const [refreshTrigger, setRefreshTrigger] = useState(0);
+
 
   const [exporting, setExporting] = useState(false);
 
@@ -279,8 +279,8 @@ export default function TransactionsPage() {
   }, [settings.pageSize]);
 
   const offset = (page - 1) * pageSize;
-  const { transactions: apiTransactions, count: totalCount, loading, error, refetch } = useTransactions(pageSize, offset, refreshTrigger);
-  const { data: statsData } = useStats(refreshTrigger);
+  const { transactions: apiTransactions, count: totalCount, loading, error, refetch } = useTransactions(pageSize, offset, 0);
+  const { data: statsData } = useStats(0);
 
   useEffect(() => {
     if (totalCount > 0 && page > 1 && (page - 1) * pageSize >= totalCount) setPage(1);
@@ -290,7 +290,7 @@ export default function TransactionsPage() {
     if (error && !useMock) setUseMock(true);
   }, [error, useMock]);
 
-  const rawTransactions = useMock ? [] : (apiTransactions || []);
+  const rawTransactions = useMemo(() => useMock ? [] : (apiTransactions || []), [useMock, apiTransactions]);
   const totalItems = useMock ? 0 : (totalCount || 0);
   const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
 
