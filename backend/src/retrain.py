@@ -314,6 +314,8 @@ def retrain_model(
                 "newbalanceDest",
                 "isFraud",
                 "isFlaggedFraud",
+                "is_anomaly",
+                "risk_score",
             }
         ]
 

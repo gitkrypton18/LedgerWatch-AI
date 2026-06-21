@@ -11,6 +11,7 @@ import logging
 import os
 import tempfile
 import time
+import traceback
 from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
