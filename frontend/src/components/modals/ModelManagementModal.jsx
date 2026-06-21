@@ -16,10 +16,10 @@ import { useModels, useSwapModel } from '../../hooks/useApi';
 export default function ModelManagementModal({ isOpen, onClose, onModelSwapped }) {
     const [triggerFetch, setTriggerFetch] = useState(0);
     const { data: models, loading: loadingModels, error: fetchError } = useModels(triggerFetch);
-
+    const { swap, loading: swapping } = useSwapModel();
+    const [actionMessage, setActionMessage] = useState(null);
 
     const handleSwap = async (version) => {
-        setRetrainResult(null);
         setActionMessage(null);
         try {
             await swap(version);
