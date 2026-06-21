@@ -57,7 +57,7 @@ def get_database_url():
 
 
 DATABASE_URL = get_database_url()
-print(f"📁 Database URL: {DATABASE_URL}")  # Log for debugging
+print(f"Database URL: {DATABASE_URL}")  # Log for debugging
 
 # SQLite needs a special setting for FastAPI later.
 # SQLite is single-threaded by default, but FastAPI uses multiple threads.

@@ -245,11 +245,11 @@ def retrain_model(
         # 1. Fetch data (LIMITED for memory efficiency)
         db_data = fetch_all_data(db, limit=max_rows)
         if not db_data.empty:
-            # Filter out database records that are already flagged as anomalous (is_anomaly == True)
-            # or high risk (risk_score >= 70) to prevent model contamination.
-            # Unsupervised models trained on anomalies learn to normalize them, leading to underfitting of outliers.
-            db_data_clean = db_data[(db_data["is_anomaly"] == False) & (db_data["risk_score"] < 70)]
-            logger.info(f"Retraining data: filtered out {len(db_data) - len(db_data_clean)} anomalies/high-risk transactions from DB training set (remaining: {len(db_data_clean)})")
+            # Filter out ONLY confirmed fraud (isFraud == 1) to prevent true anomalies from
+            # being learned as normal. Do NOT filter out unverified model predictions 
+            # (is_anomaly/risk_score) as that causes a runaway overfitting feedback loop.
+            db_data_clean = db_data[db_data["isFraud"] != 1]
+            logger.info(f"Retraining data: filtered out {len(db_data) - len(db_data_clean)} confirmed frauds from DB training set (remaining: {len(db_data_clean)})")
             db_data = db_data_clean
         original_data = fetch_original_data(sample_size=max_rows)
 
